@@ -41,10 +41,10 @@ def get_spline_mask(time, period, t0, tdur):
   outtran = (np.abs(phase) > (tdur / 2))
   return outtran
 
+
 def filter_outliers(time, flux, mask):
   valid = ~np.isnan(flux)
   return time[valid], flux[valid], mask[valid]
-  return time, flux
 
 
 def detrend_and_filter(tic_id, time, flux, period, epoch, duration, fixed_bkspace):
@@ -55,24 +55,9 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration, fixed_bkspac
   return filter_outliers(time, detrended_flux, input_mask)
 
 
-def phase_fold_and_sort_light_curve(time, flux, period, t0):
-  """Phase folds a light curve and sorts by ascending time.
-
-  Args:
-    time: 1D NumPy array of time values.
-    flux: 1D NumPy array of flux values.
-    period: A positive real scalar; the period to fold over.
-    t0: The center of the resulting folded vector; this value is mapped to 0.
-
-  Returns:
-    folded_time: 1D NumPy array of phase folded time values in
-        [-period / 2, period / 2), where 0 corresponds to t0 in the original
-        time array. Values are sorted in ascending order.
-    folded_flux: 1D NumPy array. Values are the same as the original input
-        array, but sorted by folded_time.
-  """
+def phase_fold_and_sort_light_curve(time, flux, mask, period, t0):
   if not len(time):
-    return np.array([]), np.array([]), np.array([])
+    return np.array([]), np.array([]), np.array([]), np.array([])
 
   # Phase fold time.
   time, fold_num = util.phase_fold_time(time, period, t0)
@@ -81,9 +66,10 @@ def phase_fold_and_sort_light_curve(time, flux, period, t0):
   sorted_i = np.argsort(time)
   time = time[sorted_i]
   flux = flux[sorted_i]
+  mask = mask[sorted_i]
   fold_num = fold_num[sorted_i]
 
-  return time, flux, fold_num
+  return time, flux, fold_num, mask
 
 
 def generate_view(tic_id,
@@ -326,15 +312,15 @@ def sample_segments_view(tic_id,
                          num_transits=7):
     times, fluxes, nums = sample_segments(time, flux, fold_num, period, num_transits=num_transits)
     full_view = []
-    for t, f in zip(times, fluxes):
+    for t, f, n in zip(times, fluxes, nums):
         view, _, mask, _ = generate_view(
                 tic_id, 
                 t,
                 f,
                 period,
                 num_bins=num_bins,
-                t_min=min(t) if len(t) else 0,
-                t_max=max(t) if len(t) else 0,
+                t_min=(period * (n - 0.5)),
+                t_max=(period * (n + 0.5)),
                 normalize=False,
             )
         full_view.append(view)

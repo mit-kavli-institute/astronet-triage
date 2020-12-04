@@ -115,14 +115,14 @@ parser.add_argument(
 
 
 
-def _set_float_feature(ex, tce, name, value):
+def _set_float_feature(ex, tic_id, name, value):
   """Sets the value of a float feature in a tensorflow.train.Example proto."""
   assert name not in ex.features.feature, "Duplicate feature: %s" % name
   if isinstance(value, np.ndarray):
     value = value.reshape((-1,))
   values = [float(v) for v in value]
   if any(np.isnan(values)):
-    raise ValueError(f'NaNs in {name} for {tce.tic_id}')
+    raise ValueError(f'NaNs in {name} for {tic_id}')
   ex.features.feature[name].float_list.value.extend(values)
 
 
@@ -138,59 +138,58 @@ def _set_int64_feature(ex, name, value):
   ex.features.feature[name].int64_list.value.extend([int(v) for v in value])
 
 
+def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace):
+  if bkspace is None:
+    tag = ''
+  else:
+    tag = f'_{bkspace}'
+    
+  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(
+      tic, time, flux, period, epoc, duration, bkspace)
+  time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
+      detrended_time, detrended_flux, transit_mask, period, epoc)
+
+  view, std, mask, _ = preprocess.global_view(tic, time, flux, period)
+  _set_float_feature(ex, tic, f'global_view{tag}', view)
+  _set_float_feature(ex, tic, f'global_std{tag}', std)
+  _set_float_feature(ex, tic, f'global_mask{tag}', mask)
+
+  view, std, mask, _ = preprocess.local_view(tic, time, flux, period, duration)
+  _set_float_feature(ex, tic, f'local_view{tag}', view)
+  _set_float_feature(ex, tic, f'local_std{tag}', std)
+  _set_float_feature(ex, tic, f'local_mask{tag}', mask)
+
+  view, std, mask, _ = preprocess.secondary_view(tic, time, flux, period, duration)
+  _set_float_feature(ex, tic, f'secondary_view{tag}', view)
+  _set_float_feature(ex, tic, f'secondary_std{tag}', std)
+  _set_float_feature(ex, tic, f'secondary_mask{tag}', mask)
+
+  view = preprocess.sample_segments_view(tic, time, flux, fold_num, period)
+  _set_float_feature(ex, tic, f'sample_segments_view{tag}', view)
+  
+  time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
+      detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
+  view, _, _, _ = preprocess.global_view(tic, time, flux, period * 2)
+  _set_float_feature(ex, tic, f'global_view_double_period{tag}', view)
+
+  time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
+      detrended_time, detrended_flux, transit_mask, period / 2, epoc)
+  view, _, _, _ = preprocess.global_view(tic, time, flux, period / 2)
+  _set_float_feature(ex, tic, f'global_view_half_period{tag}', view)
+    
+  return fold_num
+
+
 def _process_tce(tce, bkspace=None):
-  orig_time, orig_flux = preprocess.read_and_process_light_curve(
-      tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX')
+  time, flux = preprocess.read_and_process_light_curve(tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX')
   ex = tf.train.Example()
 
-  detrended_time, detrended_flux, _ = preprocess.detrend_and_filter(
-      tce.tic_id, orig_time, orig_flux, tce.Period, tce.Epoc, tce.Duration, bkspace)
-  time, flux, fold_num = preprocess.phase_fold_and_sort_light_curve(
-      detrended_time, detrended_flux, tce.Period, tce.Epoc)
-    
-  global_view, global_std, global_mask, _ = preprocess.global_view(
-      tce.tic_id, time, flux, tce.Period)
-  local_view, local_std, local_mask, _ = preprocess.local_view(
-      tce.tic_id, time, flux, tce.Period, tce.Duration)
-  secondary_view, secondary_std, secondary_mask, _ = preprocess.secondary_view(
-      tce.tic_id, time, flux, tce.Period, tce.Duration)
-
-  sample_segments_view = preprocess.sample_segments_view(tce.tic_id, time, flux, fold_num, tce.Period)
-
-  _set_float_feature(ex, tce, 'global_view', global_view)
-  _set_float_feature(ex, tce, 'global_std', global_std)
-  _set_float_feature(ex, tce, 'global_mask', global_mask)
-  _set_float_feature(ex, tce, 'local_view', local_view)
-  _set_float_feature(ex, tce, 'local_std', local_std)
-  _set_float_feature(ex, tce, 'local_mask', local_mask)
-  _set_float_feature(ex, tce, 'secondary_view', secondary_view)
-  _set_float_feature(ex, tce, 'secondary_std', secondary_std)
-  _set_float_feature(ex, tce, 'secondary_mask', secondary_mask)
-
-  _set_float_feature(ex, tce, 'sample_segments_view', sample_segments_view)
+  for bkspace in [0.3, 0.7, 1.5, 5.0, None]:
+    fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace)
 
   _set_float_feature(ex, tce, 'n_folds', [max(fold_num) if len(fold_num) else 0])
   _set_float_feature(ex, tce, 'n_points', [len(fold_num) if len(fold_num) else 0])
-
-  time, flux, fold_num = preprocess.phase_fold_and_sort_light_curve(
-      detrended_time, detrended_flux, tce.Period * 2, tce.Epoc - tce.Period / 2)
-  global_view, _, _, _ = preprocess.global_view(tce.tic_id, time, flux, tce.Period * 2)
-  _set_float_feature(ex, tce, 'global_view_double_period', global_view)
-
-  time, flux, fold_num = preprocess.phase_fold_and_sort_light_curve(
-      detrended_time, detrended_flux, tce.Period / 2, tce.Epoc)
-  global_view, _, _, _ = preprocess.global_view(tce.tic_id, time, flux, tce.Period / 2)
-  _set_float_feature(ex, tce, 'global_view_half_period', global_view)
-
-  for bkspace_f in [0.3, 0.7, 1.5, 5.0]:
-    time, flux, _ = preprocess.detrend_and_filter(
-        tce.tic_id, orig_time, orig_flux, tce.Period, tce.Epoc, tce.Duration, bkspace_f)
-    time, flux, fold_num = preprocess.phase_fold_and_sort_light_curve(time, flux, tce.Period, tce.Epoc)
-    global_view, _, global_mask, _ = preprocess.global_view(tce.tic_id, time, flux, tce.Period)
-    _set_float_feature(ex, tce, f'global_view_{bkspace_f}', global_view)
-    _set_float_feature(ex, tce, f'global_view_{bkspace_f}_mask', global_mask)
-
-
+    
   for col_name, value in tce.items():
     if col_name.lower() in ('tic_id', 'tic id', 'epoc', 'sectors') or col_name.startswith('disp_'):
         _set_int64_feature(ex, col_name, [int(value)])
