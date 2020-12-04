@@ -76,7 +76,7 @@ parser.add_argument(
 parser.add_argument(
     "--shuffle_buffer_size",
     type=int,
-    default=15000,
+    default=25000,
     help="Size of the shuffle buffer for the training dataset.")
 
 

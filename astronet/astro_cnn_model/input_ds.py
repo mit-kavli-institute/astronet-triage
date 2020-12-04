@@ -100,16 +100,14 @@ def build_dataset(file_pattern,
 
     filenames = tf.io.gfile.glob(file_pattern)
     ds = tf.data.Dataset.from_tensor_slices(filenames)
-    if len(filenames) > 1 and shuffle_filenames:
-        ds = ds.shuffle(len(filenames))
-
     ds = ds.flat_map(tf.data.TFRecordDataset)
+    ds = ds.map(parse_example)
+    ds = ds.cache()
 
     if shuffle_values_buffer > 0:
         ds = ds.shuffle(shuffle_values_buffer)
     if repeat != 1:
         ds = ds.repeat(repeat)
-    ds = ds.map(parse_example)
     ds = ds.batch(batch_size)
     ds = ds.prefetch(10)
 
