@@ -150,9 +150,11 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace):
       detrended_time, detrended_flux, transit_mask, period, epoc)
 
   view, std, mask, _ = preprocess.global_view(tic, time, flux, period)
+  tr_mask, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period)
   _set_float_feature(ex, tic, f'global_view{tag}', view)
   _set_float_feature(ex, tic, f'global_std{tag}', std)
   _set_float_feature(ex, tic, f'global_mask{tag}', mask)
+  _set_float_feature(ex, tic, f'global_transit_mask{tag}', tr_mask)
 
   view, std, mask, _ = preprocess.local_view(tic, time, flux, period, duration)
   _set_float_feature(ex, tic, f'local_view{tag}', view)

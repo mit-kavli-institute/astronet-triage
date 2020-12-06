@@ -80,6 +80,7 @@ def generate_view(tic_id,
                   t_min,
                   t_max,
                   normalize=True,
+                  binning=None
                  ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -95,7 +96,11 @@ def generate_view(tic_id,
     1D NumPy array of size num_bins containing the median flux values of
     uniformly spaced bins on the phase-folded time axis.
   """
-  view, mask, std = median_filter2.new_binning(time, flux, period, num_bins, t_min, t_max)
+  if binning is None:
+    view, mask, std = median_filter2.new_binning(time, flux, period, num_bins, t_min, t_max)
+  else:
+    view, mask, std = median_filter2.new_binning(
+        time, flux, period, num_bins, t_min, t_max, method=binning)
 
   overshot_mask = np.zeros_like(view)
   if normalize:
@@ -143,6 +148,19 @@ def global_view(tic_id, time, flux, period, num_bins=201):
       num_bins=num_bins,
       t_min=-period / 2,
       t_max=period / 2)
+
+
+def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):
+  return generate_view(
+      tic_id, 
+      time,
+      1 - tr_mask,
+      period,
+      num_bins=num_bins,
+      t_min=-period / 2,
+      t_max=period / 2,
+      normalize=False,
+      binning='max')
 
 
 def local_view(tic_id, 
@@ -308,7 +326,7 @@ def sample_segments_view(tic_id,
                          flux,
                          fold_num,
                          period,
-                         num_bins=101,
+                         num_bins=201,
                          num_transits=7):
     times, fluxes, nums = sample_segments(time, flux, fold_num, period, num_transits=num_transits)
     full_view = []

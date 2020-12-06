@@ -275,11 +275,15 @@ def extended():
                     "shape": [201],
                     "is_time_series": True,
                 },
+                "global_std": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
                 "global_mask": {
                     "shape": [201],
                     "is_time_series": True,
                 },
-                "global_std": {
+                "global_transit_mask": {
                     "shape": [201],
                     "is_time_series": True,
                 },
@@ -287,7 +291,7 @@ def extended():
                     "shape": [201],
                     "is_time_series": True,
                 },
-                "global_view_0.3_mask": {
+                "global_mask_0.3": {
                     "shape": [201],
                     "is_time_series": True,
                 },
@@ -295,7 +299,7 @@ def extended():
                     "shape": [201],
                     "is_time_series": True,
                 },
-                "global_view_5.0_mask": {
+                "global_mask_5.0": {
                     "shape": [201],
                     "is_time_series": True,
                 },
@@ -303,11 +307,11 @@ def extended():
                     "shape": [61],
                     "is_time_series": True,
                 },
-                "local_mask": {
+                "local_std": {
                     "shape": [61],
                     "is_time_series": True,
                 },
-                "local_std": {
+                "local_mask": {
                     "shape": [61],
                     "is_time_series": True,
                 },
@@ -315,11 +319,11 @@ def extended():
                     "shape": [61],
                     "is_time_series": True,
                 },
-                "secondary_mask": {
+                "secondary_std": {
                     "shape": [61],
                     "is_time_series": True,
                 },
-                "secondary_std": {
+                "secondary_mask": {
                     "shape": [61],
                     "is_time_series": True,
                 },
@@ -332,7 +336,7 @@ def extended():
                     "is_time_series": True,
                 },
                 "sample_segments_view": {
-                    "shape": [101, 14],
+                    "shape": [201, 14],
                     "is_time_series": True,
                 },
                 "Period": {
@@ -438,12 +442,13 @@ def extended():
                     "pool_size": 5,
                     "pool_strides": 1,
                     "extra_channels": [
-                        "global_mask",
                         "global_std",
+                        "global_mask",
+                        "global_transit_mask",
                         "global_view_0.3",
-                        "global_view_0.3_mask",
+                        "global_mask_0.3",
                         "global_view_5.0",
-                        "global_view_5.0_mask",
+                        "global_mask_5.0",
                     ],
                 },
                 "global_view_double_period": {

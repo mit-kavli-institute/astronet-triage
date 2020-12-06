@@ -25,7 +25,7 @@ def tmod(t, p, e):
 def get_overlap(min1, max1, min2, max2):
     return(max(0, min(max1, max2) - max(min1, min2)))
 
-def new_binning(time, flux, period, num_bins, t_min, t_max):
+def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean'):
   t = time.copy()
   
   bins_left_edge, step = np.linspace(
@@ -65,22 +65,26 @@ def new_binning(time, flux, period, num_bins, t_min, t_max):
         f[i] = f_x[0]
         continue
     
-    #calculate the robust mean to remove outliers
-    mask = keplersplinev2.robust_mean_mask(f_x)
-    
-    #remove outliers
-    f_x = f_x[mask]
-    in_bin = in_bin[mask]
+    if method == 'weighted_mean':
+        #calculate the robust mean to remove outliers
+        mask = keplersplinev2.robust_mean_mask(f_x)
+
+        #remove outliers
+        f_x = f_x[mask]
+        in_bin = in_bin[mask]
     
     if not len(f_x):
         v[i] = 0.0
         continue
 
-    #get the weight of each time point within the bin
-    weight = [get_overlap(-hbw, hbw, in_bin[j] - hc, in_bin[j] + hc) / bin_width
-              for j in range(len(in_bin))]
-    bin_flux = np.sum(weight * f_x) / np.sum(weight)
-    f[i] = bin_flux
+    if method == 'weighted_mean':
+        #get the weight of each time point within the bin
+        weight = [get_overlap(-hbw, hbw, in_bin[j] - hc, in_bin[j] + hc) / bin_width
+                  for j in range(len(in_bin))]
+        bin_flux = np.sum(weight * f_x) / np.sum(weight)
+        f[i] = bin_flux
+    elif method == 'max':
+        f[i] = np.max(f_x)
     s[i] = np.std(f_x)
 
   return f, v, s
