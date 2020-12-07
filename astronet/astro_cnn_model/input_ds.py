@@ -102,7 +102,8 @@ def build_dataset(file_pattern,
     ds = tf.data.Dataset.from_tensor_slices(filenames)
     ds = ds.flat_map(tf.data.TFRecordDataset)
     ds = ds.map(parse_example)
-    ds = ds.cache()
+    if repeat != 1:
+        ds = ds.cache()
 
     if shuffle_values_buffer > 0:
         ds = ds.shuffle(shuffle_values_buffer)

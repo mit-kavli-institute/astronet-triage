@@ -117,9 +117,10 @@ class AstroCNNModel(tf.keras.Model):
                     ts_inputs[k] = tf.stack(chans, axis=-1)
             elif k in self.config.hparams.aux_inputs:
                 aux_inputs[k] = v
-        y = [
-          self._apply_block(
-              self.ts_blocks[k], v, training) for k, v in ts_inputs.items()]
+        y = []
+        for k, v in ts_inputs.items():
+            y_k = self._apply_block(self.ts_blocks[k], v, training)
+            y.append(y_k)
         y.extend(aux_inputs.values())
         y = self._apply_block(self.final, y, training)
 
