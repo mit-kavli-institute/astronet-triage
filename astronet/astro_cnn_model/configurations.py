@@ -331,6 +331,14 @@ def extended():
                     "shape": [201, 14],
                     "is_time_series": True,
                 },
+                "sample_segments_view_0.3": {
+                    "shape": [201, 14],
+                    "is_time_series": True,
+                },
+                "sample_segments_view_5.0": {
+                    "shape": [201, 14],
+                    "is_time_series": True,
+                },
                 "Period": {
                     "shape": [1],
                     "is_time_series": False,
@@ -492,13 +500,17 @@ def extended():
                 "sample_segments_view": {
                     "cnn_num_blocks": 3,
                     "cnn_block_size": 1,
-                    "cnn_initial_num_filters": 17,
+                    "cnn_initial_num_filters": 51,
                     "cnn_block_filter_factor": 2,
                     "cnn_kernel_size": 3,
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 2,
                     "multichannel": True,
+                    "extra_channels": [
+                        "sample_segments_view_0.3",
+                        "sample_segments_view_5.0",
+                    ],
                 },
             },
         },

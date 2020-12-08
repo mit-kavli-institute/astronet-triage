@@ -108,12 +108,12 @@ class AstroCNNModel(tf.keras.Model):
         for k, v in inputs.items():
             if k in self.config.hparams.time_series_hidden:
                 c = self.config.hparams.time_series_hidden[k]
+                chans = [v]
+                for extra in getattr(c, 'extra_channels', []):
+                    chans.append(inputs[extra])
                 if getattr(c, 'multichannel', False):
-                    ts_inputs[k] = v
+                    ts_inputs[k] = tf.concat(chans, axis=-1)
                 else:
-                    chans = [v]
-                    for extra in getattr(c, 'extra_channels', []):
-                        chans.append(inputs[extra])
                     ts_inputs[k] = tf.stack(chans, axis=-1)
             elif k in self.config.hparams.aux_inputs:
                 aux_inputs[k] = v

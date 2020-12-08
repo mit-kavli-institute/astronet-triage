@@ -42,7 +42,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   
   f = np.zeros(num_bins)
   s = np.zeros(num_bins)
-  v = np.ones(num_bins)
+  m = np.ones(num_bins)
   for i, b in enumerate(bins_center):
     #time from bin center
     t_c = tmod(t, period, b)
@@ -51,14 +51,14 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     bin_mask = abs(t_c) <= hbw + hc
 
     if not any(bin_mask):
-        v[i] = 0.0
+        m[i] = 0.0
         continue
 
     in_bin = t_c[bin_mask]
     f_x = flux[bin_mask]
     
     if not len(f_x):
-        v[i] = 0.0
+        m[i] = 0.0
         continue
 
     if len(f_x) == 1:
@@ -74,7 +74,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         in_bin = in_bin[mask]
     
     if not len(f_x):
-        v[i] = 0.0
+        m[i] = 0.0
         continue
 
     if method == 'weighted_mean':
@@ -87,4 +87,4 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         f[i] = np.max(f_x)
     s[i] = np.std(f_x)
 
-  return f, v, s
+  return f, m, s
