@@ -307,6 +307,22 @@ def extended():
                     "shape": [61],
                     "is_time_series": True,
                 },
+                "local_view_0.3": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_mask_0.3": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_view_5.0": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_mask_5.0": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
                 "secondary_view": {
                     "shape": [61],
                     "is_time_series": True,
@@ -316,6 +332,22 @@ def extended():
                     "is_time_series": True,
                 },
                 "secondary_mask": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_view_0.3": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_mask_0.3": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_view_5.0": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_mask_5.0": {
                     "shape": [61],
                     "is_time_series": True,
                 },
@@ -481,6 +513,10 @@ def extended():
                     "extra_channels": [
                         "local_std",
                         "local_mask",
+                        "local_view_0.3",
+                        "local_mask_0.3",
+                        "local_view_5.0",
+                        "local_mask_5.0",
                     ],
                 },
                 "secondary_view": {
@@ -495,6 +531,10 @@ def extended():
                     "extra_channels": [
                         "secondary_std",
                         "secondary_mask",
+                        "secondary_view_0.3",
+                        "secondary_mask_0.3",
+                        "secondary_view_5.0",
+                        "secondary_mask_5.0",
                     ],
                 },
                 "sample_segments_view": {
