@@ -102,6 +102,7 @@ def generate_view(tic_id,
     view, mask, std = median_filter2.new_binning(
         time, flux, period, num_bins, t_min, t_max, method=binning)
 
+  scale = 0.0
   overshot_mask = np.zeros_like(view)
   if normalize:
     # Normalization places:
@@ -121,8 +122,6 @@ def generate_view(tic_id,
         view[~bool_mask] = 0.0
 
         overshot_mask[view > 1.0] = 1.0
-  else:
-    scale = 0.0
 
   return view, std, mask, scale
 
