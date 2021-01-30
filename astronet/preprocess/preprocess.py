@@ -103,7 +103,6 @@ def generate_view(tic_id,
         time, flux, period, num_bins, t_min, t_max, method=binning)
 
   scale = 0.0
-  overshot_mask = np.zeros_like(view)
   if normalize:
     # Normalization places:
     #  * the minimum value at -1.0
@@ -113,15 +112,15 @@ def generate_view(tic_id,
     # TODO: Use mean(50%ile) instead?
     bool_mask = mask > 0
     if any(bool_mask):
-        view[bool_mask] = view[bool_mask] - np.min(view[bool_mask])
+        depth = np.min(view[bool_mask])
+        view = np.where(bool_mask, view - depth, view)
         scale = np.abs(np.median(view[bool_mask]))
         if scale > 0:
             view /= scale
             std /= scale
         view -= 1.0
-        view[~bool_mask] = 0.0
-
-        overshot_mask[view > 1.0] = 1.0
+        view = np.where(bool_mask, view, 0.0)
+        std = np.where(bool_mask, std, 0.0)
 
   return view, std, mask, scale
 
@@ -289,7 +288,7 @@ def secondary_view(tic_id,
         t_min = max(t0 - period / 2, t0 - duration * num_durations, new_time[0])
         t_max = min(t0 + period / 2, t0 + duration * num_durations, new_time[-1])
     else:
-        new_time, new_flux = time, flux
+        t0, new_time, new_flux = 0.0, time, flux
         t_min = 0.0
         t_max = 0.0
 
