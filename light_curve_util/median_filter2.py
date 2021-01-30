@@ -36,7 +36,9 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   
   bins_center = bins_left_edge + 0.5 * bin_width
 
-  cadence = 0.4904 / 24 #converts hours to days
+  # TODO: Change cadence to 10 minutes.
+  cadence_hours = 0.5
+  cadence = cadence_hours / 24
   hc = cadence / 2
   hbw = bin_width / 2
   
@@ -44,10 +46,10 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   s = np.zeros(num_bins)
   m = np.ones(num_bins)
   for i, b in enumerate(bins_center):
-    #time from bin center
+    # time from bin center
     t_c = tmod(t, period, b)
     
-    #find which points are within the bin
+    # find which points are within the bin
     bin_mask = abs(t_c) <= hbw + hc
 
     if not any(bin_mask):
@@ -66,10 +68,10 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         continue
     
     if method == 'weighted_mean':
-        #calculate the robust mean to remove outliers
+        # calculate the robust mean to remove outliers
         mask = keplersplinev2.robust_mean_mask(f_x)
 
-        #remove outliers
+        # remove outliers
         f_x = f_x[mask]
         in_bin = in_bin[mask]
     
@@ -78,7 +80,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         continue
 
     if method == 'weighted_mean':
-        #get the weight of each time point within the bin
+        # get the weight of each time point within the bin
         weight = [get_overlap(-hbw, hbw, in_bin[j] - hc, in_bin[j] + hc) / bin_width
                   for j in range(len(in_bin))]
         bin_flux = np.sum(weight * f_x) / np.sum(weight)

@@ -156,27 +156,30 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace):
   _set_float_feature(ex, tic, f'global_mask{tag}', mask)
   _set_float_feature(ex, tic, f'global_transit_mask{tag}', tr_mask)
 
-  view, std, mask, _ = preprocess.local_view(tic, time, flux, period, duration)
+  view, std, mask, scale = preprocess.local_view(tic, time, flux, period, duration)
   _set_float_feature(ex, tic, f'local_view{tag}', view)
   _set_float_feature(ex, tic, f'local_std{tag}', std)
   _set_float_feature(ex, tic, f'local_mask{tag}', mask)
+  _set_float_feature(ex, tic, f'local_scale{tag}', [scale])
 
-  view, std, mask, _ = preprocess.secondary_view(tic, time, flux, period, duration)
+  (view, std, mask, scale), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
   _set_float_feature(ex, tic, f'secondary_view{tag}', view)
   _set_float_feature(ex, tic, f'secondary_std{tag}', std)
   _set_float_feature(ex, tic, f'secondary_mask{tag}', mask)
+  _set_float_feature(ex, tic, f'secondary_phase{tag}', [t0 / period])
+  _set_float_feature(ex, tic, f'secondary_scale{tag}', [scale])
 
   view = preprocess.sample_segments_view(tic, time, flux, fold_num, period)
   _set_float_feature(ex, tic, f'sample_segments_view{tag}', view)
   
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
-  view, _, _, _ = preprocess.global_view(tic, time, flux, period * 2)
+  view, _, _, scale = preprocess.global_view(tic, time, flux, period * 2)
   _set_float_feature(ex, tic, f'global_view_double_period{tag}', view)
 
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
-  view, _, _, _ = preprocess.global_view(tic, time, flux, period / 2)
+  view, _, _, scale = preprocess.global_view(tic, time, flux, period / 2)
   _set_float_feature(ex, tic, f'global_view_half_period{tag}', view)
     
   return fold_num
