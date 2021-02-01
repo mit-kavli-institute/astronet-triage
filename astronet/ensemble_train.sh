@@ -12,6 +12,6 @@ do
         --eval_files='/mnt/tess/astronet/tfrecords-23-val/*' \
         --train_steps=20000 \
         --train_epochs=1 \
-        --model_dir="/mnt/tess/astronet/checkpoints/extended_23_run_14/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/extended_23_run_15/${i}"
 done
 
