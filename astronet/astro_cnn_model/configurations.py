@@ -492,13 +492,13 @@ def extended():
                     "std": 0.202248,
                     "has_nans": False,
                 },
-                "Epoc": {
-                    "shape": [1],
-                    "is_time_series": False,
-                    "mean": 1648.151262,
-                    "std": 179.672102,
-                    "has_nans": False,
-                },
+#                 "Epoc": {
+#                     "shape": [1],
+#                     "is_time_series": False,
+#                     "mean": 1648.151262,
+#                     "std": 179.672102,
+#                     "has_nans": False,
+#                 },
             },
         },
 
