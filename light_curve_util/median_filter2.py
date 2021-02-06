@@ -22,8 +22,16 @@ def tmod(t, p, e):
     tmodn = tmodn + p * (tmodn <= -0.5 * p) - p * (tmodn >= 0.5 * p)
     return(tmodn)
 
-def get_overlap(min1, max1, min2, max2):
-    return(max(0, min(max1, max2) - max(min1, min2)))
+
+PHASE2_T = 2036.2
+HC_PHASE1 = 30.0 / 60.0 / 24 / 2
+HC_PHASE2 = 10.0 / 60.0 / 24 / 2
+
+
+def get_overlap(hbw, t):
+    hc = HC_PHASE1 if t < PHASE2_T else HC_PHASE2
+    return max(0, min(hbw, t + hc) - max(-hbw, t - hc))
+
 
 def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean'):
   t = time.copy()
@@ -36,12 +44,6 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   
   bins_center = bins_left_edge + 0.5 * bin_width
 
-  # TODO: Change cadence to 10 minutes.
-  cadence_hours = 0.5
-  cadence = cadence_hours / 24
-  hc = cadence / 2
-  hbw = bin_width / 2
-  
   f = np.zeros(num_bins)
   s = np.zeros(num_bins)
   m = np.ones(num_bins)
@@ -50,7 +52,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     t_c = tmod(t, period, b)
     
     # find which points are within the bin
-    bin_mask = abs(t_c) <= hbw + hc
+    bin_mask = abs(t_c) <= hbw + np.where(t_c > PHASE2_T, HC_PHASE2, HC_PHASE1)
 
     if not any(bin_mask):
         m[i] = 0.0
@@ -81,12 +83,13 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
 
     if method == 'weighted_mean':
         # get the weight of each time point within the bin
-        weight = [get_overlap(-hbw, hbw, in_bin[j] - hc, in_bin[j] + hc) / bin_width
+        weight = [get_overlap(hbw, in_bin[j]) / bin_width
                   for j in range(len(in_bin))]
         bin_flux = np.sum(weight * f_x) / np.sum(weight)
         f[i] = bin_flux
     elif method == 'max':
         f[i] = np.max(f_x)
+
     s[i] = np.std(f_x)
 
   return f, m, s
