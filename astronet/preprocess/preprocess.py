@@ -330,7 +330,7 @@ def sample_segments_view(tic_id,
                          flux,
                          fold_num,
                          period,
-                         num_bins=201,
+                         num_bins=1000,
                          num_transits=7):
     times, fluxes, nums = sample_segments(time, flux, fold_num, period, num_transits=num_transits)
     full_view = []
