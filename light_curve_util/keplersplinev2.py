@@ -390,11 +390,13 @@ def choosekeplersplinev2(time,flux, bkspace_min=0.5, bkspace_max=20, bkspace_num
                          return_metadata=False, fixed_bkspace=None):
     if gap_width_in == None:
         gap_width_in = bkspace_min
+        if fixed_bkspace is not None:
+            gap_width_in = min(gap_width_in, fixed_bkspace)
     if np.all(input_mask == None):
         input_mask = np.ones(len(time), dtype=bool)
 
     all_time, all_flux = split(time, flux, gap_width=gap_width_in) 
-    all_time2, all_input_mask = split(time, input_mask, gap_width=gap_width_in) 
+    all_time2, all_input_mask = split(time, input_mask, gap_width=gap_width_in)
     
     if fixed_bkspace:
         bkspaces = [fixed_bkspace]

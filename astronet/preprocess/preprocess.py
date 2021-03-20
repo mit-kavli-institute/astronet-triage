@@ -80,7 +80,8 @@ def generate_view(tic_id,
                   t_min,
                   t_max,
                   normalize=True,
-                  binning=None
+                  binning=None,
+                  trim_edges=False,
                  ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -97,10 +98,10 @@ def generate_view(tic_id,
     uniformly spaced bins on the phase-folded time axis.
   """
   if binning is None:
-    view, mask, std = median_filter2.new_binning(time, flux, period, num_bins, t_min, t_max)
+    view, mask, std = median_filter2.new_binning(time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges)
   else:
     view, mask, std = median_filter2.new_binning(
-        time, flux, period, num_bins, t_min, t_max, method=binning)
+        time, flux, period, num_bins, t_min, t_max, method=binning, trim_edges=trim_edges)
 
   scale = 0.0
   if normalize:
@@ -330,10 +331,12 @@ def sample_segments_view(tic_id,
                          flux,
                          fold_num,
                          period,
-                         num_bins=1000,
+                         duration,
+                         num_bins=201,
                          num_transits=7):
     times, fluxes, nums = sample_segments(time, flux, fold_num, period, num_transits=num_transits)
     full_view = []
+    transit_view = []
     for t, f, n in zip(times, fluxes, nums):
         view, _, mask, _ = generate_view(
                 tic_id, 
@@ -344,9 +347,11 @@ def sample_segments_view(tic_id,
                 t_min=(period * (n - 0.5)),
                 t_max=(period * (n + 0.5)),
                 normalize=False,
+                trim_edges=True,
             )
         full_view.append(view)
         full_view.append(mask)
+
     for _ in range(num_transits - len(times)):
         full_view.append(np.zeros([num_bins], dtype=float))
         full_view.append(np.zeros([num_bins], dtype=float))

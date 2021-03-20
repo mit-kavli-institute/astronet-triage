@@ -34,7 +34,7 @@ def get_overlap(hbw, t, c):
     return bin_overlap
 
 
-def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean'):
+def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False):
   t = time.copy()
   
   bins_left_edge, step = np.linspace(
@@ -93,5 +93,16 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         f[i] = np.max(f_x)
 
     s[i] = np.std(f_x)
+    
+  if trim_edges:
+      clear_bins = set()
+      for i in range(len(m)):
+        if m[i] < 1:
+            if i > 0:
+                clear_bins.add(i - 1)
+            if i < len(m) - 1:
+                clear_bins.add(i + 1)
+      for i in list(clear_bins):
+        m[i] = 0.0
 
   return f, m, s

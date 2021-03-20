@@ -21,10 +21,20 @@ from __future__ import print_function
 import h5py
 import glob
 import os
+import re
 
 import numpy as np
 import astropy 
 from astropy.io import fits
+
+SECTOR_RE = re.compile('.*-s([^-]+)-.*')
+
+
+def _sector(f):
+    m = SECTOR_RE.match(f);
+    if m is None:
+        return ''
+    return m.group(1)
 
 
 def tess_filenames(tic, base_dir):
@@ -50,6 +60,9 @@ def tess_filenames(tic, base_dir):
     if not file_names:
         fitsfile2 = "tess*-%d-cr_llc.fits.gz" % int(tic)
         file_names = glob.glob(os.path.join(base_dir, fitsfile2))
+    if len(file_names) > 1:
+        file_names = sorted(file_names, reverse=True, key=_sector)[:1]
+        print(f'multiple matches, selected {file_names}')
     if len(file_names) != 1:
         raise ValueError(f'found {len(file_names)} files for {tic}: {file_names}')
     filename, = file_names

@@ -169,8 +169,8 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace):
   _set_float_feature(ex, tic, f'secondary_phase{tag}', [t0 / period])
   _set_float_feature(ex, tic, f'secondary_scale{tag}', [scale])
 
-  view = preprocess.sample_segments_view(tic, time, flux, fold_num, period)
-  _set_float_feature(ex, tic, f'sample_segments_view{tag}', view)
+  full_view = preprocess.sample_segments_view(tic, time, flux, fold_num, period, duration)
+  _set_float_feature(ex, tic, f'sample_segments_view{tag}', full_view)
   
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
@@ -192,8 +192,8 @@ def _process_tce(tce, bkspace=None):
   for bkspace in [0.3, 0.7, 1.5, 5.0, None]:
     fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace)
 
-  _set_float_feature(ex, tce, 'n_folds', [max(fold_num) if len(fold_num) else 0])
-  _set_float_feature(ex, tce, 'n_points', [len(fold_num) if len(fold_num) else 0])
+  _set_float_feature(ex, tce, 'n_folds', [len(set(fold_num))])
+  _set_float_feature(ex, tce, 'n_points', [len(fold_num)])
     
   for col_name, value in tce.items():
     if col_name.lower() in ('tic_id', 'tic id', 'epoc', 'sectors') or col_name.startswith('disp_'):
