@@ -165,6 +165,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'local_std{tag}', std)
   _set_float_feature(ex, tic, f'local_mask{tag}', mask)
   _set_float_feature(ex, tic, f'local_scale{tag}', [scale])
+  _set_float_feature(ex, tic, f'local_scale_present{tag}', [1.0 if scale > 0 else 0.0])
   for k, (t, f) in aperture_fluxes.items():
     t, f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
     t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(t, f, m, period, epoc)
@@ -177,6 +178,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'secondary_mask{tag}', mask)
   _set_float_feature(ex, tic, f'secondary_phase{tag}', [t0 / period])
   _set_float_feature(ex, tic, f'secondary_scale{tag}', [scale])
+  _set_float_feature(ex, tic, f'secondary_scale_present{tag}', [1.0 if scale > 0 else 0.0])
 
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)

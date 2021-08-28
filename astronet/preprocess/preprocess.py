@@ -108,8 +108,7 @@ def generate_view(tic_id,
   if binning is None:
     view, mask, std = median_filter2.new_binning(time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges)
   else:
-    view, mask, std = median_filter2.new_binning(
-        time, flux, period, num_bins, t_min, t_max, method=binning, trim_edges=trim_edges)
+    view, mask, std = median_filter2.new_binning(time, flux, period, num_bins, t_min, t_max, method=binning, trim_edges=trim_edges)
 
   if normalize:
     # Normalization places:
@@ -131,6 +130,8 @@ def generate_view(tic_id,
         view -= 1.0
         view = np.where(bool_mask, view, 0.0)
         std = np.where(bool_mask, std, 0.0)
+    else:
+      scale = 0.0
 
   return view, std, mask, scale, depth
 

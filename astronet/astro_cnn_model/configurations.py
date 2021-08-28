@@ -472,9 +472,15 @@ def extended():
                 "local_scale",
                 "local_scale_0.3",
                 "local_scale_0.5",
+                "local_scale_present",
+                "local_scale_present_0.3",
+                "local_scale_present_0.5",
                 "secondary_scale",
                 "secondary_scale_0.3",
                 "secondary_scale_0.5",
+                "secondary_scale_present",
+                "secondary_scale_present_0.3",
+                "secondary_scale_present_0.5",
             ],
           
             "time_series_hidden": {
