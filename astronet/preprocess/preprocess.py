@@ -28,12 +28,18 @@ from light_curve_util import tess_io
 from statsmodels.robust import scale
 
 
-def read_and_process_light_curve(tic, tess_data_dir, flux_key='KSPSAP_FLUX'):
+def read_and_process_light_curve(tic, tess_data_dir, flux_key='KSPSAP_FLUX', aperture_keys={}):
   file_names = tess_io.tess_filenames(tic, tess_data_dir)
   assert file_names
   all_time, all_mag = tess_io.read_tess_light_curve(file_names, flux_key)
   assert len(all_time)
-  return all_time, all_mag
+  apertures = {}
+  for k, v in aperture_keys.items():
+    try:
+      apertures[k] = tess_io.read_tess_light_curve(file_names, v)
+    except KeyError:
+      continue
+  return all_time, all_mag, apertures
 
 
 def get_spline_mask(time, period, t0, tdur):
@@ -82,6 +88,8 @@ def generate_view(tic_id,
                   normalize=True,
                   binning=None,
                   trim_edges=False,
+                  scale=None,
+                  depth=None,
                  ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -103,7 +111,6 @@ def generate_view(tic_id,
     view, mask, std = median_filter2.new_binning(
         time, flux, period, num_bins, t_min, t_max, method=binning, trim_edges=trim_edges)
 
-  scale = 0.0
   if normalize:
     # Normalization places:
     #  * the minimum value at -1.0
@@ -113,9 +120,11 @@ def generate_view(tic_id,
     # TODO: Use mean(50%ile) instead?
     bool_mask = mask > 0
     if any(bool_mask):
-        depth = np.min(view[bool_mask])
+        if depth is None:
+            depth = np.min(view[bool_mask])
         view = np.where(bool_mask, view - depth, view)
-        scale = np.abs(np.median(view[bool_mask]))
+        if scale is None:
+            scale = np.abs(np.median(view[bool_mask]))
         if scale > 0:
             view /= scale
             std /= scale
@@ -123,7 +132,7 @@ def generate_view(tic_id,
         view = np.where(bool_mask, view, 0.0)
         std = np.where(bool_mask, std, 0.0)
 
-  return view, std, mask, scale
+  return view, std, mask, scale, depth
 
 
 def global_view(tic_id, time, flux, period, num_bins=201):
@@ -171,7 +180,9 @@ def local_view(tic_id,
                period,
                duration,
                num_bins=61,
-               num_durations=2):
+               num_durations=2,
+               scale=None,
+               depth=None):
   """Generates a 'local view' of a phase folded light curve.
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
   http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -194,7 +205,10 @@ def local_view(tic_id,
       period,
       num_bins=num_bins,
       t_min=max(-period / 2, -duration * num_durations),
-      t_max=min(period / 2, duration * num_durations))
+      t_max=min(period / 2, duration * num_durations),
+      scale=scale,
+      depth=depth,
+  )
 
 
 def mask_transit(time, duration, period, mask_width=2, phase_limit=0.1):
@@ -338,7 +352,7 @@ def sample_segments_view(tic_id,
     full_view = []
     transit_view = []
     for t, f, n in zip(times, fluxes, nums):
-        view, _, mask, _ = generate_view(
+        view, _, mask, _, _ = generate_view(
                 tic_id, 
                 t,
                 f,

@@ -138,31 +138,35 @@ def _set_int64_feature(ex, name, value):
   ex.features.feature[name].int64_list.value.extend([int(v) for v in value])
 
 
-def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace):
+def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, aperture_fluxes):
   if bkspace is None:
     tag = ''
   else:
     tag = f'_{bkspace}'
     
-  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(
-      tic, time, flux, period, epoc, duration, bkspace)
+  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
 
-  view, std, mask, _ = preprocess.global_view(tic, time, flux, period)
-  tr_mask, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period)
+  view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period)
+  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period)
   _set_float_feature(ex, tic, f'global_view{tag}', view)
   _set_float_feature(ex, tic, f'global_std{tag}', std)
   _set_float_feature(ex, tic, f'global_mask{tag}', mask)
   _set_float_feature(ex, tic, f'global_transit_mask{tag}', tr_mask)
 
-  view, std, mask, scale = preprocess.local_view(tic, time, flux, period, duration)
+  view, std, mask, scale, depth = preprocess.local_view(tic, time, flux, period, duration)
   _set_float_feature(ex, tic, f'local_view{tag}', view)
   _set_float_feature(ex, tic, f'local_std{tag}', std)
   _set_float_feature(ex, tic, f'local_mask{tag}', mask)
   _set_float_feature(ex, tic, f'local_scale{tag}', [scale])
+  for k, (t, f) in aperture_fluxes.items():
+    t, f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
+    t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(t, f, m, period, epoc)
+    view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth)
+    _set_float_feature(ex, tic, f'local_aperture_{k}{tag}', view)
 
-  (view, std, mask, scale), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+  (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
   _set_float_feature(ex, tic, f'secondary_view{tag}', view)
   _set_float_feature(ex, tic, f'secondary_std{tag}', std)
   _set_float_feature(ex, tic, f'secondary_mask{tag}', mask)
@@ -174,23 +178,31 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace):
   
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
-  view, _, _, scale = preprocess.global_view(tic, time, flux, period * 2)
+  view, _, _, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
   _set_float_feature(ex, tic, f'global_view_double_period{tag}', view)
 
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
-  view, _, _, scale = preprocess.global_view(tic, time, flux, period / 2)
+  view, std, _, scale, _ = preprocess.global_view(tic, time, flux, period / 2)
   _set_float_feature(ex, tic, f'global_view_half_period{tag}', view)
+  _set_float_feature(ex, tic, f'global_view_half_period_std{tag}', std)
     
   return fold_num
 
 
 def _process_tce(tce, bkspace=None):
-  time, flux = preprocess.read_and_process_light_curve(tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX')
+  time, flux, apertures = preprocess.read_and_process_light_curve(
+      tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX',
+      {
+          's': 'SAP_FLUX_SML',
+          'm': 'SAP_FLUX_MID',
+          'l': 'SAP_FLUX_LAG',
+      },
+  )
   ex = tf.train.Example()
 
   for bkspace in [0.3, 0.7, 1.5, 5.0, None]:
-    fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace)
+    fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
 
   _set_float_feature(ex, tce, 'n_folds', [len(set(fold_num))])
   _set_float_feature(ex, tce, 'n_points', [len(fold_num)])

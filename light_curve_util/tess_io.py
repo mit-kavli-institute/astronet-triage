@@ -60,6 +60,9 @@ def tess_filenames(tic, base_dir):
     if not file_names:
         fitsfile2 = "tess*-%d-cr_llc.fits.gz" % int(tic)
         file_names = glob.glob(os.path.join(base_dir, fitsfile2))
+    if not file_names:
+        fitsfile3 = "*tess*-%.16d_*.fits" % int(tic)
+        file_names = glob.glob(os.path.join(base_dir, fitsfile3))
     if len(file_names) > 1:
         file_names = sorted(file_names, reverse=True, key=_sector)[:1]
         print(f'multiple matches, selected {file_names}')
@@ -135,6 +138,6 @@ def read_tess_light_curve(filename, flux_key):
         flux = flux[valid_indices]
 
 
-    return time,flux 
+    return time, flux 
 
 
