@@ -355,7 +355,15 @@ def extended():
                     "shape": [201],
                     "is_time_series": True,
                 },
+                "global_view_half_period_std": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
                 "global_view_double_period": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_view_double_period_std": {
                     "shape": [201],
                     "is_time_series": True,
                 },
@@ -473,6 +481,7 @@ def extended():
                     "convolution_padding": "same",
                     "pool_size": 5,
                     "pool_strides": 1,
+                    "multichannel": True,
                     "extra_channels": [
                         "global_std",
                         "global_mask",
@@ -490,6 +499,10 @@ def extended():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 2,
+                    "multichannel": True,
+                    "extra_channels": [
+                        "global_view_double_period_std",
+                    ],
                 },
                 "global_view_half_period": {
                     "cnn_num_blocks": 3,
@@ -500,6 +513,10 @@ def extended():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 2,
+                    "multichannel": True,
+                    "extra_channels": [
+                        "global_view_half_period_std",
+                    ],
                 },
                 "local_view": {
                     "cnn_num_blocks": 3,
@@ -510,6 +527,7 @@ def extended():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 1,
+                    "multichannel": True,
                     "extra_channels": [
                         "local_std",
                         "local_mask",
@@ -528,6 +546,7 @@ def extended():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 1,
+                    "multichannel": True,
                     "extra_channels": [
                         "secondary_std",
                         "secondary_mask",
