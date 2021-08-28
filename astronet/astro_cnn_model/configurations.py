@@ -469,6 +469,12 @@ def extended():
                 "star_rad_present",
                 "n_folds",
                 "n_points",
+                "local_scale",
+                "local_scale_0.3",
+                "local_scale_0.5",
+                "secondary_scale",
+                "secondary_scale_0.3",
+                "secondary_scale_0.5",
             ],
           
             "time_series_hidden": {
