@@ -113,6 +113,11 @@ parser.add_argument(
     default=20,
     help="Number of file shards to divide the training set into.")
 
+parser.add_argument(
+    "--vetting_features",
+    type=str,
+    default='n',
+    help="Whether to include the features for the vetting model.")
 
 
 def _set_float_feature(ex, tic_id, name, value):
@@ -192,17 +197,19 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
 
 
 def _process_tce(tce, bkspace=None):
-  time, flux, apertures = preprocess.read_and_process_light_curve(
-      tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX',
-      {
-          's': 'SAP_FLUX_SML',
-          'm': 'SAP_FLUX_MID',
-          'l': 'SAP_FLUX_LAG',
-      },
-  )
+  if FLAGS.vetting_features == 'y':
+    extra_fluxes = {
+        's': 'SAP_FLUX_SML',
+        'm': 'SAP_FLUX_MID',
+        'l': 'SAP_FLUX_LAG',
+    }
+  else:
+    extra_fluxes = {}
+    
+  time, flux, apertures = preprocess.read_and_process_light_curve(tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX', extra_fluxes)
   ex = tf.train.Example()
 
-  for bkspace in [0.3, 0.7, 1.5, 5.0, None]:
+  for bkspace in [0.3, 5.0, None]:
     fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
 
   _set_float_feature(ex, tce, 'n_folds', [len(set(fold_num))])
