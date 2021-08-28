@@ -173,14 +173,15 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'secondary_phase{tag}', [t0 / period])
   _set_float_feature(ex, tic, f'secondary_scale{tag}', [scale])
 
-  full_view = preprocess.sample_segments_view(tic, time, flux, fold_num, period, duration)
-  _set_float_feature(ex, tic, f'sample_segments_view{tag}', full_view)
-  
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
-  view, _, _, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
+  view, std, _, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
   _set_float_feature(ex, tic, f'global_view_double_period{tag}', view)
+  _set_float_feature(ex, tic, f'global_view_double_period_std{tag}', std)
 
+  full_view = preprocess.sample_segments_view(tic, time, flux, fold_num, period * 2, duration)
+  _set_float_feature(ex, tic, f'sample_segments_view{tag}', full_view)
+  
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
   view, std, _, scale, _ = preprocess.global_view(tic, time, flux, period / 2)
