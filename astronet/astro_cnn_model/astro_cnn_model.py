@@ -125,3 +125,13 @@ class AstroCNNModel(tf.keras.Model):
         y = self._apply_block(self.final, y, training)
 
         return y
+
+class AstroCNNVettingModel(tf.keras.Model):
+
+    def __init__(self, config, triage_model):
+        super(AstroCNNVettingModel, self).__init__()
+
+        # main model - logits
+        # new conv tower - concat into logits
+        # 2-3 FC layers
+        # final predictions (two heads)
