@@ -29,6 +29,16 @@ from astronet.util import configdict
 import tensorflow as tf
 
 
+def merge_configs(base, source):
+    if not isinstance(source, dict) and isinstance(base, dict):
+        raise ValueError(f'source is {type(soure)}, but base is {type(base)}')
+    for k in source:
+        if k not in base:
+            base[k] = source[k]
+        elif isinstance(source[k], dict):
+            merge_configs(base[k], source[k])               
+
+
 def config_file(output_dir):
   return os.path.join(output_dir, "config.json")
 

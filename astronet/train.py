@@ -14,12 +14,9 @@
 
 """Script for training an AstroNet model."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import argparse
 import datetime
+import os
 import sys
 
 from absl import app
@@ -29,7 +26,12 @@ import tensorflow as tf
 
 from astronet import models
 from astronet.astro_cnn_model import input_ds
+from astronet.astro_cnn_model import astro_cnn_model
+from astronet.astro_cnn_model import astro_cnn_model_vetting
+from astronet.astro_cnn_model import configurations
+from astronet.astro_cnn_model import configurations_vetting
 from astronet.util import config_util
+from astronet.util import configdict
 
 parser = argparse.ArgumentParser()
 
@@ -60,6 +62,12 @@ parser.add_argument(
     type=str,
     default="",
     help="Directory for model checkpoints and summaries.")
+
+parser.add_argument(
+    "--pretrain_model_dir",
+    type=str,
+    default="",
+    help="Directory for pretrained model checkpoints.")
 
 parser.add_argument(
     "--train_steps",
@@ -157,9 +165,15 @@ def train(model, config):
 
 def main(_):
     config = models.get_model_config(FLAGS.model, FLAGS.config_name)
-
     model_class = models.get_model_class(FLAGS.model) 
-    model = model_class(config)
+
+    if FLAGS.pretrain_model_dir:
+        pretrain_model = tf.keras.models.load_model(
+            os.path.join(FLAGS.pretrain_model_dir,
+                         os.listdir(FLAGS.pretrain_model_dir + '/')[0]))
+        model = model_class(config, pretrain_model)
+    else:
+        model = model_class(config)
 
     train(model, config)
 
