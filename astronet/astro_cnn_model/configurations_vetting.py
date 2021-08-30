@@ -52,7 +52,7 @@ def base():
                     "cnn_kernel_size": 3,
                     "convolution_padding": "same",
                     "pool_size": 7,
-                    "pool_strides": 1,
+                    "pool_strides": 2,
                     "extra_channels": [
                         "local_aperture_m",
                         "local_aperture_l",
