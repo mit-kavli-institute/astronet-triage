@@ -47,26 +47,34 @@ import tensorflow as tf
 
 class AstroCNNModel(tf.keras.Model):
 
-    def __init__(self, config):
+    def __init__(self, config, pretrain_model=None, embeds_only=False):
         super(AstroCNNModel, self).__init__()
 
         self.config = config
-        self.ts_blocks = self._create_ts_blocks(config)
+        self.embeds_only = embeds_only
+        
+        if pretrain_model is not None:
+            self.ts_blocks = pretrain_model.ts_blocks
+            if self.embeds_only:
+                self.final = pretrain_model.final[:-1]
+            else:
+                self.final = pretrain_model.final
+            
+        else:
+            self.ts_blocks = self._create_ts_blocks(config)
 
-        self.final = [
-          tf.keras.layers.Concatenate()
-        ]
+            self.final = [
+              tf.keras.layers.Concatenate()
+            ]
 
-        hps = config.hparams
-        for i in range(hps.num_pre_logits_hidden_layers):
-            self.final.append(
-                tf.keras.layers.Dense(units=hps.pre_logits_hidden_layer_size, activation='relu'))
-            if hps.use_batch_norm:
-                self.final.append(tf.keras.layers.BatchNormalization())
-            self.final.append(tf.keras.layers.Dropout(hps.pre_logits_dropout_rate))
+            hps = config.hparams
+            for i in range(hps.num_pre_logits_hidden_layers):
+                self.final.append(tf.keras.layers.Dense(units=hps.pre_logits_hidden_layer_size, activation='relu'))
+                if hps.use_batch_norm:
+                    self.final.append(tf.keras.layers.BatchNormalization())
+                self.final.append(tf.keras.layers.Dropout(hps.pre_logits_dropout_rate))
 
-        self.final.append(
-            tf.keras.layers.Dense(units=len(config.inputs.label_columns), activation='sigmoid'))
+            self.final.append(tf.keras.layers.Dense(units=len(config.inputs.label_columns), activation='sigmoid'))
 
     def _create_conv_block(self, config, name):
         block_params = config.hparams.time_series_hidden[name]

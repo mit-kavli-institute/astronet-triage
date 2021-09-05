@@ -13,6 +13,6 @@ do
         --pretrain_model_dir="/mnt/tess/astronet/checkpoints/extended_26_run_18/${i}" \
         --train_steps=5000 \
         --train_epochs=1 \
-        --model_dir="/mnt/tess/astronet/checkpoints/vetting_base_1_run_1/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/vetting_base_1_run_2/${i}"
 done
 

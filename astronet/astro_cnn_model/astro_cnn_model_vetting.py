@@ -14,6 +14,8 @@
 
 import tensorflow as tf
 
+from astronet.astro_cnn_model import astro_cnn_model
+
 
 
 class AstroCNNModelVetting(tf.keras.Model):
@@ -21,7 +23,7 @@ class AstroCNNModelVetting(tf.keras.Model):
     def __init__(self, config, triage_model):
         super(AstroCNNModelVetting, self).__init__()
         
-        self.triage_model = triage_model
+        self.triage_model = astro_cnn_model.AstroCNNModel(config, triage_model, embeds_only=True)
         self.config = config
         
         self.ts_blocks = self._create_ts_blocks(config)
