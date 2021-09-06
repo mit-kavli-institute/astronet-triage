@@ -37,6 +37,7 @@ def phase_fold_time(time, period, t0):
     A 1D numpy array.
   """
   half_period = period / 2
+  print(time, t0, half_period, type(time), type(t0), type(half_period))
   shifted_time = time - t0 + half_period
 
   # Normalize the time scale to begin as close to zero as possible.
