@@ -11,15 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Light curve utility functions."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
-from six.moves import range  # pylint:disable=redefined-builtin
 
 
 def phase_fold_time(time, period, t0):
@@ -37,7 +31,6 @@ def phase_fold_time(time, period, t0):
     A 1D numpy array.
   """
   half_period = period / 2
-  print(time, t0, half_period, type(time), type(t0), type(half_period))
   shifted_time = time - t0 + half_period
 
   # Normalize the time scale to begin as close to zero as possible.
