@@ -39,7 +39,7 @@ def base():
             },
         },
         "vetting_hparams": {
-            "num_pre_logits_hidden_layers": 2,
+            "num_pre_logits_hidden_layers": 3,
             "pre_logits_hidden_layer_size": 256,
             "pre_logits_dropout_rate": 0.1,
 
@@ -52,7 +52,7 @@ def base():
                     "cnn_kernel_size": 3,
                     "convolution_padding": "same",
                     "pool_size": 7,
-                    "pool_strides": 2,
+                    "pool_strides": 1,
                     "extra_channels": [
                         "local_aperture_m",
                         "local_aperture_l",
