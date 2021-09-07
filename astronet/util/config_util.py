@@ -36,4 +36,25 @@ def merge_configs(base, source):
         if k not in base:
             base[k] = source[k]
         elif isinstance(source[k], dict):
-            merge_configs(base[k], source[k])               
+            merge_configs(base[k], source[k])
+
+
+def config_file(output_dir):
+  return os.path.join(output_dir, "config.json")
+
+
+
+def log_and_save_config(config, output_dir):
+  """Logs and writes a JSON-serializable configuration object.
+  Args:
+    config: A JSON-serializable object.
+    output_dir: Destination directory.
+  """
+  if hasattr(config, "to_json") and callable(config.to_json):
+    config_json = config.to_json(indent=2)
+  else:
+    config_json = json.dumps(config, indent=2)
+
+  tf.io.gfile.makedirs(output_dir)
+  with tf.io.gfile.GFile(config_file(output_dir), "w") as f:
+    f.write(config_json)
