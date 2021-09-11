@@ -58,3 +58,14 @@ def log_and_save_config(config, output_dir):
   tf.io.gfile.makedirs(output_dir)
   with tf.io.gfile.GFile(config_file(output_dir), "w") as f:
     f.write(config_json)
+
+    
+def load_config(output_dir):
+  """Parses values from a JSON file.
+  Args:
+    json_file: The path to a JSON file.
+  Returns:
+    A dictionary; the parsed JSON.
+  """
+  with tf.io.gfile.GFile(config_file(output_dir), 'r') as f:
+    return configdict.ConfigDict(json.loads(f.read()))

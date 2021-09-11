@@ -82,7 +82,7 @@ class AstroCNNModelVetting(tf.keras.Model):
         triage_inputs = {k:v for k, v in inputs.items() if not is_vetting_input(k)}
         vetting_inputs = {k:v for k, v in inputs.items() if is_vetting_input(k)}
 
-        triage_embedding = self.triage_model(triage_inputs)
+        triage_embedding = self.triage_model(triage_inputs, training=training)
 
         ts_inputs = {}
         for k, v in vetting_inputs.items():
