@@ -51,9 +51,9 @@ def build_dataset(file_pattern,
         parsed_features = tf.io.parse_single_example(serialized_example, features=data_fields)
 
 
+        label_features = [parsed_features.pop(name) for name in input_config.label_columns]
         if include_labels:
-            labels = tf.stack(
-                [parsed_features.pop(name) for name in input_config.label_columns])
+            labels = tf.stack(label_features)
             labels = tf.cast(tf.minimum(labels, 1), tf.float32)
 
             labels_f = tf.cast(labels, tf.float32)
@@ -61,7 +61,7 @@ def build_dataset(file_pattern,
             if labels[input_config.primary_class] < 1:
                 weights /= 2.0
 
-        if include_identifiers:
+        if "tic_id" in parsed_features:
             identifiers = parsed_features.pop("tic_id")
 
         features = {}
@@ -91,6 +91,7 @@ def build_dataset(file_pattern,
                 else:
                     value = tf.zeros_like(value)
             features[name] = value
+        
         if include_labels:
             return features, labels, weights
         elif include_identifiers:

@@ -20,6 +20,7 @@ def base():
     config = {
         "inputs": {
             "label_columns": ["disp_p", "disp_e", "disp_n"],
+            "drop_columns": ["disp_t", "disp_b", "disp_u"],
             "features": {
                 "local_aperture_s": {
                     "shape": [61],
