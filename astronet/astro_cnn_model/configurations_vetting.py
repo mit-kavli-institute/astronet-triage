@@ -20,7 +20,6 @@ def base():
     config = {
         "inputs": {
             "label_columns": ["disp_p", "disp_e", "disp_n"],
-            "drop_columns": ["disp_t", "disp_b", "disp_u"],
             "features": {
                 "local_aperture_s": {
                     "shape": [61],
@@ -61,8 +60,67 @@ def base():
                 },
             },
         },
+        
+        "tune_params": [
+            {
+                'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+            {
+                'parameter': 'learning_rate', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 1e-6, 'max_value': 1e-3},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'one_minus_adam_beta_1', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 1e-2, 'max_value': 0.9},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'one_minus_adam_beta_2', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 1e-4, 'max_value': 0.9},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'adam_epsilon', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 1e-8, 'max_value': 1e-5},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'batch_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 8, 'max_value' : 128}},
+            {
+                'parameter': 'train_steps', 'type' : 'INTEGER',
+#                 'integer_value_spec' : {'min_value' : 500, 'max_value' : 20000}},
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 100}},
+            {
+                'parameter': 'num_pre_logits_hidden_layers', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},
+            {
+                'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 32, 'max_value' : 1024}},
+            {
+                'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.4}},
+            {
+                'parameter': 'cnn_block_filter_factor', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+            {
+                'parameter': 'cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},
+            {
+                'parameter': 'cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 32}},
+            {
+                'parameter': 'cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 5}},
+            {
+                'parameter': 'pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+            {
+                'parameter': 'pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}}
+        ],
     }
     
     config_util.merge_configs(config, configurations.extended())
-
+    
     return config
