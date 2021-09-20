@@ -195,7 +195,7 @@ def create_study(client, study):
     
 
 # FIXME
-def map_param(hparams, vetting_hparams, param):
+def map_param(hparams, vetting_hparams, param, inputs_config):
   name = param['parameter']
   if name in (
       'learning_rate', 'pre_logits_dropout_rate', 'prediction_threshold',
@@ -211,17 +211,31 @@ def map_param(hparams, vetting_hparams, param):
     'cnn_block_filter_factor', 'cnn_block_size', 'cnn_initial_num_filters',
     'cnn_kernel_size', 'pool_strides', 'cnn_num_blocks', 'pool_size'):
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(param['intValue'])
-  elif name in (
-      'train_steps'):
+  elif name == 'train_steps':
     train.FLAGS.train_steps = int(param['intValue'])
+  elif name == 'exclusive_labels':
+    inputs_config[name] = (param['stringValue'].lower() == 'true')
   else:
-    raise ValueError('param missing from tune.map_param' + str(param))
+    raise InternalError('param missing from tune.map_param' + str(param))
+    
+    
+def prev_losses(study_id):
+    resp = client.projects().locations().studies().trials().list(parent=study_id).execute()
+
+    metrics_loss = []
+    for trial in resp['trials']:
+      if 'finalMeasurement' not in trial:
+        continue
+
+      loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
+      metrics_loss.append(loss)
+    return metrics_loss
 
 
-def execute_trial(trial_id, params, model_class, config, ensemble_count):
+def execute_trial(trial_id, params, model_class, config, ensemble_count, prev_losses):
   print(f'=========== Start Trial: [{trial_id}] =============')
   for param in params:
-    map_param(config['hparams'], config['vetting_hparams'], param)
+    map_param(config['hparams'], config['vetting_hparams'], param, config['inputs'])
   
   ensemble_val_loss = []
   for _ in range(ensemble_count):
@@ -230,7 +244,14 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
     pretrain_model = tf.keras.models.load_model(
         os.path.join(base_dir, os.listdir(base_dir)[0]))
     model = model_class(config, pretrain_model)
-    history = train.train(model, config).history
+    try:
+        history = train.train(model, config).history
+    except KeyboardInterrupt:
+        print('\nAborting runs for this trial. Break again for full stop.')
+        if ensemble_val_loss:
+            break
+        else:
+            return
 
     val_loss = history['val_loss'][-1]
         
@@ -239,11 +260,14 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
     # Only ensemble promising models.
     if val_loss > 1.3:
       break
+    
+    if val_loss > min(prev_losses):
+      break
 
   # Select metric with poorest val_loss.
   selected = 0
   for i, val_loss in enumerate(ensemble_val_loss):
-    if val_loss < ensemble_val_loss[selected]:
+    if val_loss > ensemble_val_loss[selected]:
       selected = i
   val_loss = ensemble_val_loss[selected]
 
@@ -286,9 +310,9 @@ def tune(client, model_class, config, ensemble_count):
       if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
         continue
     
+      hist = prev_losses(study_id())
       try:
-        measurement = execute_trial(
-            trial_id, trial['parameters'], model_class, config, ensemble_count)
+        measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count, hist)
         feasible = True
       except (ValueError, tf.errors.OpError) as e:
         print(type(e), e)

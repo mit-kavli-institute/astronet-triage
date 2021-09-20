@@ -64,6 +64,9 @@ def base():
         
         "tune_params": [
             {
+                'parameter': 'exclusive_labels', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+            {
                 'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['True', 'False']}},
             {
@@ -87,7 +90,7 @@ def base():
                 'integer_value_spec' : {'min_value' : 8, 'max_value' : 128}},
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 500, 'max_value' : 20000}},
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 6000}},
             {
                 'parameter': 'num_pre_logits_hidden_layers', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},
