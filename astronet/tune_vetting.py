@@ -290,7 +290,7 @@ def tune(client, model_class, config, ensemble_count):
         measurement = execute_trial(
             trial_id, trial['parameters'], model_class, config, ensemble_count)
         feasible = True
-      except ValueError as e:
+      except (ValueError, tf.errors.OpError) as e:
         print(type(e), e)
         measurement = None
         feasible = False

@@ -124,7 +124,10 @@ def train(model, config):
     epsilon = config.hparams.adam_epsilon
     optimizer=tf.keras.optimizers.Adam(learning_rate=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
 
-    loss = tf.keras.losses.BinaryCrossentropy()
+    if config.inputs.get('exclusive_labels', False):
+        loss = tf.keras.losses.CategoricalCrossentropy()
+    else:
+        loss = tf.keras.losses.BinaryCrossentropy()
 
     metrics = [
         tf.keras.metrics.Recall(

@@ -20,6 +20,7 @@ def base():
     config = {
         "inputs": {
             "label_columns": ["disp_p", "disp_e", "disp_n"],
+            "exclusive_labels": True,
             "features": {
                 "local_aperture_s": {
                     "shape": [61],
@@ -86,8 +87,7 @@ def base():
                 'integer_value_spec' : {'min_value' : 8, 'max_value' : 128}},
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-#                 'integer_value_spec' : {'min_value' : 500, 'max_value' : 20000}},
-                'integer_value_spec' : {'min_value' : 10, 'max_value' : 100}},
+                'integer_value_spec' : {'min_value' : 500, 'max_value' : 20000}},
             {
                 'parameter': 'num_pre_logits_hidden_layers', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},
