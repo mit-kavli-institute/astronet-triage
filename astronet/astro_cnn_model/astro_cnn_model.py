@@ -130,7 +130,7 @@ class AstroCNNModel(tf.keras.Model):
             v = ts_inputs[k]
             y_k = self._apply_block(self.ts_blocks[k], v, training)
             y.append(y_k)
-        y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys)])
+        y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
         y = self._apply_block(self.final, y, training)
 
         return y
