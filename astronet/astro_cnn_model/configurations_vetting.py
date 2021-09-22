@@ -60,6 +60,7 @@ def base():
                     ],
                 },
             },
+            "aux_inputs": [],
         },
         
         "tune_params": [

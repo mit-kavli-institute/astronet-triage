@@ -219,20 +219,27 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
     raise InternalError('param missing from tune.map_param' + str(param))
     
     
-def prev_losses(study_id):
-    resp = client.projects().locations().studies().trials().list(parent=study_id).execute()
+prev_losses = None
+    
+    
+def load_prev_losses(client, study_id):
+    global prev_losses
+    
+    if prev_losses is None:
+        study_id = '{}/studies/{}'.format(study_parent(), study_id)
+        resp = client.projects().locations().studies().trials().list(parent=study_id).execute()
 
-    metrics_loss = []
-    for trial in resp['trials']:
-      if 'finalMeasurement' not in trial:
-        continue
+        prev_losses = []
+        for trial in resp['trials']:
+          if 'finalMeasurement' not in trial:
+            continue
 
-      loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
-      metrics_loss.append(loss)
-    return metrics_loss
+          loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
+          prev_losses.append(loss)
+    return prev_losses
 
 
-def execute_trial(trial_id, params, model_class, config, ensemble_count, prev_losses):
+def execute_trial(trial_id, params, model_class, config, ensemble_count):
   print(f'=========== Start Trial: [{trial_id}] =============')
   for param in params:
     map_param(config['hparams'], config['vetting_hparams'], param, config['inputs'])
@@ -261,7 +268,7 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count, prev_lo
     if val_loss > 1.3:
       break
     
-    if val_loss > min(prev_losses):
+    if prev_losses and val_loss > min(prev_losses):
       break
 
   # Select metric with poorest val_loss.
@@ -270,6 +277,7 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count, prev_lo
     if val_loss > ensemble_val_loss[selected]:
       selected = i
   val_loss = ensemble_val_loss[selected]
+  prev_losses.append(val_loss)
 
   metric_loss = {'metric': 'loss', 'value': float(val_loss)}
   measurement = {'step_count': 1, 'metrics': [metric_loss]}
@@ -310,9 +318,9 @@ def tune(client, model_class, config, ensemble_count):
       if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
         continue
     
-      hist = prev_losses(study_id())
+      load_prev_losses(client, study_id())
       try:
-        measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count, hist)
+        measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
         feasible = True
       except (ValueError, tf.errors.OpError) as e:
         print(type(e), e)
