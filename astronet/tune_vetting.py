@@ -197,15 +197,11 @@ def create_study(client, study):
 # FIXME
 def map_param(hparams, vetting_hparams, param, inputs_config):
   name = param['parameter']
-  if name in (
-      'learning_rate', 'pre_logits_dropout_rate', 'prediction_threshold',
-      'one_minus_adam_beta_1', 'one_minus_adam_beta_2', 'adam_epsilon'):
+  if name in ('learning_rate', 'one_minus_adam_beta_1', 'one_minus_adam_beta_2', 'adam_epsilon'):
     hparams[name] = param['floatValue']
-  elif name in (
-    'use_batch_norm',):
-    hparams[name] = (param['stringValue'].lower() == 'true')
-  elif name in (
-    'batch_size', 'num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
+  elif name in ('pre_logits_dropout_rate'):
+    vetting_hparams[name] = param['floatValue']
+  elif name in ('batch_size', 'num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
     vetting_hparams[name] = int(param['intValue'])
   elif name in (
     'cnn_block_filter_factor', 'cnn_block_size', 'cnn_initial_num_filters',
