@@ -282,7 +282,9 @@ def secondary_view(tic_id,
                    period,
                    duration,
                    num_bins=61,
-                   num_durations=4):
+                   num_durations=2,
+                   scale=None,
+                   depth=None):
     """Generates a 'local view' of a phase folded light curve, centered on phase 0.5.
       See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
       http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -316,7 +318,9 @@ def secondary_view(tic_id,
             period,
             num_bins=num_bins,
             t_min=t_min,
-            t_max=t_max
+            t_max=t_max,
+            scale=scale,
+            depth=depth
         ),
         t0,
     )
@@ -348,19 +352,26 @@ def sample_segments_view(tic_id,
                          period,
                          duration,
                          num_bins=201,
-                         num_transits=7):
+                         num_transits=7,
+                         local=False
+                        ):
     times, fluxes, nums = sample_segments(time, flux, fold_num, period, num_transits=num_transits)
     full_view = []
     transit_view = []
     for t, f, n in zip(times, fluxes, nums):
+        t_min = period / 2
+        t_max = period / 2
+        if local:
+            t_min = max(t_min, 2 * duration)
+            t_max = min(t_max, 2 * duration)
         view, _, mask, _, _ = generate_view(
                 tic_id, 
                 t,
                 f,
                 period,
                 num_bins=num_bins,
-                t_min=(period * (n - 0.5)),
-                t_max=(period * (n + 0.5)),
+                t_min=period * n - t_min,
+                t_max=period * n + t_min,
                 normalize=False,
                 trim_edges=True,
             )
