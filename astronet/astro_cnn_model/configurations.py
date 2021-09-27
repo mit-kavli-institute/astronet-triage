@@ -931,7 +931,7 @@ def revised():
                 'scale_type': 'UNIT_LOG_SCALE'},
             {
                 'parameter': 'batch_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 256}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 512}},
 
 
             {
@@ -961,19 +961,19 @@ def revised():
                 'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.4}},
 
             {
-                'parameter': 'global_blocks', 'type' : 'INTEGER',
+                'parameter': 'global_cnn_num_blocks', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'global_block_size', 'type' : 'INTEGER',
+                'parameter': 'global_cnn_block_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'global_filters', 'type' : 'INTEGER',
+                'parameter': 'global_cnn_initial_num_filters', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
-                'parameter': 'global_filter_factor', 'type' : 'DOUBLE',
+                'parameter': 'global_cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
-                'parameter': 'global_kernel_size', 'type' : 'INTEGER',
+                'parameter': 'global_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
                 'parameter': 'global_pool_size', 'type' : 'INTEGER',
@@ -986,19 +986,19 @@ def revised():
                 'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
-                'parameter': 'local_blocks', 'type' : 'INTEGER',
+                'parameter': 'local_cnn_num_blocks', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'local_block_size', 'type' : 'INTEGER',
+                'parameter': 'local_cnn_block_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'local_filters', 'type' : 'INTEGER',
+                'parameter': 'local_cnn_initial_num_filters', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
-                'parameter': 'local_filter_factor', 'type' : 'DOUBLE',
+                'parameter': 'local_cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
-                'parameter': 'local_kernel_size', 'type' : 'INTEGER',
+                'parameter': 'local_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
                 'parameter': 'local_pool_size', 'type' : 'INTEGER',
@@ -1011,19 +1011,19 @@ def revised():
                 'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
-                'parameter': 'other_blocks', 'type' : 'INTEGER',
+                'parameter': 'other_cnn_num_blocks', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'other_block_size', 'type' : 'INTEGER',
+                'parameter': 'other_cnn_block_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'other_filters', 'type' : 'INTEGER',
+                'parameter': 'other_cnn_initial_num_filters', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
-                'parameter': 'other_filter_factor', 'type' : 'DOUBLE',
+                'parameter': 'other_cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
-                'parameter': 'other_kernel_size', 'type' : 'INTEGER',
+                'parameter': 'other_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
                 'parameter': 'other_pool_size', 'type' : 'INTEGER',
