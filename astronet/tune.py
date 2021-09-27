@@ -217,6 +217,7 @@ def map_param(hparams, param, inputs_config):
         raise InternalError('param missing from tune.map_param' + str(param))
         
     for vname in vnames:
+        assert name in hparams['time_series_hidden'][vname]
         if name in ('blocks', 'block_size', 'filters', 'kernel_size', 'pool_size', 'pool_strides'):
             hparams['time_series_hidden'][vname][name] = int(param['intValue'])
         elif name in ('filter_factor',):
