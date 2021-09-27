@@ -133,12 +133,12 @@ def train(model, config):
         tf.keras.metrics.Recall(
             name='r',
             class_id=config.inputs.primary_class,
-            thresholds=config.hparams.prediction_threshold,
+            thresholds=0.2,
         ),
         tf.keras.metrics.Precision(
             name='p',
             class_id=config.inputs.primary_class,
-            thresholds=config.hparams.prediction_threshold,
+            thresholds=0.2,
         ),
     ]
     

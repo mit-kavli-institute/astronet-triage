@@ -30,6 +30,7 @@ import logging
 import time
 import os
 import pprint
+import random
 import sys
 
 from absl import app
@@ -38,11 +39,15 @@ from apiclient import errors
 from google.cloud import storage
 from googleapiclient import discovery
 from google_auth_oauthlib import flow
+import tensorflow as tf
 
 from astronet import train
 from astronet import models
 from astronet.util import config_util
 from astronet.util import configdict
+
+from tensorflow.python.eager import def_function
+def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
 
 parser = argparse.ArgumentParser()
@@ -83,7 +88,7 @@ parser.add_argument(
 parser.add_argument(
     "--shuffle_buffer_size",
     type=int,
-    default=15000,
+    default=20000,
     help="Size of the shuffle buffer for the training dataset.")
 
 parser.add_argument(
@@ -96,7 +101,7 @@ parser.add_argument(
 parser.add_argument(
     "--study_id",
     type=str,
-    default="new_tess_lab_{}".format(
+    default="vetting_base_{}".format(
         datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
     help="Unique identifier string for the study.")
 
@@ -104,12 +109,12 @@ parser.add_argument(
     "--tune_trials",
     type=int,
     default=1000,
-    help="Total number of trials to tunr the model for.")
+    help="Total number of trials to tune the model for.")
 
 parser.add_argument(
     "--ensemble_count",
     type=int,
-    default=3,
+    default=4,
     help="Model ensemble size.")
 
 
@@ -145,8 +150,7 @@ def operation_name(operation_id):
 
 def study_config(config):
   metrics = [
-      {'metric': 'r', 'goal': 'MAXIMIZE'},
-      {'metric': 'p', 'goal': 'MAXIMIZE'}
+      {'metric': 'loss', 'goal': 'MINIMIZE'},
   ]
 
   return {
@@ -167,8 +171,8 @@ def initialize_client():
   credentials = appflow.credentials
 
   client = storage.Client(CLOUD_PROJECT_ID)
-  bucket = client.get_bucket('caip-optimizer-alpha-public')
-  blob = bucket.get_blob('api/alpha-ml_google_rest_v1.json')
+  bucket = client.get_bucket('caip-optimizer-public')
+  blob = bucket.get_blob('api/ml_public_google_rest_v1.json')
   service = blob.download_as_string()
   return discovery.build_from_document(
       service=service, credentials=credentials)
@@ -185,70 +189,102 @@ def create_study(client, study):
     
 
 # FIXME
-def map_param(hparams, param):
+def map_param(hparams, param, inputs_config):
   name = param['parameter']
-  if name in (
-      'learning_rate', 'pre_logits_dropout_rate', 'prediction_threshold',
-      'one_minus_adam_beta_1', 'one_minus_adam_beta_2', 'adam_epsilon'):
-    hparams[name] = param['floatValue']
-  elif name in (
-    'use_batch_norm',):
-    hparams[name] = (param['stringValue'].lower() == 'true')
-  elif name in (
-    'batch_size', 'num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
+  if name == 'train_steps':
+    train.FLAGS.train_steps = int(param['intValue'])
+  elif name in ('learning_rate', 'one_minus_adam_beta_1', 'one_minus_adam_beta_2', 'adam_epsilon'):
+    hparams[name] = float(param['floatValue'])
+  elif name == 'batch_size':
     hparams[name] = int(param['intValue'])
-  elif name in (
-    'cnn_block_filter_factor', 'cnn_block_size', 'cnn_initial_num_filters',
-    'cnn_kernel_size', 'pool_strides'):      
-    hparams['time_series_hidden']['local_view'][name] = int(param['intValue'])
-    hparams['time_series_hidden']['secondary_view'][name] = int(param['intValue'])
-    hparams['time_series_hidden']['global_view'][name] = int(param['intValue'])
-  elif name in ('cnn_num_blocks_global', 'pool_size_global'):
-    hparams['time_series_hidden']['global_view'][name[:-7]] = int(param['intValue'])
-  elif name in ('cnn_num_blocks_local', 'pool_size_local'):
-    hparams['time_series_hidden']['local_view'][name[:-6]] = int(param['intValue'])
-    hparams['time_series_hidden']['secondary_view'][name[:-6]] = int(param['intValue'])
+  elif name == 'use_batch_norm':
+    inputs_config[name] = (param['stringValue'].lower() == 'true')
+  elif name in ('num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
+    hparams[name] = int(param['intValue'])
+  elif name == 'pre_logits_dropout_rate':
+    hparams[name] = float(param['floatValue'])
   else:
-    raise ValueError('param missing from tune.map_param' + str(param))
+    if name.startswith('global_'):
+        name = name[len('global_'):]
+        vnames = ['global_view']
+    elif name.startswith('local_'):
+        name = name[len('local_'):]
+        vnames = ['local_view']
+    elif name.startswith('other_'):
+        name = name[len('other_'):]
+        vnames = ['secondary_view', 'sample_segments_local_view']
+    else:
+        raise InternalError('param missing from tune.map_param' + str(param))
+        
+    for vname in vnames:
+        if name in ('blocks', 'block_size', 'filters', 'kernel_size', 'pool_size', 'pool_strides'):
+            hparams['time_series_hidden'][vname][name] = int(param['intValue'])
+        elif name in ('filter_factor',):
+            hparams['time_series_hidden'][vname][name] = int(param['floatValue'])
+        elif name in ('separable',):
+            hparams['time_series_hidden'][vname][name] = (param['stringValue'].lower() == 'true')
+        else:
+            raise InternalError('param missing from tune.map_param' + str(param))
+    
+    
+prev_losses = None
+    
+    
+def load_prev_losses(client, study_id):
+    global prev_losses
+    
+    if prev_losses is None:
+        study_id = '{}/studies/{}'.format(study_parent(), study_id)
+        resp = client.projects().locations().studies().trials().list(parent=study_id).execute()
+
+        prev_losses = []
+        for trial in resp['trials']:
+          if 'finalMeasurement' not in trial:
+            continue
+
+          loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
+          prev_losses.append(loss)
+    return prev_losses
 
 
 def execute_trial(trial_id, params, model_class, config, ensemble_count):
-  print(("=========== Start Trial: [{0}] =============").format(trial_id))
+  print(f'=========== Start Trial: [{trial_id}] =============')
   for param in params:
-    map_param(config['hparams'], param)
+    map_param(config['hparams'], param, config['inputs'])
   
-  ensemble_val_r = []
-  ensemble_val_p = []
+  ensemble_val_loss = []
   for _ in range(ensemble_count):
     model = model_class(config)
-    history = train.train(model, config).history
+    try:
+        history = train.train(model, config).history
+    except KeyboardInterrupt:
+        print('\nAborting runs for this trial. Break again for full stop.')
+        if ensemble_val_loss:
+            break
+        else:
+            return
 
-    val_r = history['val_r'][-1]
-    val_p = history['val_p'][-1]
-
-    if val_r < 0.001:
-      val_r = 0.001
-    if val_p < 0.001:
-      val_p = 0.001
+    val_loss = history['val_loss'][-1]
         
-    ensemble_val_r.append(val_r)
-    ensemble_val_p.append(val_p)
+    ensemble_val_loss.append(val_loss)
 
     # Only ensemble promising models.
-    if (val_r < 0.5) or (val_p < 0.2):
+    if val_loss > 1.3:
+      break
+    
+    if prev_losses and val_loss > min(prev_losses):
       break
 
-  # Select metric with poorest val_r.
+  # Select metric with poorest val_loss.
   selected = 0
-  for i, (val_r, val_p) in enumerate(zip(ensemble_val_r, ensemble_val_p)):
-    if val_r < ensemble_val_r[selected]:
+  for i, val_loss in enumerate(ensemble_val_loss):
+    if val_loss > ensemble_val_loss[selected]:
       selected = i
-  val_r = ensemble_val_r[selected]
-  val_p = ensemble_val_p[selected]
+  val_loss = ensemble_val_loss[selected]
+  prev_losses.append(val_loss)
 
-  metric_r = {'metric': 'r', 'value': float(val_r)}
-  metric_p = {'metric': 'p', 'value': float(val_p)}
-  measurement = {'step_count': 1, 'metrics': [metric_r, metric_p]}
+  metric_loss = {'metric': 'loss', 'value': float(val_loss)}
+  measurement = {'step_count': 1, 'metrics': [metric_loss]}
   return measurement
 
 
@@ -286,11 +322,11 @@ def tune(client, model_class, config, ensemble_count):
       if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
         continue
     
+      load_prev_losses(client, study_id())
       try:
-        measurement = execute_trial(
-            trial_id, trial['parameters'], model_class, config, ensemble_count)
+        measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
         feasible = True
-      except Exception as e:
+      except (ValueError, tf.errors.OpError) as e:
         print(type(e), e)
         measurement = None
         feasible = False

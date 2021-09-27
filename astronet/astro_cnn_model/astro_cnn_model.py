@@ -81,15 +81,23 @@ class AstroCNNModel(tf.keras.Model):
         layers = []
         for i in range(block_params.cnn_num_blocks):
             block_name = '{}_block_{}'.format(name, i + 1)
-            num_filters = int(block_params.cnn_initial_num_filters *
+            num_filters = int(float(block_params.cnn_initial_num_filters) *
                               block_params.cnn_block_filter_factor ** i)
             for j in range(block_params.cnn_block_size):
-                layers.append(tf.keras.layers.Conv1D(
-                    filters=num_filters,
-                    kernel_size=block_params.cnn_kernel_size,
-                    padding=block_params.convolution_padding,
-                    activation='relu',
-                    name='{}_conv_{}'.format(block_name, j + 1)))
+                if block_params.separable:
+                    layers.append(tf.keras.layers.SeparableConv1D(
+                        filters=num_filters,
+                        kernel_size=block_params.cnn_kernel_size,
+                        padding=block_params.convolution_padding,
+                        activation='relu',
+                        name='{}_conv_{}'.format(block_name, j + 1)))
+                else:
+                    layers.append(tf.keras.layers.Conv1D(
+                        filters=num_filters,
+                        kernel_size=block_params.cnn_kernel_size,
+                        padding=block_params.convolution_padding,
+                        activation='relu',
+                        name='{}_conv_{}'.format(block_name, j + 1)))
             if block_params.pool_size:
                 layers.append(tf.keras.layers.MaxPool1D(
                     pool_size=block_params.pool_size,
