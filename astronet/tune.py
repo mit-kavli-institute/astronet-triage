@@ -214,7 +214,7 @@ def map_param(hparams, param, inputs_config):
         name = name[len('other_'):]
         vnames = ['secondary_view', 'sample_segments_local_view']
     else:
-        raise InternalError('param missing from tune.map_param' + str(param))
+        assert False, 'param missing from tune.map_param' + str(param)
         
     for vname in vnames:
         assert name in hparams['time_series_hidden'][vname]
@@ -225,7 +225,7 @@ def map_param(hparams, param, inputs_config):
         elif name in ('separable',):
             hparams['time_series_hidden'][vname][name] = (param['stringValue'].lower() == 'true')
         else:
-            raise InternalError('param missing from tune.map_param' + str(param))
+            assert False, 'param missing from tune.map_param' + str(param)
     
     
 prev_losses = None
