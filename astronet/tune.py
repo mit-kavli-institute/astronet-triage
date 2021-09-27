@@ -218,9 +218,10 @@ def map_param(hparams, param, inputs_config):
         
     for vname in vnames:
         assert name in hparams['time_series_hidden'][vname]
-        if name in ('blocks', 'block_size', 'filters', 'kernel_size', 'pool_size', 'pool_strides'):
+        if name in ('cnn_num_blocks', 'cnn_block_size', 'cnn_initial_num_filters',
+                    'cnn_kernel_size', 'pool_size', 'pool_strides'):
             hparams['time_series_hidden'][vname][name] = int(param['intValue'])
-        elif name in ('filter_factor',):
+        elif name in ('cnn_block_filter_factor',):
             hparams['time_series_hidden'][vname][name] = int(param['floatValue'])
         elif name in ('separable',):
             hparams['time_series_hidden'][vname][name] = (param['stringValue'].lower() == 'true')
