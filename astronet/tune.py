@@ -306,13 +306,15 @@ def tune(client, model_class, config, ensemble_count):
     op_id = resp['name'].split('/')[-1]
 
     # Poll the suggestion long-running operations.
-    get_op = client.projects().locations().operations().get(
-        name=operation_name(op_id))
+    print('New suggestion', end='')
+    get_op = client.projects().locations().operations().get(name=operation_name(op_id))
     while True:
+      print('.', end='')
       operation = get_op.execute()
       if 'done' in operation and operation['done']:
         break
       time.sleep(1)
+    print('done')
 
     for suggested_trial in operation['response']['trials']:
       trial_id = int(suggested_trial['name'].split('/')[-1])
