@@ -243,8 +243,11 @@ def load_prev_losses(client, study_id):
         for trial in resp['trials']:
           if 'finalMeasurement' not in trial:
             continue
+          losses = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss' and 'value' in m)
+          if not losses:
+            continue
 
-          loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
+          loss, = losses
           prev_losses.append(loss)
     return prev_losses
 
