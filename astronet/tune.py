@@ -297,6 +297,7 @@ def tune(client, model_class, config, ensemble_count):
 
   trial_id = 0
   while trial_id < max_trial_id_to_stop:
+    print('New trial', end='')
     resp = client.projects().locations().studies().trials().suggest(
         parent=trial_parent(), 
         body={
@@ -306,7 +307,7 @@ def tune(client, model_class, config, ensemble_count):
     op_id = resp['name'].split('/')[-1]
 
     # Poll the suggestion long-running operations.
-    print('New suggestion', end='')
+    print(' waiting', end='')
     get_op = client.projects().locations().operations().get(name=operation_name(op_id))
     while True:
       print('.', end='')
