@@ -233,7 +233,7 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
                 'parameter': 'pool_strides', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}}
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
                 'parameter': 'pool_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
