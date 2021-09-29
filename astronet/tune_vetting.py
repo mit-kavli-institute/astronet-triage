@@ -322,6 +322,8 @@ def tune(client, model_class, config, ensemble_count):
       load_prev_losses(client, study_id())
       try:
         measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
+        if measurement is None:
+            return
         feasible = True
       except (ValueError, tf.errors.OpError) as e:
         print(type(e), e)

@@ -243,7 +243,7 @@ def load_prev_losses(client, study_id):
         for trial in resp['trials']:
           if 'finalMeasurement' not in trial:
             continue
-          losses = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss' and 'value' in m)
+          losses = tuple(m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss' and 'value' in m)
           if not losses:
             continue
 
@@ -333,6 +333,8 @@ def tune(client, model_class, config, ensemble_count):
       load_prev_losses(client, study_id())
       try:
         measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
+        if measurement is None:
+            return
         feasible = True
       except (ValueError, tf.errors.OpError) as e:
         print(type(e), e)
