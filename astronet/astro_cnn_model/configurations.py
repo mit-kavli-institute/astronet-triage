@@ -924,7 +924,7 @@ def revised():
         "tune_params": [
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 10, 'max_value' : 20000}},
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 60000}},
             {
                 'parameter': 'learning_rate', 'type': 'DOUBLE',
                 'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-2},
@@ -1011,28 +1011,53 @@ def revised():
                 'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
-                'parameter': 'other_cnn_num_blocks', 'type' : 'INTEGER',
+                'parameter': 'sec_cnn_num_blocks', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'other_cnn_block_size', 'type' : 'INTEGER',
+                'parameter': 'sec_cnn_block_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
-                'parameter': 'other_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'parameter': 'sec_cnn_initial_num_filters', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
-                'parameter': 'other_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'parameter': 'sec_cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
-                'parameter': 'other_cnn_kernel_size', 'type' : 'INTEGER',
+                'parameter': 'sec_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
-                'parameter': 'other_pool_size', 'type' : 'INTEGER',
+                'parameter': 'sec_pool_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
-                'parameter': 'other_pool_strides', 'type' : 'INTEGER',
+                'parameter': 'sec_pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
-                'parameter': 'other_separable', 'type': 'CATEGORICAL',
+                'parameter': 'sec_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+
+            {
+                'parameter': 'ind_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'ind_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'ind_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
+            {
+                'parameter': 'ind_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
+            {
+                'parameter': 'ind_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+            {
+                'parameter': 'ind_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+            {
+                'parameter': 'ind_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+            {
+                'parameter': 'ind_separable', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['True', 'False']}},
         ],
     }

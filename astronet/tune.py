@@ -210,9 +210,12 @@ def map_param(hparams, param, inputs_config):
     elif name.startswith('local_'):
         name = name[len('local_'):]
         vnames = ['local_view']
-    elif name.startswith('other_'):
-        name = name[len('other_'):]
-        vnames = ['secondary_view', 'sample_segments_local_view']
+    elif name.startswith('sec_'):
+        name = name[len('sec_'):]
+        vnames = ['secondary_view']
+    elif name.startswith('ind_'):
+        name = name[len('ind_'):]
+        vnames = ['sample_segments_local_view']
     else:
         assert False, 'param missing from tune.map_param' + str(param)
         
@@ -294,13 +297,16 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
 
 
 def tune(client, model_class, config, ensemble_count):
-  client_id = 'client1'
   suggestion_count_per_request =  1
   max_trial_id_to_stop = FLAGS.tune_trials
 
   trial_id = 0
+  operation = None
+  iter_id = 0
   while trial_id < max_trial_id_to_stop:
-    print('New trial', end='')
+    client_id = 'client' + str(iter_id % 2)
+    iter_id += 1
+
     resp = client.projects().locations().studies().trials().suggest(
         parent=trial_parent(), 
         body={
@@ -309,52 +315,62 @@ def tune(client, model_class, config, ensemble_count):
     ).execute()
     op_id = resp['name'].split('/')[-1]
 
+    # Use the (step - 1) operation if available.
+    # This lets us execute the trial while the next trial results are generated.
+    if operation is not None:
+        for suggested_trial in operation['response']['trials']:
+          trial_id = int(suggested_trial['name'].split('/')[-1])
+
+          # Featch the suggested trials.
+          trial = client.projects().locations().studies().trials().get(
+              name=trial_name(trial_id)
+          ).execute()
+          if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
+            continue
+
+          load_prev_losses(client, study_id())
+          try:
+            measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
+            if measurement is None:
+                return
+            feasible = True
+          except (ValueError, tf.errors.OpError) as e:
+            print(type(e), e)
+            measurement = None
+            feasible = False
+            infeasible_reason = str(e)
+
+          if feasible:
+            client.projects().locations().studies().trials().addMeasurement(
+                name=trial_name(trial_id), 
+                body={'measurement': measurement}
+            ).execute()
+            client.projects().locations().studies().trials().complete(
+              name=trial_name(trial_id)
+            ).execute()
+          else:
+            client.projects().locations().studies().trials().complete(
+              name=trial_name(trial_id),
+              body={'trialInfeasible': True, 'infeasibleReason': infeasible_reason}
+            ).execute()        
+
     # Poll the suggestion long-running operations.
-    print(' waiting', end='')
+    sys.stdout.flush()
+    print('Waiting', end='')
     get_op = client.projects().locations().operations().get(name=operation_name(op_id))
+    sleep_t = 1.0
+    step = 1
     while True:
-      print('.', end='')
+      print('.' * int(sleep_t) + str(step), end='')
+      sys.stdout.flush()
       operation = get_op.execute()
       if 'done' in operation and operation['done']:
         break
-      time.sleep(1)
+      time.sleep(sleep_t)
+      sleep_t *= 1.3
+      step += 1
     print('done')
-
-    for suggested_trial in operation['response']['trials']:
-      trial_id = int(suggested_trial['name'].split('/')[-1])
-
-      # Featch the suggested trials.
-      trial = client.projects().locations().studies().trials().get(
-          name=trial_name(trial_id)
-      ).execute()
-      if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
-        continue
-    
-      load_prev_losses(client, study_id())
-      try:
-        measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
-        if measurement is None:
-            return
-        feasible = True
-      except (ValueError, tf.errors.OpError) as e:
-        print(type(e), e)
-        measurement = None
-        feasible = False
-        infeasible_reason = str(e)
-
-      if feasible:
-        client.projects().locations().studies().trials().addMeasurement(
-            name=trial_name(trial_id), 
-            body={'measurement': measurement}
-        ).execute()
-        client.projects().locations().studies().trials().complete(
-          name=trial_name(trial_id)
-        ).execute()
-      else:
-        client.projects().locations().studies().trials().complete(
-          name=trial_name(trial_id),
-          body={'trialInfeasible': True, 'infeasibleReason': infeasible_reason}
-        ).execute()        
+    sys.stdout.flush()
 
 
 def main(_):
