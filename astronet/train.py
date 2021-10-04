@@ -154,11 +154,13 @@ def train(model, config):
     else:
         callbacks = []
 
-    history = model.fit(
-        ds,
-        epochs=FLAGS.train_epochs,
-        steps_per_epoch=FLAGS.train_steps,
-        validation_data=eval_ds)
+    train_steps = FLAGS.train_steps        
+    train_epochs = FLAGS.train_epochs
+    if not train_steps:
+        train_steps = config['train_steps']
+        train_epochs = 1
+
+    history = model.fit(ds, epochs=train_epochs, steps_per_epoch=train_steps, validation_data=eval_ds)
 
     if FLAGS.model_dir:
         model.save(dir_name)
@@ -172,12 +174,11 @@ def main(_):
 
     if FLAGS.pretrain_model_dir:
         pretrain_model = tf.keras.models.load_model(
-            os.path.join(FLAGS.pretrain_model_dir,
-                         os.listdir(FLAGS.pretrain_model_dir + '/')[0]))
+            os.path.join(FLAGS.pretrain_model_dir, os.listdir(FLAGS.pretrain_model_dir + '/')[0]))
         model = model_class(config, pretrain_model)
     else:
         model = model_class(config)
-
+        
     train(model, config)
 
 

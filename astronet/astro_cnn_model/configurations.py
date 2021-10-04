@@ -931,7 +931,7 @@ def revised():
                 'scale_type': 'UNIT_LOG_SCALE'},
             {
                 'parameter': 'batch_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 512}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 1024}},
 
 
             {
@@ -955,7 +955,7 @@ def revised():
                 'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
             {
                 'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 16, 'max_value' : 512}},
+                'integer_value_spec' : {'min_value' : 16, 'max_value' : 1024}},
             {
                 'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.4}},
@@ -974,10 +974,10 @@ def revised():
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
                 'parameter': 'global_cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'global_pool_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'global_pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
@@ -999,10 +999,10 @@ def revised():
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
                 'parameter': 'local_cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'local_pool_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'local_pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
@@ -1024,10 +1024,10 @@ def revised():
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
                 'parameter': 'sec_cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'sec_pool_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'sec_pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
@@ -1043,16 +1043,16 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
                 'parameter': 'ind_cnn_initial_num_filters', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 256}},
             {
                 'parameter': 'ind_cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
                 'parameter': 'ind_cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'ind_pool_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
             {
                 'parameter': 'ind_pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
@@ -1062,4 +1062,100 @@ def revised():
         ],
     }
 
+    return config
+
+
+def revised_tuned():
+    # projects/mdan-playground/locations/us-central1/studies/4_revised_1_revised
+    config = revised()
+    config['train_steps'] = 754
+    config['hparams'] = {
+ 'adam_epsilon': 8.389247579932347e-06,
+ 'aux_inputs': ['Period',
+                'Duration',
+                'Transit_Depth',
+                'Tmag',
+                'star_mass',
+                'star_mass_present',
+                'star_rad',
+                'star_rad_present',
+                'n_folds',
+                'local_scale',
+                'local_scale_0.3',
+                'local_scale_0.5',
+                'local_scale_present',
+                'local_scale_present_0.3',
+                'local_scale_present_0.5',
+                'secondary_scale',
+                'secondary_scale_0.3',
+                'secondary_scale_0.5',
+                'secondary_scale_present',
+                'secondary_scale_present_0.3',
+                'secondary_scale_present_0.5'],
+ 'batch_size': 414,
+ 'learning_rate': 0.0005523627782862601,
+ 'num_pre_logits_hidden_layers': 2,
+ 'one_minus_adam_beta_1': 0.5120186376800835,
+ 'one_minus_adam_beta_2': 0.058245279711809934,
+ 'optimizer': 'adam',
+ 'pre_logits_dropout_rate': 0.24106240642961657,
+ 'pre_logits_hidden_layer_size': 511,
+ 'time_series_hidden': {'global_view': {'cnn_block_filter_factor': 1,
+                                        'cnn_block_size': 1,
+                                        'cnn_initial_num_filters': 8,
+                                        'cnn_kernel_size': 6,
+                                        'cnn_num_blocks': 2,
+                                        'convolution_padding': 'valid',
+                                        'extra_channels': ['global_view_0.3',
+                                                           'global_view_5.0',
+                                                           'global_std',
+                                                           'global_mask',
+                                                           'global_transit_mask'],
+                                        'pool_size': 4,
+                                        'pool_strides': 1,
+                                        'separable': True},
+                        'local_view': {'cnn_block_filter_factor': 1,
+                                       'cnn_block_size': 1,
+                                       'cnn_initial_num_filters': 15,
+                                       'cnn_kernel_size': 5,
+                                       'cnn_num_blocks': 2,
+                                       'convolution_padding': 'valid',
+                                       'extra_channels': ['local_view_0.3',
+                                                          'local_view_5.0',
+                                                          'local_view_odd',
+                                                          'local_view_even',
+                                                          'local_std',
+                                                          'local_std_odd',
+                                                          'local_std_even',
+                                                          'local_view_half_period_std',
+                                                          'local_mask'],
+                                       'pool_size': 4,
+                                       'pool_strides': 2,
+                                       'separable': True},
+                        'sample_segments_local_view': {'cnn_block_filter_factor': 1,
+                                                       'cnn_block_size': 1,
+                                                       'cnn_initial_num_filters': 5,
+                                                       'cnn_kernel_size': 2,
+                                                       'cnn_num_blocks': 1,
+                                                       'convolution_padding': 'valid',
+                                                       'extra_channels': ['sample_segments_local_view_0.3',
+                                                                          'sample_segments_local_view_5.0'],
+                                                       'multichannel': True,
+                                                       'pool_size': 4,
+                                                       'pool_strides': 3,
+                                                       'separable': False},
+                        'secondary_view': {'cnn_block_filter_factor': 1,
+                                           'cnn_block_size': 2,
+                                           'cnn_initial_num_filters': 127,
+                                           'cnn_kernel_size': 6,
+                                           'cnn_num_blocks': 1,
+                                           'convolution_padding': 'valid',
+                                           'extra_channels': ['secondary_std',
+                                                              'secondary_view_0.3',
+                                                              'secondary_view_5.0',
+                                                              'secondary_mask'],
+                                           'pool_size': 2,
+                                           'pool_strides': 3,
+                                           'separable': True}},
+ 'use_batch_norm': False}
     return config

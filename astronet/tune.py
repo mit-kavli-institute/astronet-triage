@@ -108,7 +108,7 @@ parser.add_argument(
 parser.add_argument(
     "--tune_trials",
     type=int,
-    default=1000,
+    default=10000,
     help="Total number of trials to tune the model for.")
 
 parser.add_argument(
@@ -359,15 +359,17 @@ def tune(client, model_class, config, ensemble_count):
     print('Waiting', end='')
     get_op = client.projects().locations().operations().get(name=operation_name(op_id))
     sleep_t = 1.0
+    tot_sleep = 0.0
     step = 1
     while True:
-      print('.' * int(sleep_t) + str(step), end='')
+      print('.' * int(sleep_t) + str(int(sleep_t)), end='')
       sys.stdout.flush()
       operation = get_op.execute()
       if 'done' in operation and operation['done']:
         break
       time.sleep(sleep_t)
       sleep_t *= 1.3
+      tot_sleep += sleep_t
       step += 1
     print('done')
     sys.stdout.flush()
