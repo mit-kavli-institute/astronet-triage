@@ -77,7 +77,7 @@ def build_dataset(file_pattern,
                         mask = tf.zeros_like(value)
                     else:
                         mask = tf.ones_like(value)
-                    features[f"{name}_present"] = mask
+                    features[f"{name.lower()}_present"] = mask
                 if use_value:
                     if getattr(cfg, "log_scale", False):
                         value = tf.cast(value, tf.float64)
