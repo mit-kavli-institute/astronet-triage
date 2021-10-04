@@ -90,7 +90,7 @@ def build_dataset(file_pattern,
                         value = (value - cfg["mean"]) / cfg["std"]
                 else:
                     value = tf.zeros_like(value)
-            features[name] = value
+            features[name.lower()] = value
         
         if include_labels:
             return features, labels, weights

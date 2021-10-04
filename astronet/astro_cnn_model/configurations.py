@@ -589,7 +589,7 @@ def extended():
 def revised():
     config = {
         "inputs": {
-            "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
+            "label_columns": ["disp_e", "disp_n", "disp_j", "disp_s", "disp_b"],
             "primary_class": 0,
 
             "features": {
