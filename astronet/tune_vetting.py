@@ -199,9 +199,11 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
   name = param['parameter']
   if name in ('learning_rate', 'one_minus_adam_beta_1', 'one_minus_adam_beta_2', 'adam_epsilon'):
     hparams[name] = param['floatValue']
+  elif name in ('batch_size',):
+    hparams[name] = int(param['intValue'])
   elif name in ('pre_logits_dropout_rate'):
     vetting_hparams[name] = param['floatValue']
-  elif name in ('batch_size', 'num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
+  elif name in ('num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
     vetting_hparams[name] = int(param['intValue'])
   elif name == 'cnn_block_filter_factor':
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(param['floatValue'])
@@ -210,8 +212,10 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(param['intValue'])
   elif name == 'train_steps':
     train.FLAGS.train_steps = int(param['intValue'])
-  elif name in ('exclusive_labels', 'use_batch_norm'):
+  elif name == 'exclusive_labels':
     inputs_config[name] = (param['stringValue'].lower() == 'true')
+  elif name == 'use_batch_norm':
+    vetting_hparams[name] = (param['stringValue'].lower() == 'true')
   elif name == 'separable':
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = (param['stringValue'].lower() == 'true')
   elif name == 'convolution_padding':
@@ -286,12 +290,16 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
 
 
 def tune(client, model_class, config, ensemble_count):
-  client_id = 'client1'
   suggestion_count_per_request =  1
   max_trial_id_to_stop = FLAGS.tune_trials
 
   trial_id = 0
+  operation = None
+  iter_id = 0
   while trial_id < max_trial_id_to_stop:
+    client_id = 'client' + str(iter_id % 2)
+    iter_id += 1
+
     resp = client.projects().locations().studies().trials().suggest(
         parent=trial_parent(), 
         body={
@@ -300,50 +308,64 @@ def tune(client, model_class, config, ensemble_count):
     ).execute()
     op_id = resp['name'].split('/')[-1]
 
+    # Use the (step - 1) operation if available.
+    # This lets us execute the trial while the next trial results are generated.
+    if operation is not None:
+        for suggested_trial in operation['response']['trials']:
+          trial_id = int(suggested_trial['name'].split('/')[-1])
+
+          # Featch the suggested trials.
+          trial = client.projects().locations().studies().trials().get(
+              name=trial_name(trial_id)
+          ).execute()
+          if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
+            continue
+
+          load_prev_losses(client, study_id())
+          try:
+            measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
+            if measurement is None:
+                return
+            feasible = True
+          except (ValueError, tf.errors.OpError) as e:
+            print(type(e), e)
+            measurement = None
+            feasible = False
+            infeasible_reason = str(e)
+
+          if feasible:
+            client.projects().locations().studies().trials().addMeasurement(
+                name=trial_name(trial_id), 
+                body={'measurement': measurement}
+            ).execute()
+            client.projects().locations().studies().trials().complete(
+              name=trial_name(trial_id)
+            ).execute()
+          else:
+            client.projects().locations().studies().trials().complete(
+              name=trial_name(trial_id),
+              body={'trialInfeasible': True, 'infeasibleReason': infeasible_reason}
+            ).execute()        
+
     # Poll the suggestion long-running operations.
-    get_op = client.projects().locations().operations().get(
-        name=operation_name(op_id))
+    sys.stdout.flush()
+    print('Waiting', end='')
+    get_op = client.projects().locations().operations().get(name=operation_name(op_id))
+    sleep_t = 1.0
+    tot_sleep = 0.0
+    step = 1
     while True:
+      print('.' * int(sleep_t) + str(int(sleep_t)), end='')
+      sys.stdout.flush()
       operation = get_op.execute()
       if 'done' in operation and operation['done']:
         break
-      time.sleep(1)
-
-    for suggested_trial in operation['response']['trials']:
-      trial_id = int(suggested_trial['name'].split('/')[-1])
-
-      # Featch the suggested trials.
-      trial = client.projects().locations().studies().trials().get(
-          name=trial_name(trial_id)
-      ).execute()
-      if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
-        continue
-    
-      load_prev_losses(client, study_id())
-      try:
-        measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
-        if measurement is None:
-            return
-        feasible = True
-      except (ValueError, tf.errors.OpError) as e:
-        print(type(e), e)
-        measurement = None
-        feasible = False
-        infeasible_reason = str(e)
-
-      if feasible:
-        client.projects().locations().studies().trials().addMeasurement(
-            name=trial_name(trial_id), 
-            body={'measurement': measurement}
-        ).execute()
-        client.projects().locations().studies().trials().complete(
-          name=trial_name(trial_id)
-        ).execute()
-      else:
-        client.projects().locations().studies().trials().complete(
-          name=trial_name(trial_id),
-          body={'trialInfeasible': True, 'infeasibleReason': infeasible_reason}
-        ).execute()        
+      time.sleep(sleep_t)
+      sleep_t *= 1.3
+      tot_sleep += sleep_t
+      step += 1
+    print('done')
+    sys.stdout.flush()
 
 
 def main(_):

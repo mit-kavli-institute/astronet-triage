@@ -8,9 +8,9 @@ do
     python astronet/train.py \
         --model=AstroCNNModel \
         --config_name=revised_tuned \
-        --train_files='/mnt/tess/astronet/tfrecords-27-train/*' \
-        --eval_files='/mnt/tess/astronet/tfrecords-27-val/*' \
+        --train_files='/mnt/tess/astronet/tfrecords-28-train/*' \
+        --eval_files='/mnt/tess/astronet/tfrecords-28-val/*' \
         --train_steps=0 \
-        --model_dir="/mnt/tess/astronet/checkpoints/revised_tuned_27_run_1/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/revised_tuned_28_run_2/${i}"
 done
 

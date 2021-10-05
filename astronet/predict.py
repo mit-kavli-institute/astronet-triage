@@ -73,9 +73,7 @@ def predict(legacy=False):
         repeat=1,
         include_identifiers=True)
     
-    label_index = {i:k for i, k in enumerate(config.inputs.label_columns)}
-    print('Binary prediction threshold: {} (orientative)'.format(
-        config.hparams.prediction_threshold))
+    label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
 
     print('0 records', end='')
     series = []

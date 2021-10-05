@@ -127,7 +127,7 @@ def base():
     return config
 
 
-def revised():
+def vrevised():
     config = {
         "inputs": {
             "label_columns": ["disp_p", "disp_e", "disp_n"],
@@ -150,7 +150,19 @@ def revised():
                 },
             },
         },
+        "train_steps": 1000,
+        "hparams": {
+            "batch_size": 100,
+
+            "learning_rate": 1e-05,
+            "optimizer": "adam",
+            "one_minus_adam_beta_1": 0.1,
+            "one_minus_adam_beta_2": 0.00,
+            "adam_epsilon": 1e-07,
+        },
         "vetting_hparams": {
+            "use_batch_norm": False,
+
             "num_pre_logits_hidden_layers": 3,
             "pre_logits_hidden_layer_size": 256,
             "pre_logits_dropout_rate": 0.1,
@@ -185,8 +197,11 @@ def revised():
                 'scale_type': 'UNIT_LOG_SCALE'},
             {
                 'parameter': 'batch_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 512}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 1024}},
 
+            {
+                'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
             {
                 'parameter': 'exclusive_labels', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['True', 'False']}},
@@ -208,13 +223,10 @@ def revised():
                 'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
             {
                 'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 16, 'max_value' : 1024}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 1024}},
             {
                 'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.4}},
-            {
-                'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
-                'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
                 'parameter': 'cnn_num_blocks', 'type' : 'INTEGER',
@@ -227,7 +239,7 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
                 'parameter': 'cnn_block_filter_factor', 'type' : 'DOUBLE',
-                'integer_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
+                'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
             {
                 'parameter': 'cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
@@ -246,6 +258,6 @@ def revised():
         ],
     }
     
-    config_util.merge_configs(config, configurations.extended())
+    config_util.merge_configs(config, configurations.revised_tuned())
     
     return config

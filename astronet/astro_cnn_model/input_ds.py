@@ -51,8 +51,8 @@ def build_dataset(file_pattern,
         parsed_features = tf.io.parse_single_example(serialized_example, features=data_fields)
 
 
-        label_features = [parsed_features.pop(name) for name in input_config.label_columns]
         if include_labels:
+            label_features = [parsed_features.pop(name) for name in input_config.label_columns]
             labels = tf.stack(label_features)
             labels = tf.cast(tf.minimum(labels, 1), tf.float32)
 

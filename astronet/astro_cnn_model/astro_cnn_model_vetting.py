@@ -87,6 +87,9 @@ class AstroCNNModelVetting(tf.keras.Model):
         def is_vetting_input(k):
             if k.endswith('_present'):
                 k = k[:-len('_present')]
+            # The dataset makes them lowercase. We should change things to lowercase throughout.
+            if k not in self.config.inputs.features:
+                k, = tuple(ck for ck in self.config.inputs.features.keys() if ck.lower() == k)
             return self.config.inputs.features[k].get('vetting_only', False)
         
         triage_inputs = {k:v for k, v in inputs.items() if not is_vetting_input(k)}
