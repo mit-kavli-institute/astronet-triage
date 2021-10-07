@@ -174,13 +174,15 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth)
     _set_float_feature(ex, tic, f'local_aperture_{k}{tag}', view)
 
-  view, std, _, _, _ = preprocess.local_view(tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth)
+  view, std, mask, _, _ = preprocess.local_view(tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth)
   _set_float_feature(ex, tic, f'local_view_odd{tag}', view)
   _set_float_feature(ex, tic, f'local_std_odd{tag}', std)
+  _set_float_feature(ex, tic, f'local_mask_odd{tag}', mask)
 
-  view, std, _, _, _ = preprocess.local_view(tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth)
+  view, std, mask, _, _ = preprocess.local_view(tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth)
   _set_float_feature(ex, tic, f'local_view_even{tag}', view)
   _set_float_feature(ex, tic, f'local_std_even{tag}', std)
+  _set_float_feature(ex, tic, f'local_mask_even{tag}', mask)
 
   (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
   (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth)
