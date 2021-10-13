@@ -206,7 +206,7 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
   elif name in ('num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
     vetting_hparams[name] = int(param['intValue'])
   elif name == 'cnn_block_filter_factor':
-    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(param['floatValue'])
+    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = float(param['floatValue'])
   elif name in (
     'cnn_block_size', 'cnn_initial_num_filters', 'cnn_kernel_size', 'pool_strides', 'cnn_num_blocks', 'pool_size'):
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(param['intValue'])

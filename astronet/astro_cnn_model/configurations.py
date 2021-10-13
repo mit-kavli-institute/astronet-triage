@@ -657,6 +657,14 @@ def revised():
                     "shape": [61],
                     "is_time_series": True,
                 },
+                "local_mask_even": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_mask_odd": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
                 "secondary_view": {
                     "shape": [61],
                     "is_time_series": True,
@@ -883,6 +891,8 @@ def revised():
                         "local_std_even",
                         "local_view_half_period_std",
                         "local_mask",
+                        'local_mask_odd',
+                        'local_mask_even'
                     ],
                 },
                 "secondary_view": {
@@ -924,7 +934,7 @@ def revised():
         "tune_params": [
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 10, 'max_value' : 60000}},
+                'integer_value_spec' : {'min_value' : 500, 'max_value' : 50000}},
             {
                 'parameter': 'learning_rate', 'type': 'DOUBLE',
                 'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-2},
@@ -971,7 +981,7 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
                 'parameter': 'global_cnn_block_filter_factor', 'type' : 'DOUBLE',
-                'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
             {
                 'parameter': 'global_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
@@ -996,7 +1006,7 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
                 'parameter': 'local_cnn_block_filter_factor', 'type' : 'DOUBLE',
-                'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
             {
                 'parameter': 'local_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
@@ -1018,13 +1028,13 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
                 'parameter': 'sec_cnn_initial_num_filters', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 512}},
             {
                 'parameter': 'sec_cnn_block_filter_factor', 'type' : 'DOUBLE',
-                'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
             {
                 'parameter': 'sec_cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 15}},
             {
                 'parameter': 'sec_pool_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
@@ -1046,7 +1056,7 @@ def revised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 256}},
             {
                 'parameter': 'ind_cnn_block_filter_factor', 'type' : 'DOUBLE',
-                'double_value_spec' : {'min_value' : 1.0, 'max_value' : 3.0}},
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
             {
                 'parameter': 'ind_cnn_kernel_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 8}},
@@ -1066,12 +1076,11 @@ def revised():
 
 
 def revised_tuned():
-    # projects/mdan-playground/locations/us-central1/studies/4_revised_1_revised
-    # projects/mdan-playground/locations/us-central1/studies/4_revised_1a_revised
+    # projects/mdan-playground/locations/us-central1/studies/30_revised_1c_revised
     config = revised()
-    config['train_steps'] = 1378
+    config['train_steps'] = 2144
     config['hparams'] = {
- 'adam_epsilon': 6.7391846066255085e-06,
+ 'adam_epsilon': 9.751060360758825e-06,
  'aux_inputs': ['Period',
                 'Duration',
                 'Transit_Depth',
@@ -1093,32 +1102,32 @@ def revised_tuned():
                 'secondary_scale_present',
                 'secondary_scale_present_0.3',
                 'secondary_scale_present_0.5'],
- 'batch_size': 414,
- 'learning_rate': 0.0012285439752522582,
- 'num_pre_logits_hidden_layers': 1,
- 'one_minus_adam_beta_1': 0.6986659651941247,
- 'one_minus_adam_beta_2': 0.19966785497396577,
+ 'batch_size': 247,
+ 'learning_rate': 0.0006468783731911675,
+ 'num_pre_logits_hidden_layers': 2,
+ 'one_minus_adam_beta_1': 0.7002484254470123,
+ 'one_minus_adam_beta_2': 0.4113606093048137,
  'optimizer': 'adam',
- 'pre_logits_dropout_rate': 0.21823767222245816,
- 'pre_logits_hidden_layer_size': 452,
- 'time_series_hidden': {'global_view': {'cnn_block_filter_factor': 1,
+ 'pre_logits_dropout_rate': 0.27364918139937583,
+ 'pre_logits_hidden_layer_size': 552,
+ 'time_series_hidden': {'global_view': {'cnn_block_filter_factor': 1.1877588065340596,
                                         'cnn_block_size': 2,
-                                        'cnn_initial_num_filters': 16,
+                                        'cnn_initial_num_filters': 31,
                                         'cnn_kernel_size': 6,
-                                        'cnn_num_blocks': 3,
+                                        'cnn_num_blocks': 2,
                                         'convolution_padding': 'valid',
                                         'extra_channels': ['global_view_0.3',
                                                            'global_view_5.0',
                                                            'global_std',
                                                            'global_mask',
                                                            'global_transit_mask'],
-                                        'pool_size': 3,
+                                        'pool_size': 7,
                                         'pool_strides': 1,
                                         'separable': True},
-                        'local_view': {'cnn_block_filter_factor': 1,
+                        'local_view': {'cnn_block_filter_factor': 0.9307389694001378,
                                        'cnn_block_size': 1,
-                                       'cnn_initial_num_filters': 4,
-                                       'cnn_kernel_size': 5,
+                                       'cnn_initial_num_filters': 14,
+                                       'cnn_kernel_size': 8,
                                        'cnn_num_blocks': 2,
                                        'convolution_padding': 'valid',
                                        'extra_channels': ['local_view_0.3',
@@ -1132,33 +1141,33 @@ def revised_tuned():
                                                           'local_mask',
                                                           'local_mask_odd',
                                                           'local_mask_even'],
-                                       'pool_size': 3,
+                                       'pool_size': 4,
                                        'pool_strides': 2,
                                        'separable': True},
-                        'sample_segments_local_view': {'cnn_block_filter_factor': 1,
-                                                       'cnn_block_size': 2,
-                                                       'cnn_initial_num_filters': 35,
-                                                       'cnn_kernel_size': 3,
-                                                       'cnn_num_blocks': 2,
+                        'sample_segments_local_view': {'cnn_block_filter_factor': 1.0601577845324794,
+                                                       'cnn_block_size': 4,
+                                                       'cnn_initial_num_filters': 16,
+                                                       'cnn_kernel_size': 2,
+                                                       'cnn_num_blocks': 3,
                                                        'convolution_padding': 'valid',
                                                        'extra_channels': ['sample_segments_local_view_0.3',
                                                                           'sample_segments_local_view_5.0'],
                                                        'multichannel': True,
-                                                       'pool_size': 6,
-                                                       'pool_strides': 3,
+                                                       'pool_size': 8,
+                                                       'pool_strides': 1,
                                                        'separable': True},
-                        'secondary_view': {'cnn_block_filter_factor': 1,
-                                           'cnn_block_size': 1,
-                                           'cnn_initial_num_filters': 128,
-                                           'cnn_kernel_size': 8,
+                        'secondary_view': {'cnn_block_filter_factor': 0.8944552332537086,
+                                           'cnn_block_size': 3,
+                                           'cnn_initial_num_filters': 88,
+                                           'cnn_kernel_size': 7,
                                            'cnn_num_blocks': 2,
                                            'convolution_padding': 'valid',
                                            'extra_channels': ['secondary_std',
                                                               'secondary_view_0.3',
                                                               'secondary_view_5.0',
                                                               'secondary_mask'],
-                                           'pool_size': 2,
-                                           'pool_strides': 3,
+                                           'pool_size': 3,
+                                           'pool_strides': 2,
                                            'separable': True}},
  'use_batch_norm': False}
     return config

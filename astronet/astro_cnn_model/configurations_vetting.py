@@ -99,8 +99,8 @@ def base():
                 'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.4}},
             {
-                'parameter': 'cnn_block_filter_factor', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+                'parameter': 'cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'integer_value_spec' : {'min_value' : 0.2, 'max_value' : 5.0}},
             {
                 'parameter': 'cnn_block_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},

@@ -225,7 +225,7 @@ def map_param(hparams, param, inputs_config):
                     'cnn_kernel_size', 'pool_size', 'pool_strides'):
             hparams['time_series_hidden'][vname][name] = int(param['intValue'])
         elif name in ('cnn_block_filter_factor',):
-            hparams['time_series_hidden'][vname][name] = int(param['floatValue'])
+            hparams['time_series_hidden'][vname][name] = float(param['floatValue'])
         elif name in ('separable',):
             hparams['time_series_hidden'][vname][name] = (param['stringValue'].lower() == 'true')
         else:
