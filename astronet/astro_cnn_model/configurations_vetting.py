@@ -190,7 +190,7 @@ def vrevised():
         "tune_params": [            
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 10, 'max_value' : 20000}},
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 5000}},
             {
                 'parameter': 'learning_rate', 'type': 'DOUBLE',
                 'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-1},
@@ -198,6 +198,12 @@ def vrevised():
             {
                 'parameter': 'batch_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 4, 'max_value' : 512}},
+            {
+                'parameter': 'use_preds_layer', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+            {
+                'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
                 'parameter': 'one_minus_adam_beta_1', 'type': 'DOUBLE',
@@ -230,7 +236,7 @@ def vrevised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
             {
                 'parameter': 'cnn_initial_num_filters', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 256}},
             {
                 'parameter': 'cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 0.3, 'max_value' : 2.0}},

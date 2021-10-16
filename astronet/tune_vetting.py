@@ -105,6 +105,13 @@ parser.add_argument(
     "google-api-python-client/blob/master/docs/client-secrets.md.")
 
 parser.add_argument(
+    "--client_id",
+    type=str,
+    required=False,
+    default="",
+    help="Used for multi-machine tuning.")
+
+parser.add_argument(
     "--study_id",
     type=str,
     default="vetting_base_{}".format(
@@ -214,7 +221,7 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
     train.FLAGS.train_steps = int(param['intValue'])
   elif name == 'exclusive_labels':
     inputs_config[name] = (param['stringValue'].lower() == 'true')
-  elif name == 'use_batch_norm':
+  elif name in ('use_batch_norm', 'use_preds_layer'):
     vetting_hparams[name] = (param['stringValue'].lower() == 'true')
   elif name == 'separable':
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = (param['stringValue'].lower() == 'true')
@@ -297,7 +304,7 @@ def tune(client, model_class, config, ensemble_count):
   operation = None
   iter_id = 0
   while trial_id < max_trial_id_to_stop:
-    client_id = 'client' + str(iter_id % 2)
+    client_id = FLAGS.client_id + 'client' + str(iter_id % 2) 
     iter_id += 1
 
     resp = client.projects().locations().studies().trials().suggest(

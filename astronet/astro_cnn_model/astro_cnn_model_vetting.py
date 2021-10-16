@@ -23,7 +23,8 @@ class AstroCNNModelVetting(tf.keras.Model):
     def __init__(self, config, triage_model):
         super(AstroCNNModelVetting, self).__init__()
         
-        self.triage_model = astro_cnn_model.AstroCNNModel(config, triage_model, embeds_only=True)
+        hps = config.vetting_hparams
+        self.triage_model = astro_cnn_model.AstroCNNModel(config, triage_model, embeds_only=not hps.use_preds_layer)
         self.config = config
         
         self.ts_blocks = self._create_ts_blocks(config)
@@ -31,7 +32,6 @@ class AstroCNNModelVetting(tf.keras.Model):
         self.final = [
           tf.keras.layers.Concatenate()
         ]
-        hps = config.vetting_hparams
         for i in range(hps.num_pre_logits_hidden_layers):
             self.final.append(
                 tf.keras.layers.Dense(units=hps.pre_logits_hidden_layer_size, activation='relu'))
