@@ -162,6 +162,7 @@ def vrevised():
         },
         "vetting_hparams": {
             "use_batch_norm": False,
+            "use_preds_layer": False,
 
             "num_pre_logits_hidden_layers": 3,
             "pre_logits_hidden_layer_size": 256,
