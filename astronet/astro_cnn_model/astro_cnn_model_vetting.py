@@ -38,8 +38,13 @@ class AstroCNNModelVetting(tf.keras.Model):
             if hps.use_batch_norm:
                 self.final.append(tf.keras.layers.BatchNormalization())
             self.final.append(tf.keras.layers.Dropout(hps.pre_logits_dropout_rate))
-        self.final.append(
-            tf.keras.layers.Dense(units=len(config.inputs.label_columns), activation='sigmoid'))
+        if config.inputs.get('exclusive_labels', False):
+            self.final.append(
+                tf.keras.layers.Dense(units=len(config.inputs.label_columns), activation=None))
+            self.final.append(tf.keras.layers.Softmax())
+        else:
+            self.final.append(
+                tf.keras.layers.Dense(units=len(config.inputs.label_columns), activation='sigmoid'))
 
     def _create_conv_block(self, config, name):
         block_params = config.vetting_hparams.time_series_hidden[name]
