@@ -191,19 +191,16 @@ def vrevised():
         "tune_params": [            
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 10, 'max_value' : 5000}},
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 20000}},
             {
                 'parameter': 'learning_rate', 'type': 'DOUBLE',
-                'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-1},
+                'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-2},
                 'scale_type': 'UNIT_LOG_SCALE'},
             {
                 'parameter': 'batch_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 512}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 300}},
             {
                 'parameter': 'use_preds_layer', 'type': 'CATEGORICAL',
-                'categorical_value_spec' : {'values': ['True', 'False']}},
-            {
-                'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
@@ -221,35 +218,35 @@ def vrevised():
 
             {
                 'parameter': 'num_pre_logits_hidden_layers', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 2}},
             {
                 'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 512}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 64}},
             {
                 'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
-                'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.9}},
+                'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.99}},
 
             {
                 'parameter': 'cnn_num_blocks', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 0, 'max_value' : 5}},
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
             {
                 'parameter': 'cnn_block_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},
             {
                 'parameter': 'cnn_initial_num_filters', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 256}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
             {
                 'parameter': 'cnn_block_filter_factor', 'type' : 'DOUBLE',
-                'double_value_spec' : {'min_value' : 0.3, 'max_value' : 2.0}},
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 2.0}},
             {
                 'parameter': 'cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 9}},
             {
                 'parameter': 'pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
             {
                 'parameter': 'pool_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 9}},
             {
                 'parameter': 'convolution_padding', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['valid', 'same']}},
