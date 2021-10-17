@@ -232,22 +232,28 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
     
     
 prev_losses = None
+cached_attempts = 0
     
     
 def load_prev_losses(client, study_id):
     global prev_losses
+    global cached_attempts
     
-    if prev_losses is None:
+    if prev_losses is None or cached_attempts > 10:
         study_id = '{}/studies/{}'.format(study_parent(), study_id)
         resp = client.projects().locations().studies().trials().list(parent=study_id).execute()
 
         prev_losses = []
+        cached_attempts = 0
         for trial in resp['trials']:
           if 'finalMeasurement' not in trial:
             continue
 
           loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
           prev_losses.append(loss)
+    else:
+        cached_attempts += 1
+
     return prev_losses
 
 
