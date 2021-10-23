@@ -202,6 +202,9 @@ def vrevised():
             {
                 'parameter': 'use_preds_layer', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['True', 'False']}},
+            {
+                'parameter': 'use_batch_norm', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
 
             {
                 'parameter': 'one_minus_adam_beta_1', 'type': 'DOUBLE',
@@ -218,7 +221,7 @@ def vrevised():
 
             {
                 'parameter': 'num_pre_logits_hidden_layers', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 0, 'max_value' : 2}},
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
             {
                 'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 4, 'max_value' : 64}},
@@ -234,13 +237,13 @@ def vrevised():
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 4}},
             {
                 'parameter': 'cnn_initial_num_filters', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 128}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 256}},
             {
                 'parameter': 'cnn_block_filter_factor', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 0.2, 'max_value' : 2.0}},
             {
                 'parameter': 'cnn_kernel_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 1, 'max_value' : 9}},
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 13}},
             {
                 'parameter': 'pool_strides', 'type' : 'INTEGER',
                 'integer_value_spec' : {'min_value' : 1, 'max_value' : 7}},
@@ -261,17 +264,17 @@ def vrevised():
     return config
 
 def vrevised_tuned():
-    # projects/mdan-playground/locations/us-central1/studies/5_vrevised_4b_vrevised
+    # projects/mdan-playground/locations/us-central1/studies/6_vrevised_1_vrevised
     config = vrevised()
-    config['train_steps'] = 6007
+    config['train_steps'] = 11990
     config['vetting_hparams'] = {'aux_inputs': [],
- 'num_pre_logits_hidden_layers': 0,
- 'pre_logits_dropout_rate': 0,
- 'pre_logits_hidden_layer_size': 26,
- 'time_series_hidden': {'local_aperture_s': {'cnn_block_filter_factor': 0.9166941426046189,
-                                             'cnn_block_size': 2,
-                                             'cnn_initial_num_filters': 102,
-                                             'cnn_kernel_size': 6,
+ 'num_pre_logits_hidden_layers': 2,
+ 'pre_logits_dropout_rate': 0.05594043712429375,
+ 'pre_logits_hidden_layer_size': 61,
+ 'time_series_hidden': {'local_aperture_s': {'cnn_block_filter_factor': 0.34701907005524213,
+                                             'cnn_block_size': 1,
+                                             'cnn_initial_num_filters': 127,
+                                             'cnn_kernel_size': 9,
                                              'cnn_num_blocks': 3,
                                              'convolution_padding': 'same',
                                              'extra_channels': ['local_aperture_m',
@@ -281,7 +284,7 @@ def vrevised_tuned():
                                              'separable': False}},
  'use_batch_norm': False,
  'use_preds_layer': False}
-    config['hparams'] = {'adam_epsilon': 3.7386374075289788e-06,
+    config['hparams'] = {'adam_epsilon': 1.643291115468094e-06,
  'aux_inputs': ['Period',
                 'Duration',
                 'Transit_Depth',
@@ -303,11 +306,11 @@ def vrevised_tuned():
                 'secondary_scale_present',
                 'secondary_scale_present_0.3',
                 'secondary_scale_present_0.5'],
- 'batch_size': 258,
- 'learning_rate': 4.5501650390077774e-06,
+ 'batch_size': 249,
+ 'learning_rate': 2.464645445528708e-06,
  'num_pre_logits_hidden_layers': 2,
- 'one_minus_adam_beta_1': 0.1431488260500886,
- 'one_minus_adam_beta_2': 0.015360994608235232,
+ 'one_minus_adam_beta_1': 0.9,
+ 'one_minus_adam_beta_2': 0.8738162984799372,
  'optimizer': 'adam',
  'pre_logits_dropout_rate': 0.27364918139937583,
  'pre_logits_hidden_layer_size': 552,
