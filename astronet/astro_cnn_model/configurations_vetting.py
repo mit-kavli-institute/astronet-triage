@@ -198,7 +198,7 @@ def vrevised():
                 'scale_type': 'UNIT_LOG_SCALE'},
             {
                 'parameter': 'batch_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 300}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 256}},
             {
                 'parameter': 'use_preds_layer', 'type': 'CATEGORICAL',
                 'categorical_value_spec' : {'values': ['True', 'False']}},
@@ -224,7 +224,7 @@ def vrevised():
                 'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
             {
                 'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 4, 'max_value' : 64}},
+                'integer_value_spec' : {'min_value' : 4, 'max_value' : 1024}},
             {
                 'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
                 'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.99}},
