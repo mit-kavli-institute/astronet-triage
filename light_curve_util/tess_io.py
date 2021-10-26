@@ -36,6 +36,13 @@ def _sector(f):
         return ''
     return m.group(1)
 
+FILE_PATTERNS = (
+    "hlsp_qlp_tess_ffi-s0026-%.16d_tess_v01_llc.fits",  # not yet copied - in Y1FullLC atm.
+    "*tess*-%.16d_*.fits",
+    "tess*-%.16d-*-cr_llc.fits.gz",
+    "tess*-%d-cr_llc.fits.gz",
+)
+
 
 def tess_filenames(tic, base_dir):
     """Returns the light curve filename for a TESS target star.
@@ -55,14 +62,11 @@ def tess_filenames(tic, base_dir):
     Returns:
       filename for given TIC.
     """
-    fitsfile = "tess*-%.16d-*-cr_llc.fits.gz" % int(tic)
-    file_names = glob.glob(os.path.join(base_dir, fitsfile))
-    if not file_names:
-        fitsfile2 = "tess*-%d-cr_llc.fits.gz" % int(tic)
-        file_names = glob.glob(os.path.join(base_dir, fitsfile2))
-    if not file_names:
-        fitsfile3 = "*tess*-%.16d_*.fits" % int(tic)
-        file_names = glob.glob(os.path.join(base_dir, fitsfile3))
+    for fmt in FILE_PATTERNS:
+        fitsfile = fmt % int(tic)
+        file_names = glob.glob(os.path.join(base_dir, fitsfile))
+        if file_names:
+            break
     if len(file_names) > 1:
         file_names = sorted(file_names, reverse=True, key=_sector)[:1]
         print(f'multiple matches, selected {file_names}')
