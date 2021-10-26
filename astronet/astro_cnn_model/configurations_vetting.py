@@ -261,7 +261,7 @@ def vrevised():
     return config
 
 def vrevised_tuned():
-    # projects/mdan-playground/locations/us-central1/studies/6_vrevised_1_vrevised
+    # projects/mdan-playground/locations/us-central1/studies/6_vrevised_1b_vrevised
     config = vrevised()
     config['train_steps'] = 20000
     config['vetting_hparams'] = {'aux_inputs': [],
