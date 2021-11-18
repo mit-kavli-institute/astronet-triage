@@ -211,6 +211,7 @@ def kepler_spline(time, flux, bkspace, maxiter=5, input_mask=None):
         warnings.warn("Non-fatal spline error: {}".format(e))
       return None, None, False, True
 
+  assert len(spline) == len(mask) == len(flux) == len(time)
   return spline, mask, False, False
 
 
@@ -326,7 +327,7 @@ def choose_kepler_spline(all_time,
         # It's expected to occasionally see intervals with insufficient points,
         # especially if periodic signals have been removed from the light curve.
         # Skip this interval, but continue fitting the spline.
-        spline.append(np.array([np.nan] * len(flux)))
+        spline.append(flux)
         light_curve_mask.append(np.zeros_like(flux, dtype=np.bool))
         continue
       elif bad_bkspace:
@@ -381,11 +382,10 @@ def choose_kepler_spline(all_time,
         np.zeros_like(f, dtype=np.bool) for f in all_flux
     ]
     
-
   return best_spline, metadata
 
 
-def choosekeplersplinev2(time,flux, bkspace_min=0.5, bkspace_max=20, bkspace_num=20, 
+def choosekeplersplinev2(time, flux, bkspace_min=0.5, bkspace_max=20, bkspace_num=20, 
                          maxiter=5, input_mask=None, gap_width_in=None,
                          return_metadata=False, fixed_bkspace=None):
     if gap_width_in == None:
@@ -406,7 +406,9 @@ def choosekeplersplinev2(time,flux, bkspace_min=0.5, bkspace_max=20, bkspace_num
     
     spline, metadata = choose_kepler_spline(
         all_time, all_flux, bkspaces=bkspaces, all_input_mask=all_input_mask)
+    
     spline = np.concatenate(spline)
+    assert len(spline) == len(flux) == len(time), (len(spline), len(time), len(flux))
     
     metadata.light_curve_mask = np.concatenate(metadata.light_curve_mask)
     metadata.input_light_curve_mask = np.concatenate(metadata.input_light_curve_mask)
