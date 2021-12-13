@@ -37,7 +37,8 @@ def _sector(f):
     return m.group(1)
 
 FILE_PATTERNS = (
-    "hlsp_qlp_tess_ffi-s0026-%.16d_tess_v01_llc.fits",  # not yet copied - in Y1FullLC atm.
+    "mk_hlsp_qlp_tess_ffi-*%.16d_tess_v01_llc.fits",
+    "hlsp_qlp_tess_ffi-s0026-%.16d_tess_v01_llc.fits",
     "*tess*-%.16d_*.fits",
     "tess*-%.16d-*-cr_llc.fits.gz",
     "tess*-%d-cr_llc.fits.gz",
