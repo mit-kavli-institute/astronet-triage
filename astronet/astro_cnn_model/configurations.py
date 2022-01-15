@@ -934,7 +934,7 @@ def revised():
         "tune_params": [
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 500, 'max_value' : 50000}},
+                'integer_value_spec' : {'min_value' : 4000, 'max_value' : 40000}},
             {
                 'parameter': 'learning_rate', 'type': 'DOUBLE',
                 'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-2},
@@ -1077,6 +1077,7 @@ def revised():
 
 def revised_tuned():
     # projects/mdan-playground/locations/us-central1/studies/30_revised_1c_revised
+    # (33 - 0.046386852860450745)
     config = revised()
     config['train_steps'] = 2144
     config['hparams'] = {
