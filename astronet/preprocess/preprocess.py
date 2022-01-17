@@ -273,7 +273,7 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
         if SR > best_SR:
             best_t0 = t0
             best_SR = SR
-    return best_t0, new_time, new_flux+1.
+    return best_t0, new_time, new_flux + 1.
 
 
 def secondary_view(tic_id, 

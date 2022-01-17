@@ -150,6 +150,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     tag = f'_{bkspace}'
     
   detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
+
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
   odds = ((fold_num % 2) == 1)
@@ -184,7 +185,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'local_std_even{tag}', std)
   _set_float_feature(ex, tic, f'local_mask_even{tag}', mask)
 
-  (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+  (_, _, _, sec_scale, sec_depth), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
   (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth)
   _set_float_feature(ex, tic, f'secondary_view{tag}', view)
   _set_float_feature(ex, tic, f'secondary_std{tag}', std)
@@ -219,10 +220,10 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'local_view_half_period{tag}', view)
   _set_float_feature(ex, tic, f'local_view_half_period_std{tag}', std)
     
-  return fold_num
+  return fold_num, sec_scale - sec_depth
 
 
-def _process_tce(tce, bkspace=None):
+def _process_tce(tce, bkspace=None, augments=None, sec_depth=None):
   if FLAGS.vetting_features == 'y':
     extra_fluxes = {
         's': 'SAP_FLUX_SML',
@@ -231,12 +232,46 @@ def _process_tce(tce, bkspace=None):
     }
   else:
     extra_fluxes = {}
-    
+  
   time, flux, apertures = preprocess.read_and_process_light_curve(tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX', extra_fluxes)
   ex = tf.train.Example()
 
+  if augments:
+    flip, noise, crop = augments
+    if sec_depth is None:
+        _, sec_depth = _standard_views(tf.train.Example(), tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, {})
+    
+    if flip:
+        flux = np.flip(flux, axis=-1)
+
+    if noise:
+        noise = np.random.uniform(0.0, sec_depth / 5.0, size=len(flux))
+        flux += noise
+        
+        if apertures:
+            for k, (t, f) in apertures:
+                apertures[k] = (t, f + noise)
+    if crop:
+        def crop(t, f, check):
+            min_t = min(t)
+            max_t = max(t)
+            crop = tce.Duration / 5.0
+            keep = (t >= min_t + crop) and (t <= max_t - crop)
+            t, f = t[keep], f[keep]
+            oldlen = len(t)        
+            if check and len(t) == oldlen and not (flip or noise):
+                raise ValueError('no change after crop')
+            return t, f
+        
+        time, flux = crop(time, flux, True)
+        
+        if apertures:
+            new_apertures = {}
+            for k, (t, f) in apertures:
+                new_apertures[k] = crop(t, f, False)    
+
   for bkspace in [0.3, 5.0, None]:
-    fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
+    fold_num, sec_depth = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
 
   _set_float_feature(ex, tce, 'n_folds', [len(set(fold_num))])
   _set_float_feature(ex, tce, 'n_points', [len(fold_num)])
@@ -253,7 +288,7 @@ def _process_tce(tce, bkspace=None):
             _set_int64_feature(ex, f'{col_name}_present', [1])
         _set_float_feature(ex, tce, col_name, [f_val])
 
-  return ex
+  return ex, sec_depth
 
 
 def _process_file_shard(tce_table, file_name):
@@ -288,18 +323,37 @@ def _process_file_shard(tce_table, file_name):
         num_existing += 1
         continue
 
+      examples = []
       try:
         print(" processing", end="")
         sys.stdout.flush()
-        example = _process_tce(tce)
+        ex, sec_depth = _process_tce(tce)
+        examples.append(ex)
       except Exception as e:
         print(f" *** error: {e}")
         num_skipped += 1
         continue
 
+      # Warning: augmentation code is incomplete and likely to generale skewed data.
+      # Do not use in production.
+      augment = False
+      if augment:
+        for flip in (True, False):
+            for noise in (True, False):
+                for crop in (False,):
+                    if not (flip or noise or crop):
+                        continue
+                    try:
+                        ex = _process_tce(tce, augments=(flip, noise, crop), sec_depth=sec_depth)
+                        if ex is not None:
+                            examples.append(ex)
+                    except Exception as e:
+                        print(f" *** augment error: {e}")
       print(" writing                   ", end="")
       sys.stdout.flush()
-      writer.write(example.SerializeToString())
+      for example in examples:
+        writer.write(example.SerializeToString())
+        
 
   num_new = num_processed - num_skipped - num_existing
   print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new {num_skipped} bad            ")
