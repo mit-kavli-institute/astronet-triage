@@ -28,15 +28,19 @@ from light_curve_util import tess_io
 from statsmodels.robust import scale
 
 
-def read_and_process_light_curve(tic, tess_data_dir, flux_key='KSPSAP_FLUX', aperture_keys={}):
-  file_names = tess_io.tess_filenames(tic, tess_data_dir)
-  assert file_names
-  all_time, all_mag = tess_io.read_tess_light_curve(file_names, flux_key)
+def read_and_process_light_curve(tic, tess_data_dir, flux_key='KSPSAP_FLUX', aperture_keys={}, filename=None):
+  if isinstance(filename, str):
+    filename = os.path.join(tess_data_dir, filename) 
+  else:
+    filename = tess_io.tess_filenames(tic, tess_data_dir)
+    assert filename
+
+  all_time, all_mag = tess_io.read_tess_light_curve(filename, flux_key)
   assert len(all_time)
   apertures = {}
   for k, v in aperture_keys.items():
     try:
-      apertures[k] = tess_io.read_tess_light_curve(file_names, v)
+      apertures[k] = tess_io.read_tess_light_curve(filename, v)
     except KeyError:
       continue
   return all_time, all_mag, apertures

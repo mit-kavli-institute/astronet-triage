@@ -10,67 +10,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-r"""Script to preprocesses data from the Kepler space telescope.
-
-This script produces training, validation and test sets of labeled Kepler
-Threshold Crossing Events (TCEs). A TCE is a detected periodic event on a
-particular Kepler target star that may or may not be a transiting planet. Each
-TCE in the output contains local and global views of its light curve; auxiliary
-features such as period and duration; and a label indicating whether the TCE is
-consistent with being a transiting planet. The data sets produced by this script
-can be used to train and evaluate models that classify Kepler TCEs.
-
-The input TCEs and their associated labels are specified by the DR24 TCE Table,
-which can be downloaded in CSV format from the NASA Exoplanet Archive at:
-
-  https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=q1_q17_dr24_tce
-
-The downloaded CSV file should contain at least the following column names:
-  rowid: Integer ID of the row in the TCE table.
-  kepid: Kepler ID of the target star.
-  tce_plnt_num: TCE number within the target star.
-  tce_period: Orbital period of the detected event, in days.
-  tce_time0bk: The time corresponding to the center of the first detected
-      traisit in Barycentric Julian Day (BJD) minus a constant offset of
-      2,454,833.0 days.
-  tce_duration: Duration of the detected transit, in hours.
-  av_training_set: Autovetter training set label; one of PC (planet candidate),
-      AFP (astrophysical false positive), NTP (non-transiting phenomenon),
-      UNK (unknown).
-
-The Kepler light curves can be downloaded from the Mikulski Archive for Space
-Telescopes (MAST) at:
-
-  http://archive.stsci.edu/pub/kepler/lightcurves.
-
-The Kepler data is assumed to reside in a directory with the same structure as
-the MAST archive. Specifically, the file names for a particular Kepler target
-star should have the following format:
-
-    .../${kep_id:0:4}/${kep_id}/kplr${kep_id}-${quarter_prefix}_${type}.fits,
-
-where:
-  kep_id is the Kepler id left-padded with zeros to length 9;
-  quarter_prefix is the file name quarter prefix;
-  type is one of "llc" (long cadence light curve) or "slc" (short cadence light
-    curve).
-
-The output TFRecord file contains one serialized tensorflow.train.Example
-protocol buffer for each TCE in the input CSV file. Each Example contains the
-following light curve representations:
-  global_view: Vector of length 2001; the Global View of the TCE.
-  local_view: Vector of length 201; the Local View of the TCE.
-
-In addition, each Example contains the value of each column in the input TCE CSV
-file. Some of these features may be useful as auxiliary features to the model.
-The columns include:
-  rowid: Integer ID of the row in the TCE table.
-  kepid: Kepler ID of the target star.
-  tce_plnt_num: TCE number within the target star.
-  av_training_set: Autovetter training set label.
-  tce_period: Orbital period of the detected event, in days.
-  ...
-"""
 import argparse
 import multiprocessing
 import os
@@ -90,34 +29,27 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--input_tce_csv_file",
     type=str,
-    required=True,
-    help="CSV file containing the TESS TCE table. Must contain "
-    "columns: row_id, tic_id, toi_id, Period, Duration, "
-    "Epoc (t0).")
+    required=True)
 
 parser.add_argument(
     "--tess_data_dir",
     type=str,
-    required=True,
-    help="Base folder containing TESS data.")
+    required=True)
 
 parser.add_argument(
     "--output_dir",
     type=str,
-    required=True,
-    help="Directory in which to save the output.")
+    required=True)
 
 parser.add_argument(
     "--num_shards",
     type=int,
-    default=20,
-    help="Number of file shards to divide the training set into.")
+    default=20)
 
 parser.add_argument(
     "--vetting_features",
     type=str,
-    default='n',
-    help="Whether to include the features for the vetting model.")
+    default='n')
 
 
 def _set_float_feature(ex, tic_id, name, value):
@@ -148,7 +80,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     tag = ''
   else:
     tag = f'_{bkspace}'
-    
+
   detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
 
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
@@ -223,7 +155,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   return fold_num, sec_scale - sec_depth
 
 
-def _process_tce(tce, bkspace=None, augments=None, sec_depth=None):
+def _process_tce(tce, bkspace=None):
   if FLAGS.vetting_features == 'y':
     extra_fluxes = {
         's': 'SAP_FLUX_SML',
@@ -233,42 +165,9 @@ def _process_tce(tce, bkspace=None, augments=None, sec_depth=None):
   else:
     extra_fluxes = {}
   
-  time, flux, apertures = preprocess.read_and_process_light_curve(tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX', extra_fluxes)
+  time, flux, apertures = preprocess.read_and_process_light_curve(
+      tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX', extra_fluxes, tce.filename)
   ex = tf.train.Example()
-
-  if augments:
-    flip, noise, crop = augments
-    if sec_depth is None:
-        _, sec_depth = _standard_views(tf.train.Example(), tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, {})
-    
-    if flip:
-        flux = np.flip(flux, axis=-1)
-
-    if noise:
-        noise = np.random.uniform(0.0, sec_depth / 5.0, size=len(flux))
-        flux += noise
-        
-        if apertures:
-            for k, (t, f) in apertures:
-                apertures[k] = (t, f + noise)
-    if crop:
-        def crop(t, f, check):
-            min_t = min(t)
-            max_t = max(t)
-            crop = tce.Duration / 5.0
-            keep = (t >= min_t + crop) and (t <= max_t - crop)
-            t, f = t[keep], f[keep]
-            oldlen = len(t)        
-            if check and len(t) == oldlen and not (flip or noise):
-                raise ValueError('no change after crop')
-            return t, f
-        
-        time, flux = crop(time, flux, True)
-        
-        if apertures:
-            new_apertures = {}
-            for k, (t, f) in apertures:
-                new_apertures[k] = crop(t, f, False)    
 
   for bkspace in [0.3, 5.0, None]:
     fold_num, sec_depth = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
@@ -277,8 +176,10 @@ def _process_tce(tce, bkspace=None, augments=None, sec_depth=None):
   _set_float_feature(ex, tce, 'n_points', [len(fold_num)])
     
   for col_name, value in tce.items():
-    if col_name.lower() in ('tic_id', 'tic id', 'epoc', 'sectors') or col_name.startswith('disp_'):
+    if col_name.lower() in ('tic id',) or col_name.startswith('disp_'):
         _set_int64_feature(ex, col_name, [int(value)])
+    elif col_name.lower() in ('filename',):
+        _set_bytes_feature(ex, col_name, [value])
     else:
         f_val = float(value)
         if np.isnan(f_val):
@@ -334,21 +235,6 @@ def _process_file_shard(tce_table, file_name):
         num_skipped += 1
         continue
 
-      # Warning: augmentation code is incomplete and likely to generale skewed data.
-      # Do not use in production.
-      augment = False
-      if augment:
-        for flip in (True, False):
-            for noise in (True, False):
-                for crop in (False,):
-                    if not (flip or noise or crop):
-                        continue
-                    try:
-                        ex = _process_tce(tce, augments=(flip, noise, crop), sec_depth=sec_depth)
-                        if ex is not None:
-                            examples.append(ex)
-                    except Exception as e:
-                        print(f" *** augment error: {e}")
       print(" writing                   ", end="")
       sys.stdout.flush()
       for example in examples:
