@@ -236,7 +236,7 @@ def _process_file_shard(tce_table, file_name):
       try:
         print(" processing", end="")
         sys.stdout.flush()
-        ex, sec_depth = _process_tce(tce)
+        ex = _process_tce(tce)
         examples.append(ex)
       except Exception as e:
         print(f" *** error: {e}")
