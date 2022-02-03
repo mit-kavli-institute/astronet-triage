@@ -99,8 +99,12 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'local_view{tag}', view)
   _set_float_feature(ex, tic, f'local_std{tag}', std)
   _set_float_feature(ex, tic, f'local_mask{tag}', mask)
-  _set_float_feature(ex, tic, f'local_scale{tag}', [scale])
-  _set_float_feature(ex, tic, f'local_scale_present{tag}', [1.0 if scale > 0 else 0.0])
+  if scale is not None:
+    _set_float_feature(ex, tic, f'local_scale{tag}', [scale])
+    _set_float_feature(ex, tic, f'local_scale_present{tag}', [1.0])
+  else:
+    _set_float_feature(ex, tic, f'local_scale{tag}', [0.0])
+    _set_float_feature(ex, tic, f'local_scale_present{tag}', [0.0])
   for k, (t, f) in aperture_fluxes.items():
     t, f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
     t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(t, f, m, period, epoc)
@@ -117,14 +121,18 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'local_std_even{tag}', std)
   _set_float_feature(ex, tic, f'local_mask_even{tag}', mask)
 
-  (_, _, _, sec_scale, sec_depth), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+  (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
   (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth)
   _set_float_feature(ex, tic, f'secondary_view{tag}', view)
   _set_float_feature(ex, tic, f'secondary_std{tag}', std)
   _set_float_feature(ex, tic, f'secondary_mask{tag}', mask)
   _set_float_feature(ex, tic, f'secondary_phase{tag}', [t0 / period])
-  _set_float_feature(ex, tic, f'secondary_scale{tag}', [sec_scale])
-  _set_float_feature(ex, tic, f'secondary_scale_present{tag}', [1.0 if scale > 0 else 0.0])
+  if sec_scale is not None:
+    _set_float_feature(ex, tic, f'secondary_scale{tag}', [sec_scale])
+    _set_float_feature(ex, tic, f'secondary_scale_present{tag}', [1.0])
+  else:
+    _set_float_feature(ex, tic, f'secondary_scale{tag}', [0.0])
+    _set_float_feature(ex, tic, f'secondary_scale_present{tag}', [0.0])
 
   full_view = preprocess.sample_segments_view(tic, time, flux, fold_num, period, duration)
   _set_float_feature(ex, tic, f'sample_segments_view{tag}', full_view)
@@ -152,7 +160,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, tic, f'local_view_half_period{tag}', view)
   _set_float_feature(ex, tic, f'local_view_half_period_std{tag}', std)
     
-  return fold_num, sec_scale - sec_depth
+  return fold_num
 
 
 def _process_tce(tce, bkspace=None):
@@ -170,7 +178,7 @@ def _process_tce(tce, bkspace=None):
   ex = tf.train.Example()
 
   for bkspace in [0.3, 5.0, None]:
-    fold_num, sec_depth = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
+    fold_num = _standard_views(ex, tce.tic_id, time, flux, tce.Period, tce.Epoc, tce.Duration, bkspace, apertures)
 
   _set_float_feature(ex, tce, 'n_folds', [len(set(fold_num))])
   _set_float_feature(ex, tce, 'n_points', [len(fold_num)])
@@ -189,7 +197,7 @@ def _process_tce(tce, bkspace=None):
             _set_int64_feature(ex, f'{col_name}_present', [1])
         _set_float_feature(ex, tce, col_name, [f_val])
 
-  return ex, sec_depth
+  return ex
 
 
 def _process_file_shard(tce_table, file_name):

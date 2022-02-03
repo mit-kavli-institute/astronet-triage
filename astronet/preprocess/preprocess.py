@@ -135,7 +135,7 @@ def generate_view(tic_id,
         view = np.where(bool_mask, view, 0.0)
         std = np.where(bool_mask, std, 0.0)
     else:
-      scale = 0.0
+      scale = None
 
   return view, std, mask, scale, depth
 
