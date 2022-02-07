@@ -184,7 +184,7 @@ def _process_tce(tce, bkspace=None):
   _set_float_feature(ex, tce, 'n_points', [len(fold_num)])
     
   for col_name, value in tce.items():
-    if col_name.lower() in ('tic id',) or col_name.startswith('disp_'):
+    if col_name.lower() in ('tic_id',) or col_name.startswith('disp_'):
         _set_int64_feature(ex, col_name, [int(value)])
     elif col_name.lower() in ('filename',):
         _set_bytes_feature(ex, col_name, [value])
