@@ -588,6 +588,7 @@ def extended():
 
 def revised():
     config = {
+        "train_steps": 20000,
         "inputs": {
             "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
             "primary_class": 0,
