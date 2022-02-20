@@ -935,7 +935,8 @@ def revised():
         "tune_params": [
             {
                 'parameter': 'train_steps', 'type' : 'INTEGER',
-                'integer_value_spec' : {'min_value' : 7000, 'max_value' : 40000}},
+                'integer_value_spec' : {'min_value' : 4000, 'max_value' : 30000},
+                'scale_type': 'UNIT_LOG_SCALE'},
             {
                 'parameter': 'learning_rate', 'type': 'DOUBLE',
                 'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-2},
