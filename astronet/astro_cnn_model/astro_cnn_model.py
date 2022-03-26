@@ -84,7 +84,7 @@ class AstroCNNModel(tf.keras.Model):
             num_filters = int(float(block_params.cnn_initial_num_filters) *
                               block_params.cnn_block_filter_factor ** i)
             for j in range(block_params.cnn_block_size):
-                if block_params.separable:
+                if block_params.get('separable'):
                     layers.append(tf.keras.layers.SeparableConv1D(
                         filters=num_filters,
                         kernel_size=block_params.cnn_kernel_size,

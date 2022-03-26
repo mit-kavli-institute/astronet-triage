@@ -172,9 +172,9 @@ def _process_tce(tce, bkspace=None):
     }
   else:
     extra_fluxes = {}
-  
+  fname = getattr(tce, 'filename', None)
   time, flux, apertures = preprocess.read_and_process_light_curve(
-      tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX', extra_fluxes, tce.filename)
+      tce.tic_id, FLAGS.tess_data_dir, 'SAP_FLUX', extra_fluxes, fname)
   ex = tf.train.Example()
 
   for bkspace in [0.3, 5.0, None]:
