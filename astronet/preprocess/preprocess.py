@@ -28,22 +28,16 @@ from light_curve_util import tess_io
 from statsmodels.robust import scale
 
 
-def read_and_process_light_curve(tic, tess_data_dir, flux_key='KSPSAP_FLUX', aperture_keys={}, filename=None):
-  if isinstance(filename, str):
-    filename = os.path.join(tess_data_dir, filename) 
-  else:
-    filename = tess_io.tess_filenames(tic, tess_data_dir)
-    assert filename
-
+def read_and_process_light_curve(tess_data_dir, flux_key, filename, min_t, max_t):
+  filename = os.path.join(tess_data_dir, filename) 
   all_time, all_mag = tess_io.read_tess_light_curve(filename, flux_key)
+    
+  mask = np.logical_and(all_time >= min_t, all_time <= max_t)
+  all_time = all_time[mask]
+  all_mag = all_mag[mask]
+
   assert len(all_time)
-  apertures = {}
-  for k, v in aperture_keys.items():
-    try:
-      apertures[k] = tess_io.read_tess_light_curve(filename, v)
-    except KeyError:
-      continue
-  return all_time, all_mag, apertures
+  return all_time, all_mag
 
 
 def get_spline_mask(time, period, t0, tdur):

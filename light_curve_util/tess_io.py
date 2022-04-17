@@ -31,7 +31,7 @@ SECTOR_RE = re.compile('.*-s([^-]+)-.*')
 
 
 def _sector(f):
-    m = SECTOR_RE.match(f);
+    m = SECTOR_RE.match(f)
     if m is None:
         return ''
     return m.group(1)
@@ -39,7 +39,7 @@ def _sector(f):
 FILE_PATTERNS = (
     "mk_hlsp_qlp_tess_ffi-*%.16d_tess_v01_llc.fits",
     "hlsp_qlp_tess_ffi-s0026-%.16d_tess_v01_llc.fits",
-    "*tess*-%.16d_*.fits",
+#     "*tess*-%.16d_*.fits",
     "tess*-%.16d-*-cr_llc.fits.gz",
     "tess*-%d-cr_llc.fits.gz",
 )

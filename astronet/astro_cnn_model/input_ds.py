@@ -44,8 +44,8 @@ def build_dataset(file_pattern,
             for n in input_config.label_columns:
                 data_fields[n] = tf.io.FixedLenFeature([], tf.int64)
         if include_identifiers:
-            assert "tic_id" not in data_fields
-            data_fields["tic_id"] = tf.io.FixedLenFeature([], tf.int64)
+            assert "astro_id" not in data_fields
+            data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
 
 
         parsed_features = tf.io.parse_single_example(serialized_example, features=data_fields)
@@ -54,15 +54,17 @@ def build_dataset(file_pattern,
         if include_labels:
             label_features = [parsed_features.pop(name) for name in input_config.label_columns]
             labels = tf.stack(label_features)
+            labels_f = tf.cast(labels, tf.float32)
             labels = tf.cast(tf.minimum(labels, 1), tf.float32)
 
-            labels_f = tf.cast(labels, tf.float32)
             weights = tf.reduce_max(labels_f) / tf.maximum(tf.reduce_sum(labels_f), 1.0)
             if labels[input_config.primary_class] < 1:
                 weights /= 2.0
 
-        if "tic_id" in parsed_features:
-            identifiers = parsed_features.pop("tic_id")
+        if include_identifiers:
+            identifiers = parsed_features.pop("astro_id")
+        else:
+            assert "astro_id" not in parsed_features
 
         features = {}
         assert set(parsed_features.keys()) == set(input_config.features.keys())
@@ -99,7 +101,7 @@ def build_dataset(file_pattern,
         return features
 
 
-    filenames = tf.io.gfile.glob(file_pattern)
+    filenames = tf.constant(tf.io.gfile.glob(file_pattern), dtype=tf.string)
     ds = tf.data.Dataset.from_tensor_slices(filenames)
     ds = ds.flat_map(tf.data.TFRecordDataset)
     ds = ds.map(parse_example)
