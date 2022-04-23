@@ -81,7 +81,7 @@ def predict(legacy=False):
       preds = model(features)
 
       row = {}
-      row['tic_id'] = identifiers.numpy().item()
+      row['astro_id'] = identifiers.numpy().item()
       for i, p in enumerate(preds.numpy()[0]):
         row[label_index[i]] = p
 

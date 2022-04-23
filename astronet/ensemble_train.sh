@@ -7,10 +7,10 @@ do
     echo "Training model ${i}"
     python astronet/train.py \
         --model=AstroCNNModel \
-        --config_name=revised_tuned \
-        --train_files='/mnt/tess/astronet/tfrecords-35-train/*' \
-        --eval_files='/mnt/tess/astronet/tfrecords-35-val/*' \
+        --config_name=extended \
+        --train_files='/mnt/tess/astronet/tfrecords-37-train/*' \
+        --eval_files='/mnt/tess/astronet/tfrecords-37-val/*' \
         --train_steps=0 \
-        --model_dir="/mnt/tess/astronet/checkpoints/rev_tuned_35_run_2/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/ext_37_run_1/${i}"
 done
 
