@@ -1965,6 +1965,7 @@ def final_alpha():
                     "convolution_padding": "same",
                     "pool_size": 5,
                     "pool_strides": 1,
+                    "separable": False,
                     "extra_channels": [
                         "global_std",
                         "global_mask",
@@ -1982,6 +1983,7 @@ def final_alpha():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 2,
+                    "separable": False,
                     "extra_channels": [
                         "global_view_double_period_0.3",
                         "global_view_double_period_5.0",
@@ -1996,6 +1998,7 @@ def final_alpha():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 1,
+                    "separable": False,
                     "extra_channels": [
                         "local_std",
                         "local_mask",
@@ -2017,6 +2020,7 @@ def final_alpha():
                     "convolution_padding": "same",
                     "pool_size": 7,
                     "pool_strides": 1,
+                    "separable": False,
                     "extra_channels": [
                         "secondary_std",
                         "secondary_mask",
@@ -2034,6 +2038,7 @@ def final_alpha():
                     "pool_size": 7,
                     "pool_strides": 2,
                     "multichannel": True,
+                    "separable": False,
                     "extra_channels": [
                         "sample_segments_view_0.3",
                         "sample_segments_view_5.0",
@@ -2049,6 +2054,7 @@ def final_alpha():
                     "pool_size": 7,
                     "pool_strides": 2,
                     "multichannel": True,
+                    "separable": False,
                     "extra_channels": [
                         "sample_segments_local_view_0.3",
                         "sample_segments_local_view_5.0",

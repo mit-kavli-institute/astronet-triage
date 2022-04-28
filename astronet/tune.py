@@ -207,6 +207,9 @@ def map_param(hparams, param, inputs_config):
     if name.startswith('global_'):
         name = name[len('global_'):]
         vnames = ['global_view']
+    elif name.startswith('globald_'):
+        name = name[len('globald_'):]
+        vnames = ['global_view_double_period']
     elif name.startswith('local_'):
         name = name[len('local_'):]
         vnames = ['local_view']
@@ -215,12 +218,15 @@ def map_param(hparams, param, inputs_config):
         vnames = ['secondary_view']
     elif name.startswith('ind_'):
         name = name[len('ind_'):]
+        vnames = ['sample_segments_view']
+    elif name.startswith('lind_'):
+        name = name[len('lind_'):]
         vnames = ['sample_segments_local_view']
     else:
         assert False, 'param missing from tune.map_param' + str(param)
         
     for vname in vnames:
-        assert name in hparams['time_series_hidden'][vname]
+        assert name in hparams['time_series_hidden'][vname], name
         if name in ('cnn_num_blocks', 'cnn_block_size', 'cnn_initial_num_filters',
                     'cnn_kernel_size', 'pool_size', 'pool_strides'):
             hparams['time_series_hidden'][vname][name] = int(param['intValue'])
