@@ -2005,7 +2005,7 @@ def final_alpha():
                         "local_std_odd",
                         "local_view_even",
                         "local_std_even",
-                        "local_half_period_std",
+                        "local_view_half_period_std",
                     ],
                 },
                 "secondary_view": {
