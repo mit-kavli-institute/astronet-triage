@@ -146,19 +146,22 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
-  view, std, _, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
+  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
   _set_float_feature(ex, f'global_view_double_period{tag}', view)
   _set_float_feature(ex, f'global_view_double_period_std{tag}', std)
+  _set_float_feature(ex, f'global_view_double_period_mask{tag}', mask)
 
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
-  view, std, _, scale, _ = preprocess.global_view(tic, time, flux, period / 2)
+  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period / 2)
   _set_float_feature(ex, f'global_view_half_period{tag}', view)
   _set_float_feature(ex, f'global_view_half_period_std{tag}', std)
+  _set_float_feature(ex, f'global_view_half_period_mask{tag}', mask)
   
-  view, std, _, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration)
+  view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration)
   _set_float_feature(ex, f'local_view_half_period{tag}', view)
   _set_float_feature(ex, f'local_view_half_period_std{tag}', std)
+  _set_float_feature(ex, f'local_view_half_period_mask{tag}', mask)
     
   return fold_num
 
