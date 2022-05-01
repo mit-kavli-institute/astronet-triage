@@ -68,7 +68,6 @@ def build_dataset(file_pattern,
 
         features = {}
         assert set(parsed_features.keys()) == set(input_config.features.keys())
-        assert not any(k.endswith("present") for k in input_config.features.keys())
         for name, value in parsed_features.items():
             cfg = input_config.features[name]
             if not cfg.is_time_series:

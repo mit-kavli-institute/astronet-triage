@@ -2455,10 +2455,6 @@ def final_alpha_1():
                     "mean": 0.497270,
                     "std": 0.200908,
                 },
-                "secondary_phase_present": {
-                    "shape": [1],
-                    "is_time_series": False,
-                },
                 "secondary_phase_0.3": {
                     "shape": [1],
                     "is_time_series": False,
@@ -2466,20 +2462,12 @@ def final_alpha_1():
                     "mean": 0.497270,
                     "std": 0.200908,
                 },
-                "secondary_phase_0.3_present": {
-                    "shape": [1],
-                    "is_time_series": False,
-                },
                 "secondary_phase_5.0": {
                     "shape": [1],
                     "is_time_series": False,
                     "scale": "norm",
                     "mean": 0.497270,
                     "std": 0.200908,
-                },
-                "secondary_phase_5.0_present": {
-                    "shape": [1],
-                    "is_time_series": False,
                 },
                 "local_scale": {
                     "shape": [1],
@@ -2499,7 +2487,7 @@ def final_alpha_1():
                     "mean": 0.019245,
                     "std": 0.114780,
                 },
-                "local_scale_0.3_present": {
+                "local_scale_present_0.3": {
                     "shape": [1],
                     "is_time_series": False,
                 },
@@ -2510,7 +2498,7 @@ def final_alpha_1():
                     "mean": 0.019245,
                     "std": 0.114780,
                 },
-                "local_scale_5.0_present": {
+                "local_scale_present_5.0": {
                     "shape": [1],
                     "is_time_series": False,
                 },
@@ -2532,7 +2520,7 @@ def final_alpha_1():
                     "mean": 0.006294,
                     "std": 0.032557,
                 },
-                "secondary_scale_0.3_present": {
+                "secondary_scale_present_0.3": {
                     "shape": [1],
                     "is_time_series": False,
                 },
@@ -2543,7 +2531,7 @@ def final_alpha_1():
                     "mean": 0.006294,
                     "std": 0.032557,
                 },
-                "secondary_scale_5.0_present": {
+                "secondary_scale_present_5.0": {
                     "shape": [1],
                     "is_time_series": False,
                 },
