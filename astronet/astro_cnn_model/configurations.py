@@ -1669,7 +1669,7 @@ def rev2():
     return config
 
 
-def final_alpha():
+def final_alpha_0():
     config = {
         "train_steps": 20000,
 
@@ -1911,6 +1911,641 @@ def final_alpha():
                     "mean": 0.006294,
                     "std": 0.032557,
                     "has_nans": True,
+                },
+            },
+        },
+
+        "hparams": {
+            "batch_size": 83,
+
+            "learning_rate": 5.203528044134961e-06,
+            "clip_gradient_norm": None,
+            "optimizer": "adam",
+            "one_minus_adam_beta_1": 0.16168028483420177,
+            "one_minus_adam_beta_2": 0.022674419033475692,
+            "adam_epsilon": 2.5037055725611666e-07,
+            
+            "use_batch_norm": False,
+          
+            "num_pre_logits_hidden_layers": 4,
+            "pre_logits_hidden_layer_size": 482,
+            "pre_logits_dropout_rate": 0.1690298097832756,
+            
+            "aux_inputs": [
+                "Period",
+                "Duration",
+                "Transit_Depth",
+                "Tmag",
+                "star_mass",
+                "star_mass_present",
+                "star_rad",
+                "star_rad_present",
+                "n_folds",
+                "local_scale",
+                "local_scale_0.3",
+                "local_scale_0.5",
+                "local_scale_present",
+                "local_scale_present_0.3",
+                "local_scale_present_0.5",
+                "secondary_scale",
+                "secondary_scale_0.3",
+                "secondary_scale_0.5",
+                "secondary_scale_present",
+                "secondary_scale_present_0.3",
+                "secondary_scale_present_0.5",
+            ],
+          
+            "time_series_hidden": {
+                "global_view": {
+                    "cnn_num_blocks": 3,
+                    "cnn_block_size": 1,
+                    "cnn_initial_num_filters": 17,
+                    "cnn_block_filter_factor": 2,
+                    "cnn_kernel_size": 3,
+                    "convolution_padding": "same",
+                    "pool_size": 5,
+                    "pool_strides": 1,
+                    "separable": False,
+                    "extra_channels": [
+                        "global_std",
+                        "global_mask",
+                        "global_transit_mask",
+                        "global_view_0.3",
+                        "global_view_5.0",
+                    ],
+                },
+                "global_view_double_period": {
+                    "cnn_num_blocks": 3,
+                    "cnn_block_size": 1,
+                    "cnn_initial_num_filters": 17,
+                    "cnn_block_filter_factor": 2,
+                    "cnn_kernel_size": 3,
+                    "convolution_padding": "same",
+                    "pool_size": 7,
+                    "pool_strides": 2,
+                    "separable": False,
+                    "extra_channels": [
+                        "global_view_double_period_0.3",
+                        "global_view_double_period_5.0",
+                    ],
+                },
+                "local_view": {
+                    "cnn_num_blocks": 3,
+                    "cnn_block_size": 1,
+                    "cnn_initial_num_filters": 17,
+                    "cnn_block_filter_factor": 2,
+                    "cnn_kernel_size": 3,
+                    "convolution_padding": "same",
+                    "pool_size": 7,
+                    "pool_strides": 1,
+                    "separable": False,
+                    "extra_channels": [
+                        "local_std",
+                        "local_mask",
+                        "local_view_0.3",
+                        "local_view_5.0",
+                        "local_view_odd",
+                        "local_std_odd",
+                        "local_view_even",
+                        "local_std_even",
+                        "local_view_half_period_std",
+                    ],
+                },
+                "secondary_view": {
+                    "cnn_num_blocks": 3,
+                    "cnn_block_size": 1,
+                    "cnn_initial_num_filters": 17,
+                    "cnn_block_filter_factor": 2,
+                    "cnn_kernel_size": 3,
+                    "convolution_padding": "same",
+                    "pool_size": 7,
+                    "pool_strides": 1,
+                    "separable": False,
+                    "extra_channels": [
+                        "secondary_std",
+                        "secondary_mask",
+                        "secondary_view_0.3",
+                        "secondary_view_5.0",
+                    ],
+                },
+                "sample_segments_view": {
+                    "cnn_num_blocks": 3,
+                    "cnn_block_size": 1,
+                    "cnn_initial_num_filters": 51,
+                    "cnn_block_filter_factor": 2,
+                    "cnn_kernel_size": 3,
+                    "convolution_padding": "same",
+                    "pool_size": 7,
+                    "pool_strides": 2,
+                    "multichannel": True,
+                    "separable": False,
+                    "extra_channels": [
+                        "sample_segments_view_0.3",
+                        "sample_segments_view_5.0",
+                    ],
+                },
+                "sample_segments_local_view": {
+                    "cnn_num_blocks": 3,
+                    "cnn_block_size": 1,
+                    "cnn_initial_num_filters": 51,
+                    "cnn_block_filter_factor": 2,
+                    "cnn_kernel_size": 3,
+                    "convolution_padding": "same",
+                    "pool_size": 7,
+                    "pool_strides": 2,
+                    "multichannel": True,
+                    "separable": False,
+                    "extra_channels": [
+                        "sample_segments_local_view_0.3",
+                        "sample_segments_local_view_5.0",
+                    ],
+                },
+            },
+        },
+
+        "tune_params": [
+            {
+                'parameter': 'learning_rate', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 1e-7, 'max_value': 1e-5},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'batch_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 50, 'max_value' : 200}},
+
+
+            {
+                'parameter': 'one_minus_adam_beta_1', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 0.01, 'max_value': 0.4},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'one_minus_adam_beta_2', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 0.001, 'max_value': 0.1},
+                'scale_type': 'UNIT_LOG_SCALE'},
+            {
+                'parameter': 'adam_epsilon', 'type': 'DOUBLE',
+                'double_value_spec' : {'min_value': 1e-8, 'max_value': 1e-6},
+                'scale_type': 'UNIT_LOG_SCALE'},
+
+            {
+                'parameter': 'num_pre_logits_hidden_layers', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 2, 'max_value' : 5}},
+            {
+                'parameter': 'pre_logits_hidden_layer_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 200, 'max_value' : 600}},
+            {
+                'parameter': 'pre_logits_dropout_rate', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.0, 'max_value' : 0.4}},
+
+            {
+                'parameter': 'global_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+            {
+                'parameter': 'global_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+            {
+                'parameter': 'global_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 50}},
+            {
+                'parameter': 'global_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.1, 'max_value' : 3.0}},
+            {
+                'parameter': 'global_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 2, 'max_value' : 8}},
+            {
+                'parameter': 'global_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 3, 'max_value' : 7}},
+            {
+                'parameter': 'global_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'global_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+
+            {
+                'parameter': 'globald_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+            {
+                'parameter': 'globald_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+            {
+                'parameter': 'globald_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 50}},
+            {
+                'parameter': 'globald_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.1, 'max_value' : 3.0}},
+            {
+                'parameter': 'globald_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 2, 'max_value' : 8}},
+            {
+                'parameter': 'globald_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 5, 'max_value' : 9}},
+            {
+                'parameter': 'globald_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'globald_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+
+            {
+                'parameter': 'local_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+            {
+                'parameter': 'local_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 3}},
+            {
+                'parameter': 'local_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 50}},
+            {
+                'parameter': 'local_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
+            {
+                'parameter': 'local_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'local_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 5, 'max_value' : 9}},
+            {
+                'parameter': 'local_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'local_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+
+            {
+                'parameter': 'sec_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+            {
+                'parameter': 'sec_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+            {
+                'parameter': 'sec_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 50}},
+            {
+                'parameter': 'sec_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
+            {
+                'parameter': 'sec_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'sec_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 5, 'max_value' : 9}},
+            {
+                'parameter': 'sec_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'sec_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+
+            {
+                'parameter': 'ind_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+            {
+                'parameter': 'ind_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+            {
+                'parameter': 'ind_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 80}},
+            {
+                'parameter': 'ind_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
+            {
+                'parameter': 'ind_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'ind_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 5, 'max_value' : 9}},
+            {
+                'parameter': 'ind_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 3}},
+            {
+                'parameter': 'ind_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+
+            {
+                'parameter': 'lind_cnn_num_blocks', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 0, 'max_value' : 4}},
+            {
+                'parameter': 'lind_cnn_block_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 2}},
+            {
+                'parameter': 'lind_cnn_initial_num_filters', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 10, 'max_value' : 80}},
+            {
+                'parameter': 'lind_cnn_block_filter_factor', 'type' : 'DOUBLE',
+                'double_value_spec' : {'min_value' : 0.2, 'max_value' : 3.0}},
+            {
+                'parameter': 'lind_cnn_kernel_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 5}},
+            {
+                'parameter': 'lind_pool_size', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 5, 'max_value' : 9}},
+            {
+                'parameter': 'lind_pool_strides', 'type' : 'INTEGER',
+                'integer_value_spec' : {'min_value' : 1, 'max_value' : 3}},
+            {
+                'parameter': 'lind_separable', 'type': 'CATEGORICAL',
+                'categorical_value_spec' : {'values': ['True', 'False']}},
+        ],
+    }
+
+    return config
+
+
+def final_alpha_1():
+    config = {
+        "train_steps": 20000,
+
+        "inputs": {
+            "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
+            "primary_class": 0,
+
+            "features": {
+                "global_view": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_std": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_mask": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_transit_mask": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_view_0.3": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_view_5.0": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "local_view": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_std": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_mask": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_view_0.3": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_view_5.0": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_view_odd": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_std_odd": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_view_even": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_std_even": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "local_view_half_period_std": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_view": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_std": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_mask": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_view_0.3": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "secondary_view_5.0": {
+                    "shape": [61],
+                    "is_time_series": True,
+                },
+                "global_view_double_period": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_view_double_period_0.3": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "global_view_double_period_5.0": {
+                    "shape": [201],
+                    "is_time_series": True,
+                },
+                "sample_segments_view": {
+                    "shape": [201, 14],
+                    "is_time_series": True,
+                },
+                "sample_segments_view_0.3": {
+                    "shape": [201, 14],
+                    "is_time_series": True,
+                },
+                "sample_segments_view_5.0": {
+                    "shape": [201, 14],
+                    "is_time_series": True,
+                },
+                "sample_segments_local_view": {
+                    "shape": [61, 16],
+                    "is_time_series": True,
+                },
+                "sample_segments_local_view_0.3": {
+                    "shape": [61, 16],
+                    "is_time_series": True,
+                },
+                "sample_segments_local_view_5.0": {
+                    "shape": [61, 16],
+                    "is_time_series": True,
+                },
+                "Period": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 16.425697,
+                    "std": 27.911264,
+                },
+                "Duration": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.263291,
+                    "std": 0.741017,
+                },
+                "Transit_Depth": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "log",
+                    "min_val": 0,
+                    "max_val": 3.879001e+11,
+                },
+                "Tmag": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 9.204857,
+                    "std": 1.604575,
+                },
+                "star_mass": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.741020,
+                    "std": 0.815089,
+                },
+                "star_mass_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "star_rad": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 6.826552,
+                    "std": 10.290280,
+                },
+                "star_rad_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "star_rad_est": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 6.826552,
+                    "std": 10.290280,
+                },
+                "star_rad_est_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "n_folds": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "log",
+                    "min_val": 0,
+                    "max_val": 100,
+                },
+                "secondary_phase": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.497270,
+                    "std": 0.200908,
+                },
+                "secondary_phase_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "secondary_phase_0.3": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.497270,
+                    "std": 0.200908,
+                },
+                "secondary_phase_0.3_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "secondary_phase_5.0": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.497270,
+                    "std": 0.200908,
+                },
+                "secondary_phase_5.0_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "local_scale": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.019245,
+                    "std": 0.114780,
+                },
+                "local_scale_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "local_scale_0.3": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.019245,
+                    "std": 0.114780,
+                },
+                "local_scale_0.3_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "local_scale_5.0": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.019245,
+                    "std": 0.114780,
+                },
+                "local_scale_5.0_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "secondary_scale": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.006294,
+                    "std": 0.032557,
+                },
+                "secondary_scale_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "secondary_scale_0.3": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.006294,
+                    "std": 0.032557,
+                },
+                "secondary_scale_0.3_present": {
+                    "shape": [1],
+                    "is_time_series": False,
+                },
+                "secondary_scale_5.0": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "scale": "norm",
+                    "mean": 0.006294,
+                    "std": 0.032557,
+                },
+                "secondary_scale_5.0_present": {
+                    "shape": [1],
+                    "is_time_series": False,
                 },
             },
         },

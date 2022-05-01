@@ -59,7 +59,7 @@ def _set_float_feature(ex, name, value):
     value = value.reshape((-1,))
   values = [float(v) for v in value]
   if any(np.isnan(values)):
-    raise ValueError(f'NaNs in {name} for {tic_id}')
+    raise ValueError(f'NaNs in {name}')
   ex.features.feature[name].float_list.value.extend(values)
 
 
@@ -204,17 +204,24 @@ def _process_tce(tce, bkspace=None):
 
   if np.isnan(tce.SMass):
     _set_float_feature(ex, 'star_mass', [0])
-    _set_float_feature(ex, 'star_mass_poresent', [0])
+    _set_float_feature(ex, 'star_mass_present', [0])
   else:
     _set_float_feature(ex, 'star_mass', [tce.SMass])
-    _set_float_feature(ex, 'star_mass_poresent', [1])
+    _set_float_feature(ex, 'star_mass_present', [1])
 
   if np.isnan(tce.SRad):
     _set_float_feature(ex, 'star_rad', [0])
-    _set_float_feature(ex, 'star_rad_poresent', [0])
+    _set_float_feature(ex, 'star_rad_present', [0])
   else:
     _set_float_feature(ex, 'star_rad', [tce.SRad])
-    _set_float_feature(ex, 'star_rad_poresent', [1])
+    _set_float_feature(ex, 'star_rad_present', [1])
+
+  if np.isnan(tce.SRadEst):
+    _set_float_feature(ex, 'star_rad_est', [0])
+    _set_float_feature(ex, 'star_rad_est_present', [0])
+  else:
+    _set_float_feature(ex, 'star_rad_est', [tce.SRadEst])
+    _set_float_feature(ex, 'star_rad_est_present', [1])
 
   _set_float_feature(ex, 'n_folds', [len(set(fold_num))])
   _set_float_feature(ex, 'n_points', [len(fold_num)])

@@ -72,26 +72,15 @@ def build_dataset(file_pattern,
         for name, value in parsed_features.items():
             cfg = input_config.features[name]
             if not cfg.is_time_series:
-                use_value = True
-                if cfg.has_nans:
-                    if tf.math.is_nan(value):
-                        use_value = False
-                        mask = tf.zeros_like(value)
-                    else:
-                        mask = tf.ones_like(value)
-                    features[f"{name.lower()}_present"] = mask
-                if use_value:
-                    if getattr(cfg, "log_scale", False):
-                        value = tf.cast(value, tf.float64)
-                        value = tf.maximum(value, cfg.min_val)
-                        value = tf.minimum(value, cfg.max_val)
-                        value = value - cfg.min_val + 1
-                        value = tf.math.log(value) / tf.math.log(tf.constant(cfg.max_val, tf.float64))
-                        value = tf.cast(value, tf.float32)
-                    else:
-                        value = (value - cfg["mean"]) / cfg["std"]
-                else:
-                    value = tf.zeros_like(value)
+                if getattr(cfg, "scale", None) == "log":
+                    value = tf.cast(value, tf.float64)
+                    value = tf.maximum(value, cfg.min_val)
+                    value = tf.minimum(value, cfg.max_val)
+                    value = value - cfg.min_val + 1
+                    value = tf.math.log(value) / tf.math.log(tf.constant(cfg.max_val, tf.float64))
+                    value = tf.cast(value, tf.float32)
+                elif getattr(cfg, "scale", None) == "norm":
+                    value = (value - cfg["mean"]) / cfg["std"]
             features[name.lower()] = value
         
         if include_labels:
