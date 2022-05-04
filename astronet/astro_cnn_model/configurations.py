@@ -2434,8 +2434,8 @@ def final_alpha_1():
                     "shape": [1],
                     "is_time_series": False,
                     "scale": "norm",
-                    "mean": 6.826552,
-                    "std": 10.290280,
+                    "mean": 14.754913,
+                    "std": 60.912751,
                 },
                 "star_rad_est_present": {
                     "shape": [1],
