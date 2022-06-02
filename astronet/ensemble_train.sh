@@ -15,7 +15,7 @@ do
         --train_files='/mnt/tess/astronet/tfrecords-38-train/*' \
         --eval_files='/mnt/tess/astronet/tfrecords-38-val/*' \
         --train_steps=0 \
-        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_run_1/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_run_2/${i}"
 done
 
 for i in {1..10}
@@ -27,7 +27,7 @@ do
         --train_files='/mnt/tess/astronet/tfrecords-38-y1-train/*' \
         --eval_files='/mnt/tess/astronet/tfrecords-38-y1-val/*' \
         --train_steps=0 \
-        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_y1_run_1/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_y1_run_2/${i}"
 done
 
 for i in {1..10}
@@ -39,7 +39,7 @@ do
         --train_files='/mnt/tess/astronet/tfrecords-38-y2-train/*' \
         --eval_files='/mnt/tess/astronet/tfrecords-38-y2-val/*' \
         --train_steps=0 \
-        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_y2_run_1/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_y2_run_2/${i}"
 done
 
 for i in {1..10}
@@ -51,6 +51,6 @@ do
         --train_files='/mnt/tess/astronet/tfrecords-38-y3-train/*' \
         --eval_files='/mnt/tess/astronet/tfrecords-38-y3-val/*' \
         --train_steps=0 \
-        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_y3_run_1/${i}"
+        --model_dir="/mnt/tess/astronet/checkpoints/${NAME}_38_y3_run_2/${i}"
 done
 
