@@ -1,4 +1,4 @@
-This is a variation of the Loang model found in https://github.com/yuliang419/Astronet-Vetting.
+This is a variation of the Liang model found in https://github.com/yuliang419/Astronet-Vetting.
 
 #### Basic commands
 
