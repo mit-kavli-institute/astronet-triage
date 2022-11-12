@@ -230,6 +230,12 @@ def main_app():
             w.update()     
             if fn in lbl[0]:
                 fw()
+        elif e.char == 'j':
+            lbl[0][fn] = e.char
+            lbl[1][fn] = e.char
+            update_text()
+            w.update()
+            fw()
         elif e.char == 's':
             if fn not in lbl[2]:
                 lbl[2][fn] = 's'
