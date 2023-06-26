@@ -142,9 +142,6 @@ def train(model, config):
         ),
     ]
 
-    # Adding run eagerly her for debugging -  remember to remove before long training
-    print("Running eagerly.....")
-    tf.config.run_functions_eagerly(True)
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
     
     if getattr(config.hparams, 'decreasing_lr', False):
@@ -162,8 +159,6 @@ def train(model, config):
     if not train_steps:
         train_steps = config['train_steps']
         train_epochs = 1
-
-    # import pdb; pdb.set_trace()
 
     history = model.fit(ds, epochs=train_epochs, steps_per_epoch=train_steps, validation_data=eval_ds)
 
