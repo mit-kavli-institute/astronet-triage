@@ -2,7 +2,7 @@ from astroquery import mast
 import pandas as pd
 
 def update_ext_mast_data(tces):
-    ext_data_file = '/mnt/tess/labels/ext_mast_data.csv'
+    ext_data_file = '../mnt/tess/labels/ext_mast_data.csv'
     ext_table = pd.read_csv(ext_data_file, header=0).set_index('tic_id')
     
     addl_data = []
@@ -26,5 +26,5 @@ def update_ext_mast_data(tces):
             ext_table.to_csv(ext_data_file)
             addl_data = []
 
-tcenorth = pd.read_csv('/mnt/tess/labels/north_tce_instar.csv', header=0).set_index('tic_id')
+tcenorth = pd.read_csv('../mnt/tess/labels/north_tce_instar.csv', header=0).set_index('tic_id')
 update_ext_mast_data(tcenorth)
