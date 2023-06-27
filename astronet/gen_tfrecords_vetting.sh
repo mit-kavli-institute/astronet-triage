@@ -2,7 +2,7 @@
 
 set -e
 
-LCDIR=../mnt/tess/lc-v
+LCDIR=../mnt/tess/lc
 
 python astronet/preprocess/generate_input_records.py --input_tce_csv_file=../mnt/tess/astronet/tces-vetting-v01-train.csv --tess_data_dir=${LCDIR} --output_dir=../mnt/tess/astronet/tfrecords-vetting-01-train --vetting_features=y --num_shards=2
 
