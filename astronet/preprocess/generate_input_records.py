@@ -167,6 +167,12 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
 
 
 def _process_tce(tce, bkspace=None):
+  # Check if missing starting and ending times in spreadsheet
+  if 'MinT' not in tce:
+      tce['MinT'] = -np.inf
+      tce['MaxT'] = np.inf
+  # import pdb; pdb.set_trace()
+
   time, flux = preprocess.read_and_process_light_curve(FLAGS.tess_data_dir, 'SAP_FLUX', tce.File, tce.MinT, tce.MaxT)
   if FLAGS.vetting_features == 'y':
     apertures = {
@@ -184,11 +190,21 @@ def _process_tce(tce, bkspace=None):
 
   _set_int64_feature(ex, 'astro_id', [tce['Astro ID']])
 
-  _set_int64_feature(ex, 'disp_E', [tce['disp_E']])
-  _set_int64_feature(ex, 'disp_N', [tce['disp_N']])
-  _set_int64_feature(ex, 'disp_J', [tce['disp_J']])
-  _set_int64_feature(ex, 'disp_S', [tce['disp_S']])
-  _set_int64_feature(ex, 'disp_B', [tce['disp_B']])
+  # # COMMENT OUT FOR VETTING
+  # _set_int64_feature(ex, 'disp_E', [tce['disp_E']])
+  # _set_int64_feature(ex, 'disp_N', [tce['disp_N']])
+  # _set_int64_feature(ex, 'disp_J', [tce['disp_J']])
+  # _set_int64_feature(ex, 'disp_S', [tce['disp_S']])
+  # _set_int64_feature(ex, 'disp_B', [tce['disp_B']])
+
+  # COMMENT OUT FOR TRIAGE
+  _set_int64_feature(ex, 'disp_e', [tce['disp_e']])
+  _set_int64_feature(ex, 'disp_p', [tce['disp_p']])
+  _set_int64_feature(ex, 'disp_n', [tce['disp_n']])
+  _set_int64_feature(ex, 'disp_b', [tce['disp_b']])
+  _set_int64_feature(ex, 'disp_t', [tce['disp_t']])
+  _set_int64_feature(ex, 'disp_u', [tce['disp_u']])
+  _set_int64_feature(ex, 'disp_j', [tce['disp_j']])
 
   assert not np.isnan(tce.Per)
   _set_float_feature(ex, 'Period', [tce.Per])
