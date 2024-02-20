@@ -196,11 +196,11 @@ def main_app():
     def keydown(e):
         nonlocal searchmode, search_text, i
         if searchmode:
-            if e.keycode == 3342463:
+            if e.keysym == 'BackSpace':
                 search_text = search_text[:-1]
-            elif e.keycode == 3473435:
+            elif e.keysym == 'Escape':
                 searchmode = False
-            elif e.keycode == 2359309:
+            elif e.keysym == 'Return':
                 sf = [f for f in fs if os.path.basename(f).startswith(search_text)]
                 i = fs.index(sf[0])
                 searchmode = False
@@ -251,7 +251,7 @@ def main_app():
             search_text = ''
             update_text()
 
-        elif e.keycode == 3342463:
+        elif e.keysym == 'BackSpace':
             if fn in lbl[0]:
                 del lbl[0][fn]
             if fn in lbl[1]:
@@ -261,17 +261,22 @@ def main_app():
             update_text()
             w.update()     
 
-        elif e.keycode == 8189699:
+        elif e.keysym == 'Right':
             fw()
-        elif e.keycode == 8124162:
+        elif e.keysym == 'Left':
             bk()
-        elif e.keycode == 8255233:
+        elif e.keysym == 'Up':
             fpg()
-        elif e.keycode == 8320768:
+        elif e.keysym == 'Down':
             bpg()
 
         else:
-            print(e.char, e.keycode)
+            print(
+                'Unrecognized keystroke:',
+                f'char: "{e.char}"',
+                f'sym: "{e.keysym}"',
+                f'code: "{e.keycode}"',
+            )
 
 
     w.bind("<Key>", keydown)
@@ -285,7 +290,7 @@ def main_app():
 def main():
     helptxt = """
     Usage:
-      python3 label.py <week no> <user initials> <user id>
+      python3 label.py <inlist> <indir> <user> <user-id>
 
     Keys:
       Arrow keys - navigate, up-down, cycle through the pages from one tic, left, right go to the previous/next tic
@@ -296,7 +301,7 @@ def main():
       t, b, u - set second label (on Target, Background, Undecided)
         when both the first and the second labels are set, the app moves forward
       s - toggle third label (Single transit)
-      del - clear all labels
+      del - clear labels of current report
       / - search
           <Enter> select first search match
           <Esc> cancel search
