@@ -58,6 +58,10 @@ parser.add_argument(
     choices=["triage", "vetting"],
     required=True)
 
+parser.add_argument(
+   "--not-training",
+   action="store_true")
+
 
 def _set_float_feature(ex, name, value):
   """Sets the value of a float feature in a tensorflow.train.Example proto."""
@@ -177,6 +181,7 @@ def _process_tce(
     tce,
     get_lightcurve: LCGetter,
     mode: AstronetMode,
+    training: bool
 ):
   time, flux = get_lightcurve(tce['Astro ID'])
   if mode == 'vetting':
@@ -195,22 +200,23 @@ def _process_tce(
 
   _set_int64_feature(ex, 'astro_id', [tce['Astro ID']])
 
-  if mode == "vetting":
-    _set_int64_feature(ex, 'disp_e', [tce['disp_e']])
-    _set_int64_feature(ex, 'disp_p', [tce['disp_p']])
-    _set_int64_feature(ex, 'disp_n', [tce['disp_n']])
-    _set_int64_feature(ex, 'disp_b', [tce['disp_b']])
-    _set_int64_feature(ex, 'disp_t', [tce['disp_t']])
-    _set_int64_feature(ex, 'disp_u', [tce['disp_u']])
-    _set_int64_feature(ex, 'disp_j', [tce['disp_j']])
-  elif mode == "triage":
-    _set_int64_feature(ex, 'disp_E', [tce['disp_E']])
-    _set_int64_feature(ex, 'disp_N', [tce['disp_N']])
-    _set_int64_feature(ex, 'disp_J', [tce['disp_J']])
-    _set_int64_feature(ex, 'disp_S', [tce['disp_S']])
-    _set_int64_feature(ex, 'disp_B', [tce['disp_B']])
-  else:
-    raise ValueError(f'Mode "{mode}" not supported.')
+  if training:
+    if mode == "vetting":
+      _set_int64_feature(ex, 'disp_e', [tce['disp_e']])
+      _set_int64_feature(ex, 'disp_p', [tce['disp_p']])
+      _set_int64_feature(ex, 'disp_n', [tce['disp_n']])
+      _set_int64_feature(ex, 'disp_b', [tce['disp_b']])
+      _set_int64_feature(ex, 'disp_t', [tce['disp_t']])
+      _set_int64_feature(ex, 'disp_u', [tce['disp_u']])
+      _set_int64_feature(ex, 'disp_j', [tce['disp_j']])
+    elif mode == "triage":
+      _set_int64_feature(ex, 'disp_E', [tce['disp_E']])
+      _set_int64_feature(ex, 'disp_N', [tce['disp_N']])
+      _set_int64_feature(ex, 'disp_J', [tce['disp_J']])
+      _set_int64_feature(ex, 'disp_S', [tce['disp_S']])
+      _set_int64_feature(ex, 'disp_B', [tce['disp_B']])
+    else:
+      raise ValueError(f'Mode "{mode}" not supported.')
 
   assert not np.isnan(tce.Per)
   _set_float_feature(ex, 'Period', [tce.Per])
@@ -256,6 +262,7 @@ def _process_file_shard(
   file_name: str,
   get_lightcurve: LCGetter,
   mode: AstronetMode,
+  training: bool,
 ):
   process_name = multiprocessing.current_process().name
   shard_name = os.path.basename(file_name)
@@ -293,7 +300,7 @@ def _process_file_shard(
       try:
         print(" processing", end="")
         sys.stdout.flush()
-        ex = _process_tce(tce, get_lightcurve, mode)
+        ex = _process_tce(tce, get_lightcurve, mode, training)
         examples.append(ex)
       except Exception as e:
         raise
@@ -316,6 +323,7 @@ def create(
     num_shards: int,
     num_processes: int,
     mode: AstronetMode,
+    training: bool,
     get_lightcurve: LCGetter,
 ):
     tf.io.gfile.makedirs(output_dir)
@@ -337,6 +345,7 @@ def create(
                 file,
                 get_lightcurve,
                 mode,
+                training
             )
     else:
         with multiprocessing.Pool(num_processes) as pool:
@@ -348,6 +357,7 @@ def create(
                         file,
                         get_lightcurve,
                         mode,
+                        training,
                     )
                     for start, end, file in tce_shards
                 ],
@@ -402,7 +412,7 @@ def main(_):
 
     logging.info("Processing %d total file shards", len(file_shards))
     for start, end, file_shard in file_shards:
-        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, get_lightcurve, FLAGS.mode)
+        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, get_lightcurve, FLAGS.mode, not FLAGS.not_training)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
