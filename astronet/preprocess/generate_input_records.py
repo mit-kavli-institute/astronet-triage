@@ -14,7 +14,8 @@ import argparse
 import multiprocessing
 import os
 import sys
-from typing import Callable, Literal, Optional
+from typing import Literal, Optional
+from typing_extensions import Protocol
 
 from absl import logging
 from absl import app
@@ -23,6 +24,11 @@ import pandas as pd
 import tensorflow as tf
 
 from astronet.preprocess import preprocess
+
+
+class LCGetter(Protocol):
+   def __call__(self, astro_id: int, aperture: Optional[Literal['s', 'm', 'l']] = None): ...
+AstronetMode = Literal["triage", "vetting"]
 
 
 parser = argparse.ArgumentParser()
@@ -47,10 +53,6 @@ parser.add_argument(
     type=int,
     default=20)
 
-parser.add_argument(
-    "--vetting_features",
-    type=str,
-    default='n')
 parser.add_argument(
     "--mode",
     type=str,
@@ -174,16 +176,15 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
 
 def _process_tce(
     tce,
-    get_lightcurve: Callable[[int], tuple[np.ndarray, np.ndarray]],
-    get_aperture_lightcurve: Optional[Callable[[int, str], tuple[np.ndarray, np.ndarray]]],
-    mode: Literal['triage', 'vetting'],
+    get_lightcurve: LCGetter,
+    mode: AstronetMode,
 ):
   time, flux = get_lightcurve(tce['ASTRO ID'])
-  if get_aperture_lightcurve is not None:
+  if mode == 'vetting':
     apertures = {
-      's': get_aperture_lightcurve(tce['ASTRO ID'], 's'),
-      'm': get_aperture_lightcurve(tce['ASTRO ID'], 'm'),
-      'l': get_aperture_lightcurve(tce['ASTRO ID'], 'l'),
+      's': get_lightcurve(tce['ASTRO ID'], aperture='s'),
+      'm': get_lightcurve(tce['ASTRO ID'], aperture='m'),
+      'l': get_lightcurve(tce['ASTRO ID'], aperture='l'),
     }
   else:
     apertures = {}
@@ -254,9 +255,8 @@ def _process_tce(
 def _process_file_shard(
   tce_table: pd.DataFrame,
   file_name: str,
-  get_lightcurve: Callable[[int], tuple[np.ndarray, np.ndarray]],
-  get_aperture_lightcurve: Optional[Callable[[int, str], tuple[np.ndarray, np.ndarray]]],
-  mode: Literal['triage', 'vetting'],
+  get_lightcurve: LCGetter,
+  mode: AstronetMode,
 ):
   process_name = multiprocessing.current_process().name
   shard_name = os.path.basename(file_name)
@@ -294,7 +294,7 @@ def _process_file_shard(
       try:
         print(" processing", end="")
         sys.stdout.flush()
-        ex = _process_tce(tce, get_lightcurve, get_aperture_lightcurve, mode)
+        ex = _process_tce(tce, get_lightcurve, mode)
         examples.append(ex)
       except Exception as e:
         raise
@@ -316,11 +316,8 @@ def create_tfrecords(
     output_dir: str,
     num_shards: int,
     num_processes: int,
-    mode: Literal["triage", "vetting"],
-    get_lightcurve: Callable[[int], tuple[np.ndarray, np.ndarray]],
-    get_aperture_lightcurve: Optional[
-        Callable[[int, str], tuple[np.ndarray, np.ndarray]]
-    ] = None,
+    mode: AstronetMode,
+    get_lightcurve: LCGetter,
 ):
     tf.io.gfile.makedirs(output_dir)
     logging.info(f"Processing {len(tce_table)} TCEs")
@@ -340,7 +337,6 @@ def create_tfrecords(
                 tce_table[start:end],
                 file,
                 get_lightcurve,
-                get_aperture_lightcurve,
                 mode,
             )
     else:
@@ -352,7 +348,6 @@ def create_tfrecords(
                         tce_table[start:end],
                         file,
                         get_lightcurve,
-                        get_aperture_lightcurve,
                         mode,
                     )
                     for start, end, file in tce_shards
@@ -373,7 +368,7 @@ def main(_):
             "l": "SAP_FLUX_LAG",
             None: "SAP_FLUX",
         }
-        matching_tces = tce_table.where(tce_table.["ASTRO ID"] == astro_id)
+        matching_tces = tce_table.where(tce_table["ASTRO ID"] == astro_id)
         try:
             _, tce = next(matching_tces.iterrows())
         except StopIteration as e:
