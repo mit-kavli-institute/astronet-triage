@@ -178,12 +178,12 @@ def _process_tce(
     get_lightcurve: LCGetter,
     mode: AstronetMode,
 ):
-  time, flux = get_lightcurve(tce['ASTRO ID'])
+  time, flux = get_lightcurve(tce['Astro ID'])
   if mode == 'vetting':
     apertures = {
-      's': get_lightcurve(tce['ASTRO ID'], aperture='s'),
-      'm': get_lightcurve(tce['ASTRO ID'], aperture='m'),
-      'l': get_lightcurve(tce['ASTRO ID'], aperture='l'),
+      's': get_lightcurve(tce['Astro ID'], aperture='s'),
+      'm': get_lightcurve(tce['Astro ID'], aperture='m'),
+      'l': get_lightcurve(tce['Astro ID'], aperture='l'),
     }
   else:
     apertures = {}
@@ -367,11 +367,11 @@ def main(_):
             "l": "SAP_FLUX_LAG",
             None: "SAP_FLUX",
         }
-        matching_tces = tce_table.where(tce_table["ASTRO ID"] == astro_id)
+        matching_tces = tce_table.where(tce_table["Astro ID"] == astro_id)
         try:
             _, tce = next(matching_tces.iterrows())
         except StopIteration as e:
-            raise ValueError(f"ASTRO ID not found: {astro_id}") from e
+            raise ValueError(f"Astro ID not found: {astro_id}") from e
         if "MinT" not in tce:
             tce["MinT"] = -np.inf
         if "MaxT" not in tce:
