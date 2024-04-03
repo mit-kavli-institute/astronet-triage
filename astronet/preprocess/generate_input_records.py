@@ -326,7 +326,7 @@ def create(
     for i in range(num_shards):
         start, end = boundaries[i : i + 2]
         tce_shards.append(
-            (start, end, os.path.join(output_dir, f"{i:.5d}-of-{num_shards:.5f}"))
+            (start, end, os.path.join(output_dir, f"{i:05d}-of-{num_shards:05f}"))
         )
     logging.info(f"Processing {len(tce_table)} TCEs in {len(tce_shards)} shards.")
 
