@@ -14,20 +14,24 @@
 
 """Generates predictions using a trained model."""
 
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import argparse
+import sys
 import multiprocessing
 import os
-import sys
 from typing import Optional
 
-import pandas as pd
-import tensorflow as tf
 from absl import app
+import numpy as np
+import tensorflow as tf
+import pandas as pd
 
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
+
 
 parser = argparse.ArgumentParser()
 
@@ -36,40 +40,32 @@ parser.add_argument(
     "--model_dir",
     type=str,
     required=True,
-    help="Directory containing a model checkpoint.",
-)
+    help="Directory containing a model checkpoint.")
 
 parser.add_argument(
     "--data_files",
     type=str,
     required=True,
-    help="Comma-separated list of file patterns matching the TFRecord files.",
-)
+    help="Comma-separated list of file patterns matching the TFRecord files.")
 
 parser.add_argument(
     "--output_file",
     type=str,
-    default="",
-    help="Name of file in which predictions will be saved.",
-)
+    default='',
+    help="Name of file in which predictions will be saved.")
 
 
-def predict(
-    model_dir: str,
-    data_files: str,
-    output_file: Optional[str] = None,
-    legacy: bool = False,
-):
+def predict(model_dir: str, data_files: str, output_file: Optional[str] = None, legacy=False):
     model = tf.keras.models.load_model(model_dir)
     config = config_util.load_config(model_dir)
-
+    
     if legacy:
         for f in config.inputs.features.values():
-            length = getattr(f, "length", None)
-            if length is None:
+            l = getattr(f, 'length', None)
+            if l is None:
                 f.shape = []
             else:
-                f.shape = [length]
+                f.shape = [l]
 
     ds = input_ds.build_dataset(
         file_pattern=data_files,
@@ -78,30 +74,29 @@ def predict(
         include_labels=False,
         shuffle_filenames=False,
         repeat=1,
-        include_identifiers=True,
-    )
+        include_identifiers=True)
+    
+    label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
 
-    label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
-
-    print("0 records", end="")
+    print('0 records', end='')
     series = []
     for features, identifiers in ds:
-        preds = model(features)
+      preds = model(features)
 
-        row = {}
-        row["astro_id"] = identifiers.numpy().item()
-        for i, p in enumerate(preds.numpy()[0]):
-            row[label_index[i]] = p
+      row = {}
+      row['astro_id'] = identifiers.numpy().item()
+      for i, p in enumerate(preds.numpy()[0]):
+        row[label_index[i]] = p
 
-        series.append(row)
-        print("\r{} records".format(len(series)), end="")
+      series.append(row)
+      print('\r{} records'.format(len(series)), end='')
 
     results = pd.DataFrame.from_dict(series)
-
+    
     if output_file:
-        with tf.io.gfile.GFile(output_file, "w") as f:
-            results.to_csv(f)
-
+      with tf.io.gfile.GFile(output_file, "w") as f:
+        results.to_csv(f)
+        
     return results, config
 
 
@@ -121,7 +116,7 @@ def checkpoint_dirs(root: str, nruns: Optional[int] = None) -> list[str]:
     return checkpoints
 
 
-def batch_predict(
+def ensemble_predict(
     models_dir: str, data_files: str, nruns: int, num_processes: int = 1, **kwargs
 ):
     model_dirs = checkpoint_dirs(models_dir, nruns)
@@ -154,30 +149,29 @@ def main(_):
         include_labels=False,
         shuffle_filenames=False,
         repeat=1,
-        include_identifiers=True,
-    )
+        include_identifiers=True)
+    
+    label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
 
-    label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
-
-    print("0 records", end="")
+    print('0 records', end='')
     series = []
     for features, identifiers in ds:
-        preds = model(features)
+      preds = model(features)
 
-        row = {}
-        row["astro_id"] = identifiers.numpy().item()
-        for i, p in enumerate(preds.numpy()[0]):
-            row[label_index[i]] = p
+      row = {}
+      row['astro_id'] = identifiers.numpy().item()
+      for i, p in enumerate(preds.numpy()[0]):
+        row[label_index[i]] = p
 
-        series.append(row)
-        print("\r{} records".format(len(series)), end="")
+      series.append(row)
+      print('\r{} records'.format(len(series)), end='')
 
     results = pd.DataFrame.from_dict(series)
-
+    
     if FLAGS.output_file:
-        with tf.io.gfile.GFile(FLAGS.output_file, "w") as f:
-            results.to_csv(f)
-
+      with tf.io.gfile.GFile(FLAGS.output_file, "w") as f:
+        results.to_csv(f)
+        
     return results, config
 
 
