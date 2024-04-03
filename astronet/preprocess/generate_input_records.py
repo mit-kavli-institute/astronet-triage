@@ -15,13 +15,12 @@ import multiprocessing
 import os
 import sys
 from typing import Literal, Optional
-from typing_extensions import Protocol
 
-from absl import logging
-from absl import app
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from absl import app, logging
+from typing_extensions import Protocol
 
 from astronet.preprocess import preprocess
 
@@ -311,7 +310,7 @@ def _process_file_shard(
   num_new = num_processed - num_skipped - num_existing
   print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new {num_skipped} bad            ")
 
-def create_tfrecords(
+def create(
     tce_table: pd.DataFrame,
     output_dir: str,
     num_shards: int,

@@ -116,7 +116,7 @@ def checkpoint_dirs(root: str, nruns: Optional[int] = None) -> list[str]:
     return checkpoints
 
 
-def ensemble_predict(
+def batch_predict(
     models_dir: str, data_files: str, nruns: int, num_processes: int = 1, **kwargs
 ):
     model_dirs = checkpoint_dirs(models_dir, nruns)
