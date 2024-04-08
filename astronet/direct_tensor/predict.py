@@ -1,7 +1,8 @@
 """Make astronet predictions without creating tf.training.Example objects"""
 
 import json
-from collections import defaultdict
+from itertools import starmap
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Literal, Optional, Protocol
 
@@ -200,10 +201,15 @@ def prediction_features(
 def prepare_input(
     feature_cfg: dict,
     tce: pd.Series,
-    time: np.ndarray,
-    flux: np.ndarray,
-    aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
+    get_lc: LCGetter,
+    mode: Literal["triage", "vetting"],
 ) -> dict:
+    time, flux = get_lc(tce["Astro ID"])
+    aperture_fluxes = {}
+    if mode == "vetting":
+        aperture_fluxes = {
+            aperture: get_lc(tce["Astro ID"], aperture) for aperture in ["s", "m", "l"]
+        }
     tce_features = prediction_features(tce, time, flux, aperture_fluxes)
     tce_features = {
         name: value for name, value in tce_features.items() if name in feature_cfg
@@ -226,7 +232,7 @@ def prepare_input(
                 value = (value - cfg["mean"]) / cfg["std"]
         features[name.lower()] = value
 
-    return features
+    return {k: [v] for k, v in features.items()}
 
 
 def build_dataset(
@@ -234,19 +240,16 @@ def build_dataset(
     tces: pd.DataFrame,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
+    nprocs: int = 1,
 ) -> tf.data.Dataset:
-    dataset = defaultdict(list)
-    for _, tce in tces.iterrows():
-        time, flux = get_lc(tce["Astro ID"])
-        aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        if mode == "vetting":
-            aperture_fluxes = {
-                aperture: get_lc(tce["Astro ID"], aperture)
-                for aperture in ["s", "m", "l"]
-            }
-        features = prepare_input(feature_cfg, tce, time, flux, aperture_fluxes)
-        for k, v in features.items():
-            dataset[k].append([v])
+    tasks = [(feature_cfg, tce.to_dict(), get_lc, mode) for _, tce in tces.iterrows()]
+    if nprocs == 1:
+        all_tces_features = starmap(prepare_input, tasks)
+    else:
+        with Pool(nprocs) as pool:
+            all_tces_features = pool.starmap(prepare_input, tasks)
+    feature_table = pd.DataFrame(all_tces_features)
+    dataset = feature_table.to_dict(orient="list")
     return tf.data.Dataset.from_tensor_slices(dataset)
 
 
@@ -271,7 +274,6 @@ def batch_predict(
     mode: Literal["triage", "vetting"],
     nruns: Optional[int] = None,
     nprocs: int = 1,
-    **kwargs,
 ):
     model_dirs = find_checkpoints(checkpoints_dir, nruns)
     first_model_dir = model_dirs[0]
@@ -296,7 +298,7 @@ def batch_predict(
                 f"\n{model_dir}:\n{model_cfg['inputs']['label_columns']}"
             )
 
-    dataset = build_dataset(input_features_cfg, tces, get_lc, mode)
+    dataset = build_dataset(input_features_cfg, tces, get_lc, mode, nprocs)
     predictions = [predict(model_dir, dataset) for model_dir in model_dirs]
     prediction_dfs = [
         pd.DataFrame(
@@ -304,6 +306,7 @@ def batch_predict(
             index=pd.MultiIndex.from_product(
                 [tces["Astro ID"], [i]], names=["Astro ID", "model_no"]
             ),
+            columns=output_labels,
         )
         for i, pred in enumerate(predictions)
     ]
