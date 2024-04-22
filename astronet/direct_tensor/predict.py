@@ -1,12 +1,15 @@
-"""Make astronet predictions without creating tf.training.Example objects and files."""
+"""
+Make astronet predictions without creating and serializing tf.training.Examples.
+"""
 
 import json
 from itertools import starmap
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Any, Literal, Optional, Protocol
+from typing import Literal, Optional, Protocol, Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
 
@@ -32,6 +35,9 @@ class LCGetter(Protocol):
     ) -> tuple[np.ndarray, np.ndarray]: ...
 
 
+BREAKSPACES = [0.3, 5.0, None]
+
+
 def standard_view_features(
     tic: int,
     time: np.ndarray,
@@ -41,14 +47,16 @@ def standard_view_features(
     duration: float,
     breakspace: Optional[float],
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Union[float, np.ndarray]], npt.NDArray[np.int_]]:
     """
-    Process lightcurve and create standard view inputs that depend on time/flux values.
+    Process lightcurve and create standard view inputs that depend on time/flux
+    values.
 
     Params
     ------
     tic: int
-        TIC ID of target. Note: pretty sure this is not used by any of the methods where it's used.
+        TIC ID of target. Note: pretty sure this is not used by any of the
+        methods where it's used.
     time: array[float]
         Array of time values in lightcurve.
     flux: array[float]
@@ -60,24 +68,24 @@ def standard_view_features(
     duration: float
         Duration of transits.
     breakspace: float | None
-        Breakspace to use in spline detrending. None indicates that various breakspaces should be
-        tried and the best selected.
+        Breakspace to use in spline detrending. None indicates that various
+        breakspaces should be tried and the best selected.
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]]
         For triage model: empty dict.
-        For vetting model: dict of {aperture_name: (lightcurve_time, lightcurve_flux)} for all
-        apertures to be considered ('s', 'm', 'l').
+        For vetting model: {aperture_name: (lightcurve_time, lightcurve_flux)}
+        for all apertures to be considered ('s', 'm', 'l').
 
 
     Returns
     -------
     features: dict[str, float | array[float]]
-        Dict of {feature_name: feature_value} for features that are or depend on views of the
-        lightcurve.
+        Dict of {feature_name: feature_value} for features that are or depend on
+        views of the lightcurve.
     fold_num: array[float]
-        Array containing the fold number of each point in the lightcurve. Used to calculate the
-        total number of folds in the lightcurve for the "n_folds" feature.
+        Array containing the fold number of each point in the lightcurve. Used
+        to calculate the total number of folds in the lightcurve for the
+        "n_folds" feature.
     """
-    tag = "" if breakspace is None else f"_{breakspace}"
     all_features = {}
 
     det_time, det_flux, transit_mask = preprocess.detrend_and_filter(
@@ -89,7 +97,7 @@ def standard_view_features(
         )
     )
     odd_mask = fold_num % 2 == 1
-    even_mask = fold_num % 2 == 1
+    even_mask = fold_num % 2 == 0
 
     all_features.update(
         global_features(tic, folded_time, folded_flux, normal_transit_mask, period)
@@ -181,6 +189,7 @@ def standard_view_features(
         half_period_features(tic, half_fold_time, half_fold_flux, period, duration)
     )
 
+    tag = "" if breakspace is None else f"_{breakspace}".replace(".", "_")
     return {k + tag: v for k, v in all_features.items()}, fold_num
 
 
@@ -189,7 +198,6 @@ def prediction_features(
     time: np.ndarray,
     flux: np.ndarray,
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
-    breakspaces: list[Optional[float]] = [0.3, 5.0, None],
 ):
     """
     Assemble all input features for a lightcurve.
@@ -197,19 +205,17 @@ def prediction_features(
     Params
     ------
     tce: pd.Series
-        Row of dataframe containing relevant TCE parameters. Should include "Astro ID", "Per",
-        "Epoc", "Dur", "Depth", "Tmag", "SMass", "SRad", "SRadEst".
+        Row of dataframe containing relevant TCE parameters. Should include
+        "Astro ID", "Per", "Epoc", "Dur", "Depth", "Tmag", "SMass", "SRad",
+        "SRadEst".
     time: array[float]
         Array of time values in lightcurve.
     flux: array[float]
         Array of flux values in lightcurve.
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]]
         For triage model: empty dict.
-        For vetting model: dict of {aperture_name: (lightcurve_time, lightcurve_flux)} for all
-        apertures to be considered ('s', 'm', 'l').
-    breakspaces: list[Optional[float]]
-        Breakspaces to use in spline detrending. None indicates that various breakspaces should be
-        tried and the best selected. Default = [0.3, 5.0, None].
+        For vetting model: {aperture_name: (lightcurve_time, lightcurve_flux)}
+            for all apertures to be considered ('s', 'm', 'l').
 
     Returns
     -------
@@ -218,7 +224,8 @@ def prediction_features(
     """
     all_features = {}
 
-    for breakspace in breakspaces:
+    fold_nums = []
+    for breakspace in BREAKSPACES:
         breakspace_features, fold_num = standard_view_features(
             tce["Astro ID"],
             time,
@@ -230,6 +237,15 @@ def prediction_features(
             aperture_fluxes,
         )
         all_features.update(breakspace_features)
+        fold_nums.append(fold_num)
+
+    folds_array = np.array(fold_nums)
+    if not np.all(folds_array == folds_array[0, :], axis=0):
+        raise RuntimeError(
+            f"Lightcurve for Astro ID={tce["Astro ID"]} folded differently during"
+            " detrending runs"
+        )
+    fold_num = folds_array[-1]
 
     scalar_features = {
         "astro_id": tce["Astro ID"],
@@ -246,10 +262,13 @@ def prediction_features(
         "n_folds": len(set(fold_num)),
         "n_points": len(fold_num),
     }
-    for feature, value in scalar_features.items():
-        assert not np.isnan(
-            value
-        ), f"Bad nan feature for Astro ID {tce['Astro ID']}: {feature}"
+    if any(map(np.isnan, scalar_features.values())):
+        nan_feature_name = next(
+            feature for feature, value in scalar_features.items() if np.isnan(value)
+        )
+        raise ValueError(
+            f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}."
+        )
 
     all_features.update(
         {feature: np.array([value]) for feature, value in scalar_features.items()}
@@ -277,7 +296,12 @@ def prepare_input(
     }
 
     features = {}
-    assert set(tce_features.keys()) == set(feature_cfg.keys())
+    if any((feature not in tce_features) for feature in feature_cfg.keys()):
+        raise ValueError(
+            f"Missing feature(s) in input data: {
+                ','.join(feature for feature in feature_cfg.keys() if feature not in tce_features)
+            }"
+        )
     for name, value in tce_features.items():
         cfg = feature_cfg[name]
         if not cfg["is_time_series"]:
@@ -316,7 +340,9 @@ def build_dataset(
 
 
 def find_checkpoints(base_dir: Path, nruns: Optional[int] = None) -> list[Path]:
-    """Find model directories, assuming base directory structure of model training checkpoints."""
+    """
+    Find directories containing models, assuming structure of training checkpoints.
+    """
     if nruns is None:
         nruns = len(list(base_dir.iterdir()))
     return [next((base_dir / str(i)).iterdir()) for i in range(1, nruns + 1)]
@@ -338,8 +364,8 @@ def batch_predict(
     Returns
     -------
     predictions: pd.DataFrame
-        Indexed by Astro ID and model number. Column names are output labels and values are model
-        predictions.
+        Indexed by Astro ID and model number. Column names are output labels and
+        values are model predictions.
     """
     model_dirs = find_checkpoints(checkpoints_dir, nruns)
     first_model_dir = model_dirs[0]

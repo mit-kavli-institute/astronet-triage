@@ -28,6 +28,7 @@ from absl import app
 import numpy as np
 import tensorflow as tf
 import pandas as pd
+from tqdm import tqdm
 
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
@@ -153,9 +154,8 @@ def main(_):
     
     label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
 
-    print('0 records', end='')
     series = []
-    for features, identifiers in ds:
+    for features, identifiers in tqdm(ds, unit="records"):
       preds = model(features)
 
       row = {}
@@ -164,7 +164,6 @@ def main(_):
         row[label_index[i]] = p
 
       series.append(row)
-      print('\r{} records'.format(len(series)), end='')
 
     results = pd.DataFrame.from_dict(series)
     
