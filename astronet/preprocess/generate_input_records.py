@@ -14,14 +14,20 @@ import argparse
 import multiprocessing
 import os
 import sys
+from typing import Literal, Optional
 
-from absl import logging
-from absl import app
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from absl import app, logging
+from typing_extensions import Protocol
 
 from astronet.preprocess import preprocess
+
+
+class LCGetter(Protocol):
+   def __call__(self, astro_id: int, aperture: Optional[Literal['s', 'm', 'l']] = None): ...
+AstronetMode = Literal["triage", "vetting"]
 
 
 parser = argparse.ArgumentParser()
@@ -47,9 +53,14 @@ parser.add_argument(
     default=20)
 
 parser.add_argument(
-    "--vetting_features",
+    "--mode",
     type=str,
-    default='n')
+    choices=["triage", "vetting"],
+    required=True)
+
+parser.add_argument(
+   "--not-training",
+   action="store_true")
 
 
 def _set_float_feature(ex, name, value):
@@ -166,19 +177,18 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   return fold_num
 
 
-def _process_tce(tce, bkspace=None):
-  # Check if missing starting and ending times in spreadsheet
-  if 'MinT' not in tce:
-      tce['MinT'] = -np.inf
-      tce['MaxT'] = np.inf
-  # import pdb; pdb.set_trace()
-
-  time, flux = preprocess.read_and_process_light_curve(FLAGS.tess_data_dir, 'SAP_FLUX', tce.File, tce.MinT, tce.MaxT)
-  if FLAGS.vetting_features == 'y':
+def _process_tce(
+    tce,
+    get_lightcurve: LCGetter,
+    mode: AstronetMode,
+    training: bool
+):
+  time, flux = get_lightcurve(tce['Astro ID'])
+  if mode == 'vetting':
     apertures = {
-        's': preprocess.read_and_process_light_curve(FLAGS.tess_data_dir, 'SAP_FLUX_SML', tce.File, tce.MinT, tce.MaxT),
-        'm': preprocess.read_and_process_light_curve(FLAGS.tess_data_dir, 'SAP_FLUX_MID', tce.File, tce.MinT, tce.MaxT),
-        'l': preprocess.read_and_process_light_curve(FLAGS.tess_data_dir, 'SAP_FLUX_LAG', tce.File, tce.MinT, tce.MaxT),
+      's': get_lightcurve(tce['Astro ID'], aperture='s'),
+      'm': get_lightcurve(tce['Astro ID'], aperture='m'),
+      'l': get_lightcurve(tce['Astro ID'], aperture='l'),
     }
   else:
     apertures = {}
@@ -190,21 +200,23 @@ def _process_tce(tce, bkspace=None):
 
   _set_int64_feature(ex, 'astro_id', [tce['Astro ID']])
 
-  # # COMMENT OUT FOR VETTING
-  # _set_int64_feature(ex, 'disp_E', [tce['disp_E']])
-  # _set_int64_feature(ex, 'disp_N', [tce['disp_N']])
-  # _set_int64_feature(ex, 'disp_J', [tce['disp_J']])
-  # _set_int64_feature(ex, 'disp_S', [tce['disp_S']])
-  # _set_int64_feature(ex, 'disp_B', [tce['disp_B']])
-
-  # COMMENT OUT FOR TRIAGE
-  _set_int64_feature(ex, 'disp_e', [tce['disp_e']])
-  _set_int64_feature(ex, 'disp_p', [tce['disp_p']])
-  _set_int64_feature(ex, 'disp_n', [tce['disp_n']])
-  _set_int64_feature(ex, 'disp_b', [tce['disp_b']])
-  _set_int64_feature(ex, 'disp_t', [tce['disp_t']])
-  _set_int64_feature(ex, 'disp_u', [tce['disp_u']])
-  _set_int64_feature(ex, 'disp_j', [tce['disp_j']])
+  if training:
+    if mode == "vetting":
+      _set_int64_feature(ex, 'disp_e', [tce['disp_e']])
+      _set_int64_feature(ex, 'disp_p', [tce['disp_p']])
+      _set_int64_feature(ex, 'disp_n', [tce['disp_n']])
+      _set_int64_feature(ex, 'disp_b', [tce['disp_b']])
+      _set_int64_feature(ex, 'disp_t', [tce['disp_t']])
+      _set_int64_feature(ex, 'disp_u', [tce['disp_u']])
+      _set_int64_feature(ex, 'disp_j', [tce['disp_j']])
+    elif mode == "triage":
+      _set_int64_feature(ex, 'disp_E', [tce['disp_E']])
+      _set_int64_feature(ex, 'disp_N', [tce['disp_N']])
+      _set_int64_feature(ex, 'disp_J', [tce['disp_J']])
+      _set_int64_feature(ex, 'disp_S', [tce['disp_S']])
+      _set_int64_feature(ex, 'disp_B', [tce['disp_B']])
+    else:
+      raise ValueError(f'Mode "{mode}" not supported.')
 
   assert not np.isnan(tce.Per)
   _set_float_feature(ex, 'Period', [tce.Per])
@@ -245,7 +257,13 @@ def _process_tce(tce, bkspace=None):
   return ex
 
 
-def _process_file_shard(tce_table, file_name):
+def _process_file_shard(
+  tce_table: pd.DataFrame,
+  file_name: str,
+  get_lightcurve: LCGetter,
+  mode: AstronetMode,
+  training: bool,
+):
   process_name = multiprocessing.current_process().name
   shard_name = os.path.basename(file_name)
   shard_size = len(tce_table)
@@ -282,7 +300,7 @@ def _process_file_shard(tce_table, file_name):
       try:
         print(" processing", end="")
         sys.stdout.flush()
-        ex = _process_tce(tce)
+        ex = _process_tce(tce, get_lightcurve, mode, training)
         examples.append(ex)
       except Exception as e:
         raise
@@ -299,11 +317,82 @@ def _process_file_shard(tce_table, file_name):
   num_new = num_processed - num_skipped - num_existing
   print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new {num_skipped} bad            ")
 
+def create(
+    tce_table: pd.DataFrame,
+    output_dir: str,
+    num_shards: int,
+    num_processes: int,
+    mode: AstronetMode,
+    training: bool,
+    get_lightcurve: LCGetter,
+):
+    tf.io.gfile.makedirs(output_dir)
+    logging.info(f"Processing {len(tce_table)} TCEs")
+
+    tce_shards: tuple[pd.DataFrame, str] = []  # List of (tce_table_shard, file_name)
+    boundaries = np.linspace(0, len(tce_table), num_shards + 1).astype(np.int)
+    for i in range(num_shards):
+        start, end = boundaries[i : i + 2]
+        tce_shards.append(
+            (start, end, os.path.join(output_dir, f"{i:05d}-of-{num_shards:05f}"))
+        )
+    logging.info(f"Processing {len(tce_table)} TCEs in {len(tce_shards)} shards.")
+
+    if num_processes == 1:
+        for start, end, file in tce_shards:
+            _process_file_shard(
+                tce_table[start:end],
+                file,
+                get_lightcurve,
+                mode,
+                training
+            )
+    else:
+        with multiprocessing.Pool(num_processes) as pool:
+            pool.starmap(
+                _process_file_shard,
+                [
+                    (
+                        tce_table[start:end],
+                        file,
+                        get_lightcurve,
+                        mode,
+                        training,
+                    )
+                    for start, end, file in tce_shards
+                ],
+            )
+    logging.info("Finished processing")
+
 
 def main(_):
     tf.io.gfile.makedirs(FLAGS.output_dir)
 
     tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
+
+    def get_lightcurve(astro_id: int, aperture: Optional[str] = None) -> tuple[np.ndarray, np.ndarray]:
+        aperture_key_map = {
+            "s": "SAP_FLUX_SML",
+            "m": "SAP_FLUX_MID",
+            "l": "SAP_FLUX_LAG",
+            None: "SAP_FLUX",
+        }
+        matching_tces = tce_table.where(tce_table["Astro ID"] == astro_id)
+        try:
+            _, tce = next(matching_tces.iterrows())
+        except StopIteration as e:
+            raise ValueError(f"Astro ID not found: {astro_id}") from e
+        if "MinT" not in tce:
+            tce["MinT"] = -np.inf
+        if "MaxT" not in tce:
+            tce["MaxT"] = np.inf
+        return preprocess.read_and_process_light_curve(
+           FLAGS.tess_data_dir,
+           aperture_key_map[aperture],
+           tce.File,
+           tce.MinT,
+           tce.MaxT,
+        )
 
     num_tces = len(tce_table)
     logging.info("Read %d TCEs", num_tces)
@@ -323,7 +412,7 @@ def main(_):
 
     logging.info("Processing %d total file shards", len(file_shards))
     for start, end, file_shard in file_shards:
-        _process_file_shard(tce_table[start:end], file_shard)
+        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, get_lightcurve, FLAGS.mode, not FLAGS.not_training)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
