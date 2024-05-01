@@ -6,7 +6,7 @@ import json
 from itertools import starmap
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Literal, Optional, Protocol, Union
+from typing import Iterable, Literal, Optional, Protocol, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -25,6 +25,7 @@ from astronet.direct_tensor.features import (
     secondary_features,
 )
 from astronet.preprocess import preprocess
+from astronet.util import files
 
 
 class LCGetter(Protocol):
@@ -38,7 +39,7 @@ class LCGetter(Protocol):
 BREAKSPACES = [0.3, 5.0, None]
 
 
-def standard_view_features(
+def lightcurve_view_features(
     tic: int,
     time: np.ndarray,
     flux: np.ndarray,
@@ -49,14 +50,16 @@ def standard_view_features(
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> tuple[dict[str, Union[float, np.ndarray]], npt.NDArray[np.int_]]:
     """
-    Process lightcurve and create standard view inputs that depend on time/flux
-    values.
+    Preprocess lightcurve and create standard "view" inputs that depend on
+    time/flux values.
+
+    Views are shown in figure 8 of https://doi.org/10.3847/1538-3881/acad85
 
     Params
     ------
     tic: int
-        TIC ID of target. Note: pretty sure this is not used by any of the
-        methods where it's used.
+        TIC ID of target.
+        Note: pretty sure it's not used by any of the methods it's passed to.
     time: array[float]
         Array of time values in lightcurve.
     flux: array[float]
@@ -110,7 +113,7 @@ def standard_view_features(
 
     for aperture, (ap_time, ap_flux) in aperture_fluxes.items():
         ap_det_time, ap_det_flux, ap_transit_mask = preprocess.detrend_and_filter(
-            tic, ap_time, ap_flux
+            tic, ap_time, ap_flux, period, epoch, duration, breakspace
         )
         ap_folded_time, ap_folded_flux, _, _ = (
             preprocess.phase_fold_and_sort_light_curve(
@@ -173,6 +176,10 @@ def standard_view_features(
         )
     )
 
+    # For double period, t0 = epoch - period / 2
+    # The view contains two transits, and this shift puts the center of the view
+    # between them, rather than centering one and splitting the other.
+    # See figure 8 of https://doi.org/10.3847/1538-3881/acad85
     double_fold_time, double_fold_flux, _, _ = (
         preprocess.phase_fold_and_sort_light_curve(
             det_time, det_flux, transit_mask, period * 2, epoch - period / 2
@@ -193,14 +200,17 @@ def standard_view_features(
     return {k + tag: v for k, v in all_features.items()}, fold_num
 
 
-def prediction_features(
+def assemble_astronet_inputs(
     tce: pd.Series,
     time: np.ndarray,
     flux: np.ndarray,
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
-):
+) -> dict[str, Union[float, np.ndarray]]:
     """
-    Assemble all input features for a lightcurve.
+    Assemble all astronet input features for a TCE/lightcurve.
+
+    See section 3 of https://doi.org/10.3847/1538-3881/acad85 for a full account
+    of the model input representation.
 
     Params
     ------
@@ -226,7 +236,7 @@ def prediction_features(
 
     fold_nums = []
     for breakspace in BREAKSPACES:
-        breakspace_features, fold_num = standard_view_features(
+        breakspace_features, fold_num = lightcurve_view_features(
             tce["Astro ID"],
             time,
             flux,
@@ -242,7 +252,7 @@ def prediction_features(
     folds_array = np.array(fold_nums)
     if not np.all(folds_array == folds_array[0, :], axis=0):
         raise RuntimeError(
-            f"Lightcurve for Astro ID={tce["Astro ID"]} folded differently during"
+            f"Lightcurve for Astro ID={tce['Astro ID']} folded differently during"
             " detrending runs"
         )
     fold_num = folds_array[-1]
@@ -282,26 +292,27 @@ def prepare_input(
     tce: pd.Series,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
-) -> dict:
+) -> dict[str, tf.Tensor]:
     """Assemble input features for TCE and normalize values where necessary."""
     time, flux = get_lc(tce["Astro ID"])
     aperture_fluxes = {}
     if mode == "vetting":
         aperture_fluxes = {
-            aperture: get_lc(tce["Astro ID"], aperture) for aperture in ["s", "m", "l"]
+            aperture: get_lc(tce["Astro ID"], aperture) for aperture in ("s", "m", "l")
         }
-    tce_features = prediction_features(tce, time, flux, aperture_fluxes)
+    tce_features = assemble_astronet_inputs(tce, time, flux, aperture_fluxes)
     tce_features = {
         name: value for name, value in tce_features.items() if name in feature_cfg
     }
-
-    features = {}
     if any((feature not in tce_features) for feature in feature_cfg.keys()):
         raise ValueError(
-            f"Missing feature(s) in input data: {
-                ','.join(feature for feature in feature_cfg.keys() if feature not in tce_features)
-            }"
+            "Missing feature(s) in input data: "
+            + ",".join(
+                feature for feature in feature_cfg.keys() if feature not in tce_features
+            )
         )
+
+    features = {}
     for name, value in tce_features.items():
         cfg = feature_cfg[name]
         if not cfg["is_time_series"]:
@@ -317,7 +328,7 @@ def prepare_input(
                 value = (value - cfg["mean"]) / cfg["std"]
         features[name.lower()] = value
 
-    return {k: [v] for k, v in features.items()}
+    return {k: tf.Tensor([v]) for k, v in features.items()}
 
 
 def build_dataset(
@@ -327,8 +338,9 @@ def build_dataset(
     mode: Literal["triage", "vetting"],
     nprocs: int = 1,
 ) -> tf.data.Dataset:
-    """Create Dataset object containing input tensors for all tces."""
+    """Create Dataset object containing input tensors for all TCEs."""
     tasks = [(feature_cfg, tce.to_dict(), get_lc, mode) for _, tce in tces.iterrows()]
+    all_tces_features: Iterable[dict[str, tf.Tensor]]
     if nprocs == 1:
         all_tces_features = starmap(prepare_input, tasks)
     else:
@@ -339,23 +351,14 @@ def build_dataset(
     return tf.data.Dataset.from_tensor_slices(dataset)
 
 
-def find_checkpoints(base_dir: Path, nruns: Optional[int] = None) -> list[Path]:
-    """
-    Find directories containing models, assuming structure of training checkpoints.
-    """
-    if nruns is None:
-        nruns = len(list(base_dir.iterdir()))
-    return [next((base_dir / str(i)).iterdir()) for i in range(1, nruns + 1)]
-
-
 def batch_predict(
-    checkpoints_dir: Path,
+    checkpoints_dir: Union[str, Path],
     tces: pd.DataFrame,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
     nruns: Optional[int] = None,
     nprocs: int = 1,
-):
+) -> pd.DataFrame:
     """
     Run predictions from multiple model checkpoints for all TCEs.
 
@@ -367,7 +370,7 @@ def batch_predict(
         Indexed by Astro ID and model number. Column names are output labels and
         values are model predictions.
     """
-    model_dirs = find_checkpoints(checkpoints_dir, nruns)
+    model_dirs = files.find_checkpoint_paths(Path(checkpoints_dir), nruns)
     first_model_dir = model_dirs[0]
     with (first_model_dir / "config.json").open("r") as config_file:
         config = json.load(config_file)
