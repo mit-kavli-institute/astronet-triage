@@ -12,7 +12,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
-
 from astronet.direct_tensor.features import (
     aperture_features,
     double_period_features,
@@ -196,7 +195,7 @@ def lightcurve_view_features(
         half_period_features(tic, half_fold_time, half_fold_flux, period, duration)
     )
 
-    tag = "" if breakspace is None else f"_{breakspace}".replace(".", "_")
+    tag = "" if breakspace is None else f"_{breakspace}"
     return {k + tag: v for k, v in all_features.items()}, fold_num
 
 
@@ -250,7 +249,7 @@ def assemble_astronet_inputs(
         fold_nums.append(fold_num)
 
     folds_array = np.array(fold_nums)
-    if not np.all(folds_array == folds_array[0, :], axis=0):
+    if not np.all(np.all(folds_array == folds_array[0, :], axis=0)):
         raise RuntimeError(
             f"Lightcurve for Astro ID={tce['Astro ID']} folded differently during"
             " detrending runs"
@@ -328,7 +327,7 @@ def prepare_input(
                 value = (value - cfg["mean"]) / cfg["std"]
         features[name.lower()] = value
 
-    return {k: tf.Tensor([v]) for k, v in features.items()}
+    return {k: [v] for k, v in features.items()}
 
 
 def build_dataset(
