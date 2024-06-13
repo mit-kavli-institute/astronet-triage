@@ -2,16 +2,19 @@
 Make astronet predictions without creating and serializing tf.training.Examples.
 """
 
+from functools import partial
 import json
-from itertools import starmap
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterable, Literal, Optional, Protocol, Union
+import logging
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 from astronet.direct_tensor.features import (
     aperture_features,
     double_period_features,
@@ -25,6 +28,8 @@ from astronet.direct_tensor.features import (
 )
 from astronet.preprocess import preprocess
 from astronet.util import files
+
+logger = logging.getLogger(__name__)
 
 
 class LCGetter(Protocol):
@@ -230,6 +235,7 @@ def assemble_astronet_inputs(
     -------
     features: dict[str, float | array[float]]
         Dict of {feature_name: feature_value} for all inputs for the lightcurve.
+        Empty if inputs could not be correctly assembled.
     """
     all_features = {}
 
@@ -246,14 +252,15 @@ def assemble_astronet_inputs(
             aperture_fluxes,
         )
         all_features.update(breakspace_features)
-        fold_nums.append(fold_num)
+        if len(fold_num) > 0:
+            fold_nums.append(fold_num)
 
-    folds_array = np.array(fold_nums)
-    if not np.all(np.all(folds_array == folds_array[0, :], axis=0)):
-        raise RuntimeError(
-            f"Lightcurve for Astro ID={tce['Astro ID']} folded differently during"
-            " detrending runs"
+    folds_array = np.array([f for f in fold_nums if len(f) > 0])
+    if len(fold_nums) == 0 or not np.all(np.all(folds_array == folds_array[0, :], axis=0)):
+        logger.warning(
+            f"Detrending lightcurve for Astro ID={tce['Astro ID']} failed, omitting."
         )
+        return {}
     fold_num = folds_array[-1]
 
     scalar_features = {
@@ -275,9 +282,10 @@ def assemble_astronet_inputs(
         nan_feature_name = next(
             feature for feature, value in scalar_features.items() if np.isnan(value)
         )
-        raise ValueError(
-            f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}."
+        logger.warning(
+            f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}. Omitting."
         )
+        return {}
 
     all_features.update(
         {feature: np.array([value]) for feature, value in scalar_features.items()}
@@ -292,14 +300,27 @@ def prepare_input(
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
 ) -> dict[str, tf.Tensor]:
-    """Assemble input features for TCE and normalize values where necessary."""
+    """
+    Assemble input features for TCE and normalize values where necessary.
+    
+    If feature creation goes wrong, returns empty dictionary.
+    """
     time, flux = get_lc(tce["Astro ID"])
+    if len(time) == 0 or len(flux) == 0:
+        logger.warning(f"Empty lightcurve for Astro ID {tce['Astro ID']}, omitting")
+        return {}
     aperture_fluxes = {}
     if mode == "vetting":
         aperture_fluxes = {
             aperture: get_lc(tce["Astro ID"], aperture) for aperture in ("s", "m", "l")
         }
+        if any(len(t) == 0 or len(f) == 0 for t,f in aperture_fluxes.values()):
+            logger.warning(f"Empty lightcurve for Astro ID {tce['Astro ID']}, omitting")
+            return {}
     tce_features = assemble_astronet_inputs(tce, time, flux, aperture_fluxes)
+    if len(tce_features) == 0:
+        # Warning should be logged already in assemble_astronet_inputs
+        return {}
     tce_features = {
         name: value for name, value in tce_features.items() if name in feature_cfg
     }
@@ -336,18 +357,49 @@ def build_dataset(
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
     nprocs: int = 1,
-) -> tf.data.Dataset:
-    """Create Dataset object containing input tensors for all TCEs."""
-    tasks = [(feature_cfg, tce.to_dict(), get_lc, mode) for _, tce in tces.iterrows()]
-    all_tces_features: Iterable[dict[str, tf.Tensor]]
+) -> tuple[list[int], tf.data.Dataset]:
+    """
+    Create Dataset object containing input tensors for all TCEs.
+
+    Returns
+    -------
+    good_tces: list[int]
+        List of Astro IDs of TCEs included in the dataset
+        Some TCEs may be excluded when lightcurve fetching or detrending fails.
+    dataset: tf.data.Dataset
+        Tensorflow dataset containing Astronet model inputs
+    """
+    prep_input_wrapper = partial(prepare_input, feature_cfg, get_lc=get_lc, mode=mode)
+    all_tces_features: list[dict[str, tf.Tensor]]
     if nprocs == 1:
-        all_tces_features = starmap(prepare_input, tasks)
+        all_tces_features = list(
+            tqdm(
+                map(
+                    prep_input_wrapper,
+                    (tce.to_dict() for _, tce in tces.iterrows()),
+                ),
+                desc="Preparing input tensors",
+                unit="target",
+                total=len(tces),
+            )
+        )
     else:
         with Pool(nprocs) as pool:
-            all_tces_features = pool.starmap(prepare_input, tasks)
-    feature_table = pd.DataFrame(all_tces_features)
+            all_tces_features = list(
+                tqdm(
+                    pool.imap(
+                        prep_input_wrapper,
+                        (tce.to_dict() for _, tce in tces.iterrows()),
+                    ),
+                    desc="Preparing input tensors",
+                    unit="target",
+                    total=len(tces),
+                )
+            )
+    good_astro_ids = [int(row["Astro ID"]) for i, row in tces.iterrows() if len(all_tces_features[i]) > 0]
+    feature_table = pd.DataFrame(feat for feat in all_tces_features if len(feat) > 0)
     dataset = feature_table.to_dict(orient="list")
-    return tf.data.Dataset.from_tensor_slices(dataset)
+    return good_astro_ids, tf.data.Dataset.from_tensor_slices(dataset)
 
 
 def batch_predict(
@@ -392,7 +444,7 @@ def batch_predict(
                 f"\n{model_dir}:\n{model_cfg['inputs']['label_columns']}"
             )
 
-    dataset = build_dataset(input_features_cfg, tces, get_lc, mode, nprocs)
+    good_tces, dataset = build_dataset(input_features_cfg, tces, get_lc, mode, nprocs)
     predictions = [
         tf.keras.models.load_model(model_dir).predict(dataset)
         for model_dir in model_dirs
@@ -401,7 +453,7 @@ def batch_predict(
         pd.DataFrame(
             pred,
             index=pd.MultiIndex.from_product(
-                [tces["Astro ID"], [i]], names=["Astro ID", "model_no"]
+                [good_tces, [i]], names=["Astro ID", "model_no"]
             ),
             columns=output_labels,
         )
