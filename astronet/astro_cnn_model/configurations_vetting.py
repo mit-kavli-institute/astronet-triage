@@ -541,7 +541,7 @@ def direct():
 def base_new():
     config = {
         "inputs": {
-            "label_columns": ["disp_p", "disp_e", "disp_n"],
+            "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
             "exclusive_labels": True,
             "features": {
                 "local_aperture_s": {
