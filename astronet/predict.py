@@ -20,11 +20,15 @@ from __future__ import print_function
 
 import argparse
 import sys
+import multiprocessing
+import os
+from typing import Optional
 
 from absl import app
 import numpy as np
 import tensorflow as tf
 import pandas as pd
+from tqdm import tqdm
 
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
@@ -52,9 +56,9 @@ parser.add_argument(
     help="Name of file in which predictions will be saved.")
 
 
-def predict(legacy=False):
-    model = tf.keras.models.load_model(FLAGS.model_dir)
-    config = config_util.load_config(FLAGS.model_dir)
+def predict(model_dir: str, data_files: str, output_file: Optional[str] = None, legacy=False):
+    model = tf.keras.models.load_model(model_dir)
+    config = config_util.load_config(model_dir)
     
     if legacy:
         for f in config.inputs.features.values():
@@ -65,7 +69,7 @@ def predict(legacy=False):
                 f.shape = [l]
 
     ds = input_ds.build_dataset(
-        file_pattern=FLAGS.data_files,
+        file_pattern=data_files,
         input_config=config.inputs,
         batch_size=1,
         include_labels=False,
@@ -90,15 +94,84 @@ def predict(legacy=False):
 
     results = pd.DataFrame.from_dict(series)
     
-    if FLAGS.output_file:
-      with tf.io.gfile.GFile(FLAGS.output_file, "w") as f:
+    if output_file:
+      with tf.io.gfile.GFile(output_file, "w") as f:
         results.to_csv(f)
         
     return results, config
 
 
+def checkpoint_dirs(root: str, nruns: Optional[int] = None) -> list[str]:
+    checkpoints = []
+    if nruns is None:
+        nruns = len(os.listdir(root))
+    for i in range(nruns):
+        model_parent = os.path.join(root, str(i + 1))
+        if not os.path.exists(model_parent):
+            break
+        all_dirs = os.listdir(model_parent)
+        if not all_dirs:
+            break
+        (model_dir,) = all_dirs
+        checkpoints.append(os.path.join(model_parent, model_dir))
+    return checkpoints
+
+
+def batch_predict(
+    models_dir: str, data_files: str, nruns: int, num_processes: int = 1, **kwargs
+):
+    model_dirs = checkpoint_dirs(models_dir, nruns)
+    ensemble_preds = []
+    if num_processes == 1:
+        for model_dir in model_dirs:
+            preds, _ = predict(model_dir, data_files, **kwargs)
+            ensemble_preds.append(preds)
+    else:
+        with multiprocessing.Pool(num_processes) as pool:
+            ensemble_preds_cfgs = pool.starmap(
+                predict, [(model_dir, data_files, kwargs) for model_dir in model_dirs]
+            )
+            ensemble_preds = [pred for pred, _ in ensemble_preds_cfgs]
+
+    for i, pred in enumerate(ensemble_preds):
+        pred["model_no"] = i
+
+    return pd.concat(ensemble_preds, ignore_index=True)
+
+
 def main(_):
-    predict()
+    model = tf.keras.models.load_model(FLAGS.model_dir)
+    config = config_util.load_config(FLAGS.model_dir)
+
+    ds = input_ds.build_dataset(
+        file_pattern=FLAGS.data_files,
+        input_config=config.inputs,
+        batch_size=1,
+        include_labels=False,
+        shuffle_filenames=False,
+        repeat=1,
+        include_identifiers=True)
+    
+    label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
+
+    series = []
+    for features, identifiers in tqdm(ds, unit="records"):
+      preds = model(features)
+
+      row = {}
+      row['astro_id'] = identifiers.numpy().item()
+      for i, p in enumerate(preds.numpy()[0]):
+        row[label_index[i]] = p
+
+      series.append(row)
+
+    results = pd.DataFrame.from_dict(series)
+    
+    if FLAGS.output_file:
+      with tf.io.gfile.GFile(FLAGS.output_file, "w") as f:
+        results.to_csv(f)
+        
+    return results, config
 
 
 if __name__ == "__main__":

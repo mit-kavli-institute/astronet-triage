@@ -294,7 +294,7 @@ def choose_kepler_spline(all_time,
   if not scaled_diffs.size:
     best_spline = [np.array([np.nan] * len(f)) for f in all_flux]
     metadata.light_curve_mask = [
-        np.zeros_like(f, dtype=np.bool) for f in all_flux
+        np.zeros_like(f, dtype=bool) for f in all_flux
     ]
     return best_spline, metadata
 
@@ -309,7 +309,7 @@ def choose_kepler_spline(all_time,
   if np.all(all_input_mask == None): 
         all_input_mask = []
         for eachtime in all_time:
-            all_input_mask.append(np.ones_like(eachtime, dtype=np.bool))
+            all_input_mask.append(np.ones_like(eachtime, dtype=bool))
             
   for bkspace in bkspaces:
     nparams = 0  # Total number of free parameters in the piecewise spline.
@@ -328,7 +328,7 @@ def choose_kepler_spline(all_time,
         # especially if periodic signals have been removed from the light curve.
         # Skip this interval, but continue fitting the spline.
         spline.append(flux)
-        light_curve_mask.append(np.zeros_like(flux, dtype=np.bool))
+        light_curve_mask.append(np.zeros_like(flux, dtype=bool))
         continue
       elif bad_bkspace:
         # It's expected to get a SplineError occasionally for small values of
@@ -376,10 +376,10 @@ def choose_kepler_spline(all_time,
     # insufficient points.
     best_spline = [np.array([np.nan] * len(f)) for f in all_flux]
     metadata.light_curve_mask = [
-        np.zeros_like(f, dtype=np.bool) for f in all_flux
+        np.zeros_like(f, dtype=bool) for f in all_flux
     ]
     metadata.input_light_curve_mask = [
-        np.zeros_like(f, dtype=np.bool) for f in all_flux
+        np.zeros_like(f, dtype=bool) for f in all_flux
     ]
     
   return best_spline, metadata
