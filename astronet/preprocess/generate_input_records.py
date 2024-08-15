@@ -377,7 +377,7 @@ def main(_):
             "l": "SAP_FLUX_LAG",
             None: "SAP_FLUX",
         }
-        matching_tces = tce_table.where(tce_table["Astro ID"] == astro_id)
+        matching_tces = tce_table[tce_table["Astro ID"] == astro_id] # tce_table.where(tce_table["Astro ID"] == astro_id)
         try:
             _, tce = next(matching_tces.iterrows())
         except StopIteration as e:
@@ -412,7 +412,7 @@ def main(_):
 
     logging.info("Processing %d total file shards", len(file_shards))
     for start, end, file_shard in file_shards:
-        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, get_lightcurve, FLAGS.mode, not FLAGS.not_training)
+        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, not FLAGS.not_training)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
