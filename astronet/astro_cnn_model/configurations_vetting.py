@@ -148,6 +148,12 @@ def vrevised():
                     "is_time_series": True,
                     "vetting_only": True,
                 },
+                "centroid_dist": {
+                    "shape": [1],
+                    "is_time_series": False,
+                    "vetting_only": True,
+                    "has_nans": True,
+                },
             },
         },
         "train_steps": 1000,

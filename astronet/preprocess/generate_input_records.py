@@ -230,6 +230,8 @@ def _process_tce(
   assert not np.isnan(tce.Tmag)
   _set_float_feature(ex, 'Tmag', [tce.Tmag])
 
+  _set_float_feature(ex, 'centroid_dist', [tce.centroid_dist])
+
   if np.isnan(tce.SMass):
     _set_float_feature(ex, 'star_mass', [0])
     _set_float_feature(ex, 'star_mass_present', [0])
