@@ -2,18 +2,20 @@
 
 set -e
 
+NAME=vetting-v02-tois-triageJs-nocentroid
+
 for i in {1..10}
 do
     echo "Training model ${i}"
     python astronet/train.py \
         --model=AstroCNNModelVetting \
         --config_name=base_new \
-        --train_files='../mnt/tess/astronet/tfrecords-vetting-v02-tois_as_planets-train/*' \
-        --eval_files='../mnt/tess/astronet/tfrecords-vetting-v02-tois_as_planets-val/*' \
-        --pretrain_model_dir='/pdo/users/dmuth/mnt/tess/fa1t_38_run_1/10' \
+        --train_files="../mnt/tess/astronet/tfrecords-${NAME}-train/*" \
+        --eval_files="../mnt/tess/astronet/tfrecords-${NAME}-notexist-val/*" \
+        --pretrain_model_dir="/pdo/users/dmuth/mnt/tess/fa1t_38_run_1/10" \
         --train_steps=2500 \
         --train_epochs=1 \
-        --model_dir="../mnt/tess/astronet/checkpoints/vetting-v02-tois_as_planets_addedjunklabel_base_new_3/${i}"
+        --model_dir="../mnt/tess/astronet/checkpoints/${NAME}_base_new_2500/${i}"
 done
 
 # for i in {1..10}
