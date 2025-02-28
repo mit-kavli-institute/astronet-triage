@@ -14,25 +14,21 @@
 
 """Generates predictions using a trained model."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import argparse
-import sys
 import multiprocessing
-import os
-from typing import Optional
+import sys
+from pathlib import Path
+from typing import Optional, Union
 
-from absl import app
-import numpy as np
-import tensorflow as tf
 import pandas as pd
+import tensorflow as tf
+from absl import app
 from tqdm import tqdm
 
 from astronet.astro_cnn_model import input_ds
-from astronet.util import config_util
-
+from astronet.util import config_util, files
 
 parser = argparse.ArgumentParser()
 
@@ -41,28 +37,36 @@ parser.add_argument(
     "--model_dir",
     type=str,
     required=True,
-    help="Directory containing a model checkpoint.")
+    help="Directory containing a model checkpoint.",
+)
 
 parser.add_argument(
     "--data_files",
     type=str,
     required=True,
-    help="Comma-separated list of file patterns matching the TFRecord files.")
+    help="Comma-separated list of file patterns matching the TFRecord files.",
+)
 
 parser.add_argument(
     "--output_file",
     type=str,
-    default='',
-    help="Name of file in which predictions will be saved.")
+    default="",
+    help="Name of file in which predictions will be saved.",
+)
 
 
-def predict(model_dir: str, data_files: str, output_file: Optional[str] = None, legacy=False):
+def predict(
+    model_dir: Union[str, Path],
+    data_files: str,
+    output_file: Optional[str] = None,
+    legacy=False,
+):
     model = tf.keras.models.load_model(model_dir)
     config = config_util.load_config(model_dir)
-    
+
     if legacy:
         for f in config.inputs.features.values():
-            l = getattr(f, 'length', None)
+            l = getattr(f, "length", None)
             if l is None:
                 f.shape = []
             else:
@@ -75,52 +79,37 @@ def predict(model_dir: str, data_files: str, output_file: Optional[str] = None, 
         include_labels=False,
         shuffle_filenames=False,
         repeat=1,
-        include_identifiers=True)
-    
-    label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
+        include_identifiers=True,
+    )
 
-    print('0 records', end='')
+    label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
+
+    print("0 records", end="")
     series = []
     for features, identifiers in ds:
-      preds = model(features)
+        preds = model(features)
 
-      row = {}
-      row['astro_id'] = identifiers.numpy().item()
-      for i, p in enumerate(preds.numpy()[0]):
-        row[label_index[i]] = p
+        row = {}
+        row["astro_id"] = identifiers.numpy().item()
+        for i, p in enumerate(preds.numpy()[0]):
+            row[label_index[i]] = p
 
-      series.append(row)
-      print('\r{} records'.format(len(series)), end='')
+        series.append(row)
+        print("\r{} records".format(len(series)), end="")
 
     results = pd.DataFrame.from_dict(series)
-    
+
     if output_file:
-      with tf.io.gfile.GFile(output_file, "w") as f:
-        results.to_csv(f)
-        
+        with tf.io.gfile.GFile(output_file, "w") as f:
+            results.to_csv(f)
+
     return results, config
-
-
-def checkpoint_dirs(root: str, nruns: Optional[int] = None) -> list[str]:
-    checkpoints = []
-    if nruns is None:
-        nruns = len(os.listdir(root))
-    for i in range(nruns):
-        model_parent = os.path.join(root, str(i + 1))
-        if not os.path.exists(model_parent):
-            break
-        all_dirs = os.listdir(model_parent)
-        if not all_dirs:
-            break
-        (model_dir,) = all_dirs
-        checkpoints.append(os.path.join(model_parent, model_dir))
-    return checkpoints
 
 
 def batch_predict(
     models_dir: str, data_files: str, nruns: int, num_processes: int = 1, **kwargs
 ):
-    model_dirs = checkpoint_dirs(models_dir, nruns)
+    model_dirs = files.find_checkpoint_paths(Path(models_dir), nruns)
     ensemble_preds = []
     if num_processes == 1:
         for model_dir in model_dirs:
@@ -150,27 +139,28 @@ def main(_):
         include_labels=False,
         shuffle_filenames=False,
         repeat=1,
-        include_identifiers=True)
-    
-    label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
+        include_identifiers=True,
+    )
+
+    label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
 
     series = []
     for features, identifiers in tqdm(ds, unit="records"):
-      preds = model(features)
+        preds = model(features)
 
-      row = {}
-      row['astro_id'] = identifiers.numpy().item()
-      for i, p in enumerate(preds.numpy()[0]):
-        row[label_index[i]] = p
+        row = {}
+        row["astro_id"] = identifiers.numpy().item()
+        for i, p in enumerate(preds.numpy()[0]):
+            row[label_index[i]] = p
 
-      series.append(row)
+        series.append(row)
 
     results = pd.DataFrame.from_dict(series)
-    
+
     if FLAGS.output_file:
-      with tf.io.gfile.GFile(FLAGS.output_file, "w") as f:
-        results.to_csv(f)
-        
+        with tf.io.gfile.GFile(FLAGS.output_file, "w") as f:
+            results.to_csv(f)
+
     return results, config
 
 
