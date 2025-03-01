@@ -1,5 +1,3 @@
-import os
-import sqlite3
 import re
 from typing import Optional
 from pathlib import Path
@@ -8,6 +6,8 @@ from pathlib import Path
 class DataStorage:
     def __init__(self, data_dir: Path) -> None:
         self.tic_id_to_path = {}
+        if ".." in str(data_dir): # enable both local and full paths
+            data_dir = data_dir.resolve()
         for file in Path(data_dir).glob("*.fits"):
             tic_id = self.extract_tic_id(file.name)
             if tic_id is None:
