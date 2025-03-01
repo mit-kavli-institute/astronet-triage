@@ -1,0 +1,6 @@
+dataset:
+  raw_data_source_type: "local"
+  raw_data_dir: "<path>" # fill your path here (local or PDO)
+  labels_sheet: '<url>' # Google sheets URL - sheet must be public. Should contain (Astro ID, TIC ID, Final)
+  properties_sheet: '<url>' # Should contain (TIC ID, Other Properties)
+  dataset_split_sheet: '<url>' # Should contain (TIC ID, Split)
