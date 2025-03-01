@@ -129,11 +129,12 @@ class DataManager:
 
         # Read sheets
         labels_sheet = dataset_config.labels_sheet
-        self.labels_df = GoogleSheetsReader.from_url(labels_sheet)
+        sheets_reader = GoogleSheetsReader()
+        self.labels_df = sheets_reader.from_url(labels_sheet)
         properties_sheet = dataset_config.properties_sheet
-        self.properties_df = GoogleSheetsReader.from_url(properties_sheet)
+        self.properties_df = sheets_reader.from_url(properties_sheet)
         dataset_split_sheet = dataset_config.dataset_split_sheet
-        self.dataset_split_df = GoogleSheetsReader.from_url(dataset_split_sheet)
+        self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
 
         # Init data
         (self.astro_data, report) = self._init_astro_data()
