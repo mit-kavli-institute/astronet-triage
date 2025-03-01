@@ -1,6 +1,6 @@
 dataset:
   raw_data_source_type: "local"
-  raw_data_dir: "C:\\TESS\\data\\lc\\Vetting"
-  labels_sheet: 'https://docs.google.com/spreadsheets/d/17-ByYBQ1uPweKH2P_4MWGWsuTKkEKrNFS4uGBsm-bGI/edit?gid=0#gid=0'
-  properties_sheet: 'https://docs.google.com/spreadsheets/d/1esYObG5TU2MQYOzvMklvYcwsYdTpWy5-BHpDaxgLDj8/edit?gid=789406476#gid=789406476'
-  dataset_split_sheet: 'https://docs.google.com/spreadsheets/d/1w_YvlGCQpdlPPC7JJgAUDANU2JU0cC9P-gwMeoYvMw8/edit?gid=0#gid=0'
+  raw_data_dir: "<path/to/dir>"
+  labels_sheet: '<url>' # should contain (Astro ID, TIC ID, Final)
+  properties_sheet: '<url>' # should contain (TIC ID, properties)
+  dataset_split_sheet: '<url>' # should contain (TIC ID, Split)
