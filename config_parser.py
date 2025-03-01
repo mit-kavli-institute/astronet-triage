@@ -69,6 +69,14 @@ class DatasetConfig:
             dataset_split_sheet=dataset.get(Constants.DATASET_SPLIT_SHEET),
         )
 
+    def __str__(self) -> str:
+        return "DatasetConfig(\n\t" \
+            f"raw_data_source_type={self.raw_data_source_type}\n\t" \
+            f"raw_data_dir={self.raw_data_dir}\n\t" \
+            f"labels_sheet={self.labels_sheet}\n\t" \
+            f"properties_sheet={self.properties_sheet}\n\t" \
+            f"dataset_split_sheet={self.dataset_split_sheet}\n)"
+
 if __name__ == "__main__":
     dataset_config = DatasetConfig.from_yaml("config.yaml")
     print(f'Loaded dataset config: {dataset_config}')
