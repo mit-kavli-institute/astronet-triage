@@ -1,0 +1,6 @@
+dataset:
+  raw_data_source_type: "local"
+  raw_data_dir: "<path/to/dir>"
+  labels_sheet: '<url>' # should contain (Astro ID, TIC ID, Final)
+  properties_sheet: '<url>' # should contain (TIC ID, properties)
+  dataset_split_sheet: '<url>' # should contain (TIC ID, Split)
