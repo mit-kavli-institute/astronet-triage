@@ -21,28 +21,27 @@ from __future__ import print_function
 from absl import logging
 import tensorflow as tf
 
+class ExampleParser:
+    def __init__(self, config, include_labels, include_identifiers):
+        if include_labels and include_identifiers:
+            raise ValueError(
+                "Cannot set both include_labels and include_identifiers")
 
-def build_dataset(file_pattern,
-                  input_config,
-                  batch_size,
-                  include_labels=True,
-                  shuffle_filenames=False,
-                  shuffle_values_buffer=0,
-                  repeat=1,
-                  include_identifiers=False,
-                  use_cache=True):
+        self.config = config
+        self.include_labels = include_labels
+        self.include_identifiers = include_identifiers
 
-    def parse_example(serialized_example):
+    def __call__(self, serialized_example):
         """Parses a single tf.Example into feature and label tensors."""
         
         data_fields = {
             feature_name: tf.io.FixedLenFeature(feature.shape, tf.float32)
-            for feature_name, feature in input_config.features.items()
+            for feature_name, feature in self.config.features.items()
         }
-        if include_labels:
-            for n in input_config.label_columns:
+        if self.include_labels:
+            for n in self.config.label_columns:
                 data_fields[n] = tf.io.FixedLenFeature([], tf.int64)
-        if include_identifiers:
+        if self.include_identifiers:
             assert "astro_id" not in data_fields
             data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
 
@@ -50,25 +49,25 @@ def build_dataset(file_pattern,
         parsed_features = tf.io.parse_single_example(serialized_example, features=data_fields)
 
 
-        if include_labels:
-            label_features = [parsed_features.pop(name) for name in input_config.label_columns]
+        if self.include_labels:
+            label_features = [parsed_features.pop(name) for name in self.config.label_columns]
             labels = tf.stack(label_features)
             labels_f = tf.cast(labels, tf.float32)
             labels = tf.cast(tf.minimum(labels, 1), tf.float32)
 
             weights = tf.reduce_max(labels_f) / tf.maximum(tf.reduce_sum(labels_f), 1.0)
-            if labels[input_config.primary_class] < 1:
+            if labels[self.config.primary_class] < 1:
                 weights /= 2.0
 
-        if include_identifiers:
+        if self.include_identifiers:
             identifiers = parsed_features.pop("astro_id")
         else:
             assert "astro_id" not in parsed_features
 
         features = {}
-        assert set(parsed_features.keys()) == set(input_config.features.keys())
+        assert set(parsed_features.keys()) == set(self.config.features.keys())
         for name, value in parsed_features.items():
-            cfg = input_config.features[name]
+            cfg = self.config.features[name]
             if not cfg.is_time_series:
                 if getattr(cfg, "scale", None) == "log":
                     value = tf.cast(value, tf.float64)
@@ -81,11 +80,22 @@ def build_dataset(file_pattern,
                     value = (value - cfg["mean"]) / cfg["std"]
             features[name.lower()] = value
         
-        if include_labels:
+        if self.include_labels:
             return features, labels, weights
-        elif include_identifiers:
+        elif self.include_identifiers:
             return features, identifiers
         return features
+
+
+def build_dataset(file_pattern,
+                  input_config,
+                  batch_size,
+                  include_labels=True,
+                  shuffle_filenames=False,
+                  shuffle_values_buffer=0,
+                  repeat=1,
+                  include_identifiers=False,
+                  use_cache=True):
 
     filenames = tf.io.gfile.glob(file_pattern)
     if not filenames:
@@ -94,7 +104,9 @@ def build_dataset(file_pattern,
     if shuffle_filenames:
         ds = ds.shuffle(ds.cardinality())
     ds = ds.flat_map(tf.data.TFRecordDataset)
-    ds = ds.map(parse_example)
+    example_parser = ExampleParser(
+        input_config, include_labels, include_identifiers)
+    ds = ds.map(example_parser)
     if repeat != 1 and use_cache:
         # Cache the dataset in memory to avoid re-reading it over the network.
         ds = ds.cache()
