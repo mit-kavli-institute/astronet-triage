@@ -96,8 +96,6 @@ def train(model, config):
         file_pattern=FLAGS.train_files,
         input_config=config.inputs,
         batch_size=config.hparams.batch_size,
-        include_labels=True,
-        shuffle_filenames=True,
         shuffle_values_buffer=FLAGS.shuffle_buffer_size,
         repeat=None)
 
@@ -105,10 +103,7 @@ def train(model, config):
         eval_ds = input_ds.build_dataset(
             file_pattern=FLAGS.eval_files,
             input_config=config.inputs,
-            batch_size=config.hparams.batch_size,
-            include_labels=True,
-            shuffle_filenames=False,
-            repeat=1)
+            batch_size=config.hparams.batch_size)
     else:
         eval_ds = None
 

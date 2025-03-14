@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from absl import logging
 import tensorflow as tf
 
 
@@ -28,7 +29,8 @@ def build_dataset(file_pattern,
                   shuffle_filenames=False,
                   shuffle_values_buffer=0,
                   repeat=1,
-                  include_identifiers=False):
+                  include_identifiers=False,
+                  use_cache=True):
 
     def parse_example(serialized_example):
         """Parses a single tf.Example into feature and label tensors."""
@@ -89,14 +91,23 @@ def build_dataset(file_pattern,
     if not filenames:
         raise ValueError(f"Found no files matching '{file_pattern}'")
     ds = tf.data.Dataset.from_tensor_slices(filenames)
+    if shuffle_filenames:
+        ds = ds.shuffle(ds.cardinality())
     ds = ds.flat_map(tf.data.TFRecordDataset)
     ds = ds.map(parse_example)
-    if repeat != 1:
+    if repeat != 1 and use_cache:
+        # Cache the dataset in memory to avoid re-reading it over the network.
         ds = ds.cache()
+        if shuffle_filenames:
+            logging.warning(
+                "Both shuffle_filenames and use_cache are set to true. "
+                "Filenames will only be shuffled once, not each epoch.")
 
     if shuffle_values_buffer > 0:
         ds = ds.shuffle(shuffle_values_buffer)
     if repeat != 1:
+        # Calling repeat() after shuffle() ensures that examples are shuffled
+        # within each epoch, but not between epochs.
         ds = ds.repeat(repeat)
     ds = ds.batch(batch_size)
     ds = ds.prefetch(10)

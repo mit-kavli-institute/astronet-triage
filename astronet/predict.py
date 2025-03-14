@@ -72,8 +72,6 @@ def predict(model_dir: str, data_files: str, output_file: Optional[str] = None, 
         input_config=config.inputs,
         batch_size=1,
         include_labels=False,
-        shuffle_filenames=False,
-        repeat=1,
         include_identifiers=True)
     
     label_index = {i:k.lower() for i, k in enumerate(config.inputs.label_columns)}
