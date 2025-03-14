@@ -12,20 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Functions for reading and preprocessing light curves."""
-import sys
 import os
-import traceback
 
-from absl import logging
 import numpy as np
-import astropy
-import tensorflow as tf
 
 from light_curve_util import keplersplinev2
 from light_curve_util import median_filter2
 from light_curve_util import util
 from light_curve_util import tess_io
-from statsmodels.robust import scale
 
 
 def read_and_process_light_curve(tess_data_dir, flux_key, filename, min_t, max_t):

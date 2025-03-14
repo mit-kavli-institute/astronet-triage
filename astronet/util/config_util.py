@@ -22,7 +22,6 @@ import json
 import os.path
 
 
-from absl import logging
 from astronet.util import configdict
 
 

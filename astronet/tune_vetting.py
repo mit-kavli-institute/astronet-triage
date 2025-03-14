@@ -25,7 +25,6 @@ Required PIP packages:
 
 import argparse
 import datetime
-import json
 import logging
 import time
 import os
@@ -43,8 +42,6 @@ import tensorflow as tf
 
 from astronet import train
 from astronet import models
-from astronet.util import config_util
-from astronet.util import configdict
 
 from tensorflow.python.eager import def_function
 def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize

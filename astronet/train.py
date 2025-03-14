@@ -26,12 +26,7 @@ import tensorflow as tf
 
 from astronet import models
 from astronet.astro_cnn_model import input_ds
-from astronet.astro_cnn_model import astro_cnn_model
-from astronet.astro_cnn_model import astro_cnn_model_vetting
-from astronet.astro_cnn_model import configurations
-from astronet.astro_cnn_model import configurations_vetting
 from astronet.util import config_util
-from astronet.util import configdict
 
 parser = argparse.ArgumentParser()
 

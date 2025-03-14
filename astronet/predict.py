@@ -25,7 +25,6 @@ import os
 from typing import Optional
 
 from absl import app
-import numpy as np
 import tensorflow as tf
 import pandas as pd
 from tqdm import tqdm
