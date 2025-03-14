@@ -134,16 +134,6 @@ def train(model, config):
 
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
     
-    if getattr(config.hparams, 'decreasing_lr', False):
-        def scheduler(epoch, lr):
-            if epoch > 1:
-                return lr / 10
-            else:
-                return lr
-        callbacks = [tf.keras.callbacks.LearningRateScheduler(scheduler)]
-    else:
-        callbacks = []
-
     train_steps = FLAGS.train_steps        
     train_epochs = FLAGS.train_epochs
     if not train_steps:
