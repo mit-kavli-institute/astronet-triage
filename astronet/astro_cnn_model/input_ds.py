@@ -85,8 +85,9 @@ def build_dataset(file_pattern,
             return features, identifiers
         return features
 
-
-    filenames = tf.constant(tf.io.gfile.glob(file_pattern), dtype=tf.string)
+    filenames = tf.io.gfile.glob(file_pattern)
+    if not filenames:
+        raise ValueError(f"Found no files matching '{file_pattern}'")
     ds = tf.data.Dataset.from_tensor_slices(filenames)
     ds = ds.flat_map(tf.data.TFRecordDataset)
     ds = ds.map(parse_example)
