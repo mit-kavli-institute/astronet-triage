@@ -67,14 +67,8 @@ parser.add_argument(
 parser.add_argument(
     "--train_steps",
     type=int,
-    default=12000,
+    default=None,
     help="Total number of steps to train the model for.")
-
-parser.add_argument(
-    "--train_epochs",
-    type=int,
-    default=1,
-    help="Total number of epochs to train the model for.")
 
 parser.add_argument(
     "--shuffle_buffer_size",
@@ -134,13 +128,7 @@ def train(model, config):
 
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
     
-    train_steps = FLAGS.train_steps        
-    train_epochs = FLAGS.train_epochs
-    if not train_steps:
-        train_steps = config['train_steps']
-        train_epochs = 1
-
-    history = model.fit(ds, epochs=train_epochs, steps_per_epoch=train_steps, validation_data=eval_ds)
+    history = model.fit(ds, steps_per_epoch=config['train_steps'], validation_data=eval_ds)
 
     if FLAGS.model_dir:
         model.save(dir_name)
@@ -158,6 +146,11 @@ def main(_):
         model = model_class(config, pretrain_model)
     else:
         model = model_class(config)
+
+    # Set the number of training steps.
+    config['train_steps'] = FLAGS.train_steps or config['train_steps']
+    if not config['train_steps']:
+        raise ValueError('train_steps must be set in the config or via --train_steps')
         
     train(model, config)
 

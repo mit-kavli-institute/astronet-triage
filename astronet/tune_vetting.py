@@ -83,12 +83,6 @@ parser.add_argument(
     help="Total number of steps to train the model for.")
 
 parser.add_argument(
-    "--train_epochs",
-    type=int,
-    default=1,
-    help="Leave this set to 1.")
-
-parser.add_argument(
     "--shuffle_buffer_size",
     type=int,
     default=6000,
