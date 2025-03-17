@@ -13,8 +13,6 @@
 # limitations under the License.
 """Library of AstroNet models and configurations."""
 
-from __future__ import absolute_import, division, print_function
-
 from astronet.astro_cnn_model import (astro_cnn_model, astro_cnn_model_vetting,
                                       configurations, configurations_vetting)
 from astronet.util import configdict

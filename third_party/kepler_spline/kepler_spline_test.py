@@ -1,7 +1,5 @@
 """Tests for kepler_spline.py."""
 
-from __future__ import absolute_import, division, print_function
-
 import numpy as np
 from absl.testing import absltest
 

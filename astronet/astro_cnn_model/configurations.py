@@ -20,8 +20,6 @@ Available configurations:
       - A "local" zoomed-in view of the transit event.
 """
 
-from __future__ import absolute_import, division, print_function
-
 
 def local_global_new():
   config = {

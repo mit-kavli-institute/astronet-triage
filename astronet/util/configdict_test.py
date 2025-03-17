@@ -13,8 +13,6 @@
 # limitations under the License.
 """Tests for config_util.configdict."""
 
-from __future__ import absolute_import, division, print_function
-
 from absl.testing import absltest
 
 from astronet.util import configdict

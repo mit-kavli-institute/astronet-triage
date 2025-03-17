@@ -13,8 +13,6 @@
 # limitations under the License.
 """Generates predictions using a trained model."""
 
-from __future__ import absolute_import, division, print_function
-
 import argparse
 import multiprocessing
 import os

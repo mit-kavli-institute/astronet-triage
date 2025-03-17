@@ -1,7 +1,5 @@
 """Functions for computing normalization splines for Kepler light curves."""
 
-from __future__ import absolute_import, division, print_function
-
 import warnings
 
 import numpy as np
