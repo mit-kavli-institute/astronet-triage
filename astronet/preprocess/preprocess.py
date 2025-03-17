@@ -45,13 +45,10 @@ def filter_outliers(time, flux, mask):
 
 def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
                        fixed_bkspace):
+  del tic_id  # Unused.
   input_mask = get_spline_mask(time, period, epoch, duration)
-  spline_flux, metadata = keplersplinev2.choosekeplersplinev2(
-      time,
-      flux,
-      input_mask=input_mask,
-      fixed_bkspace=fixed_bkspace,
-      return_metadata=True)
+  spline_flux = keplersplinev2.choosekeplersplinev2(
+      time, flux, input_mask=input_mask, fixed_bkspace=fixed_bkspace)
   detrended_flux = flux / spline_flux
   return filter_outliers(time, detrended_flux, input_mask)
 
@@ -101,6 +98,7 @@ def generate_view(
     1D NumPy array of size num_bins containing the median flux values of
     uniformly spaced bins on the phase-folded time axis.
   """
+  del tic_id  # Unused.
   if binning is None:
     view, mask, std = median_filter2.new_binning(
         time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges)
@@ -339,7 +337,7 @@ def secondary_view(tic_id,
   )
 
 
-def sample_segments(time, flux, fold_num, period, num_transits):
+def sample_segments(time, flux, fold_num, num_transits):
   if not len(time):
     return [], [], []
 
@@ -368,9 +366,8 @@ def sample_segments_view(tic_id,
                          num_transits=7,
                          local=False):
   times, fluxes, nums = sample_segments(
-      time, flux, fold_num, period, num_transits=num_transits)
+      time, flux, fold_num, num_transits=num_transits)
   full_view = []
-  transit_view = []
   for t, f, n in zip(times, fluxes, nums):
     t_min = period / 2
     t_max = period / 2
