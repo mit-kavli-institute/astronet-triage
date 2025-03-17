@@ -23,7 +23,7 @@ from astronet.util import configdict
 
 def merge_configs(base, source):
   if not isinstance(source, dict) and isinstance(base, dict):
-    raise ValueError(f"source is {type(soure)}, but base is {type(base)}")
+    raise ValueError(f"source is {type(source)}, but base is {type(base)}")
   for k in source:
     if k not in base:
       base[k] = source[k]
