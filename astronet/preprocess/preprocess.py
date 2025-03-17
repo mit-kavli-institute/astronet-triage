@@ -260,7 +260,7 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
   min_index = 0
   max_index = min_index
   best_t0 = period / 2
-  best_SR = 0
+  best_sr = 0
 
   for t0 in time_grid:
     while new_time[min_index] < (t0 - duration):
@@ -280,10 +280,10 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
         new_time)  # assuming identical uniform weights
     s = sum(new_flux[min_in_transit:max_in_transit] / float(len(new_time)))
 
-    SR = s**2 / (r * (1 - r))
-    if SR > best_SR:
+    sr = s**2 / (r * (1 - r))
+    if sr > best_sr:
       best_t0 = t0
-      best_SR = SR
+      best_sr = sr
   return best_t0, new_time, new_flux + 1.
 
 
