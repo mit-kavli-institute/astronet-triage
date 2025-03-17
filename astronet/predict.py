@@ -84,7 +84,7 @@ def predict(model_dir: str,
       row[label_index[i]] = p
 
     series.append(row)
-    print("\r{} records".format(len(series)), end="")
+    print(f"\r{len(series)} records", end="")
 
   results = pd.DataFrame.from_dict(series)
 

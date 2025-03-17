@@ -76,9 +76,8 @@ parser.add_argument(
 
 def train(model, config):
   if FLAGS.model_dir:
-    dir_name = "{}/{}_{}_{}".format(
-        FLAGS.model_dir, FLAGS.model, FLAGS.config_name,
-        datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+    dir_name = (f"{FLAGS.model_dir}/{FLAGS.model}_{FLAGS.config_name}_"
+                f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
     config_util.log_and_save_config(config, dir_name)
 
   ds = input_ds.build_dataset(

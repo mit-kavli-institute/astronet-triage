@@ -38,7 +38,7 @@ def get_model_class(model_name):
     ValueError: If model_name is unrecognized.
   """
   if model_name not in _MODELS:
-    raise ValueError("Unrecognized model name: %s" % model_name)
+    raise ValueError(f"Unrecognized model name: {model_name}")
 
   return _MODELS[model_name][0]
 
@@ -59,7 +59,7 @@ def get_model_config(model_name, config_name):
     ValueError: If model_name or config_name is unrecognized.
   """
   if model_name not in _MODELS:
-    raise ValueError("Unrecognized model name: %s" % model_name)
+    raise ValueError(f"Unrecognized model name: {model_name}")
 
   config_module = _MODELS[model_name][1]
   try:
@@ -67,5 +67,6 @@ def get_model_config(model_name, config_name):
     config = configdict.ConfigDict(config)
     return config
   except AttributeError as e:
-    raise ValueError("Config name '%s' not found in configuration module: %s" %
-                     (config_name, config_module.__name__)) from e
+    raise ValueError(
+        f"Config name '{config_name}' not found in configuration module: "
+        f"{config_module.__name__}") from e

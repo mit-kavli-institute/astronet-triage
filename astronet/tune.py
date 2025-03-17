@@ -88,8 +88,7 @@ parser.add_argument(
 parser.add_argument(
     '--study_id',
     type=str,
-    default='vetting_base_{}'.format(
-        datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
+    default=f'vetting_base_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
     help='Unique identifier string for the study.')
 
 parser.add_argument(
@@ -107,15 +106,15 @@ CLOUD_PROJECT_ID = os.environ['CLOUD_PROJECT_ID']
 
 
 def get_study_parent():
-  return 'projects/{}/locations/{}'.format(CLOUD_PROJECT_ID, REGION)
+  return f'projects/{CLOUD_PROJECT_ID}/locations/{REGION}'
 
 
 def get_study_id():
-  return '{}_{}'.format(FLAGS.study_id, FLAGS.config_name)
+  return f'{FLAGS.study_id}_{FLAGS.config_name}'
 
 
 def get_study_name():
-  return '{}/studies/{}'.format(get_study_parent(), get_study_id())
+  return f'{get_study_parent()}/studies/{get_study_id()}'
 
 
 def get_trial_parent():
@@ -123,12 +122,12 @@ def get_trial_parent():
 
 
 def get_trial_name(trial_id):
-  return '{}/trials/{}'.format(get_study_name(), trial_id)
+  return f'{get_study_name()}/trials/{trial_id}'
 
 
-def operation_name(operation_id):
-  return 'projects/{}/locations/{}/operations/{}'.format(
-      CLOUD_PROJECT_ID, REGION, operation_id)
+def get_operation_name(operation_id):
+  return (f'projects/{CLOUD_PROJECT_ID}/locations/{REGION}/operations/'
+          f'{operation_id}')
 
 
 def study_config(config):
@@ -228,11 +227,11 @@ def map_param(hparams, param, inputs_config):
 prev_losses = None
 
 
-def load_prev_losses(client, study_id):
+def load_prev_losses(client):
   global prev_losses
 
   if prev_losses is None:
-    study_id = '{}/studies/{}'.format(get_study_parent(), study_id)
+    study_id = get_study_name()
     resp = client.projects().locations().studies().trials().list(
         parent=study_id).execute()
 
@@ -323,7 +322,7 @@ def tune(client, model_class, config, ensemble_count):
         if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
           continue
 
-        load_prev_losses(client, get_study_id())
+        load_prev_losses(client)
         try:
           measurement = execute_trial(trial_id, trial['parameters'],
                                       model_class, config, ensemble_count)
@@ -356,7 +355,7 @@ def tune(client, model_class, config, ensemble_count):
     sys.stdout.flush()
     print('Waiting', end='')
     get_op = client.projects().locations().operations().get(
-        name=operation_name(op_id))
+        name=get_operation_name(op_id))
     sleep_t = 1.0
     tot_sleep = 0.0
     step = 1

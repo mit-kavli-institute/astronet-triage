@@ -55,7 +55,7 @@ parser.add_argument("--not-training", action="store_true")
 
 def _set_float_feature(ex, name, value):
   """Sets the value of a float feature in a tensorflow.train.Example proto."""
-  assert name not in ex.features.feature, "Duplicate feature: %s" % name
+  assert name not in ex.features.feature, f"Duplicate feature: {name}"
   if isinstance(value, np.ndarray):
     value = value.reshape((-1,))
   values = [float(v) for v in value]
@@ -66,14 +66,14 @@ def _set_float_feature(ex, name, value):
 
 def _set_bytes_feature(ex, name, value):
   """Sets the value of a bytes feature in a tensorflow.train.Example proto."""
-  assert name not in ex.features.feature, "Duplicate feature: %s" % name
+  assert name not in ex.features.feature, f"Duplicate feature: {name}"
   ex.features.feature[name].bytes_list.value.extend(
       [str(v).encode("latin-1") for v in value])
 
 
 def _set_int64_feature(ex, name, value):
   """Sets the value of an int64 feature in a tensorflow.train.Example proto."""
-  assert name not in ex.features.feature, "Duplicate feature: %s" % name
+  assert name not in ex.features.feature, f"Duplicate feature: {name}"
   ex.features.feature[name].int64_list.value.extend([int(v) for v in value])
 
 
@@ -415,9 +415,8 @@ def main(_):
   for i in range(FLAGS.num_shards):
     start = boundaries[i]
     end = boundaries[i + 1]
-    file_shards.append((start, end,
-                        os.path.join(FLAGS.output_dir,
-                                     "%.5d-of-%.5d" % (i, FLAGS.num_shards))))
+    filename = f"{i:05}-of-{FLAGS.num_shards:05}"
+    file_shards.append((start, end, os.path.join(FLAGS.output_dir, filename)))
 
   logging.info("Processing %d total file shards", len(file_shards))
   for start, end, file_shard in file_shards:
