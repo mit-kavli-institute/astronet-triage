@@ -1,9 +1,10 @@
+"""Helper functions for generating features."""
 from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
 
-from ..preprocess import preprocess
+from astronet.preprocess import preprocess
 
 
 def global_features(

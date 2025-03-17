@@ -1,3 +1,4 @@
+"""Script to update data from MAST."""
 import pandas as pd
 from astroquery import mast
 
