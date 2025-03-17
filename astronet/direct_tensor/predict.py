@@ -13,13 +13,10 @@ import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
 
-from astronet.direct_tensor.features import (aperture_features,
-                                             double_period_features,
-                                             even_features, global_features,
-                                             half_period_features,
-                                             local_features, odd_features,
-                                             sample_segments_features,
-                                             secondary_features)
+from astronet.direct_tensor.features import (
+    aperture_features, double_period_features, even_features, global_features,
+    half_period_features, local_features, odd_features,
+    sample_segments_features, secondary_features)
 from astronet.preprocess import preprocess
 
 
@@ -254,7 +251,7 @@ def prediction_features(
         feature for feature, value in scalar_features.items()
         if np.isnan(value))
     raise ValueError(
-        f"Bad nan feature for Astro ID {tce["Astro ID"]}: {nan_feature_name}.")
+        f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}.")
 
   all_features.update({
       feature: np.array([value]) for feature, value in scalar_features.items()
