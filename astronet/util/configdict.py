@@ -47,13 +47,13 @@ class ConfigDict(dict):
     try:
       return self[attribute]
     except KeyError as e:
-      raise AttributeError(e)
+      raise AttributeError(e) from e
 
   def __delattr__(self, attribute):
     try:
       del self[attribute]
     except KeyError as e:
-      raise AttributeError(e)
+      raise AttributeError(e) from e
 
   def __setitem__(self, key, value):
     super(ConfigDict, self).__setitem__(key, _maybe_convert_dict(value))
