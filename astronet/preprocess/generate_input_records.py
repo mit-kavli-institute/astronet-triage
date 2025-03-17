@@ -289,14 +289,11 @@ def _process_file_shard(
   shard_size = len(tce_table)
 
   existing = {}
-  try:
-    tfr = tf.data.TFRecordDataset(file_name)
-    for record in tfr:
-      ex_str = record.numpy()
-      ex = tf.train.Example.FromString(ex_str)
-      existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
-  except:
-    pass
+  tfr = tf.data.TFRecordDataset(file_name)
+  for record in tfr:
+    ex_str = record.numpy()
+    ex = tf.train.Example.FromString(ex_str)
+    existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
 
   with tf.io.TFRecordWriter(file_name) as writer:
     num_processed = 0
@@ -317,16 +314,10 @@ def _process_file_shard(
         continue
 
       examples = []
-      try:
-        print(" processing", end="")
-        sys.stdout.flush()
-        ex = _process_tce(tce, get_lightcurve, mode, training)
-        examples.append(ex)
-      except Exception as e:
-        raise
-        print(f" *** error: {e}")
-        num_skipped += 1
-        continue
+      print(" processing", end="")
+      sys.stdout.flush()
+      ex = _process_tce(tce, get_lightcurve, mode, training)
+      examples.append(ex)
 
       print(" writing                   ", end="")
       sys.stdout.flush()
