@@ -13,10 +13,13 @@ import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
 
-from astronet.direct_tensor.features import (
-    aperture_features, double_period_features, even_features, global_features,
-    half_period_features, local_features, odd_features,
-    sample_segments_features, secondary_features)
+from astronet.direct_tensor.features import (aperture_features,
+                                             double_period_features,
+                                             even_features, global_features,
+                                             half_period_features,
+                                             local_features, odd_features,
+                                             sample_segments_features,
+                                             secondary_features)
 from astronet.preprocess import preprocess
 
 
