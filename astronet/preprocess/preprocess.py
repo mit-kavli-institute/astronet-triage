@@ -119,8 +119,8 @@ def generate_view(
     # Normalization places:
     #  * the minimum value at -1.0
     #  * the median at 0.0
-    # This assumes the median holds the out-of-transit average value, so that negative values are
-    # transit-like and positive values overshoots.
+    # This assumes the median holds the out-of-transit average value, so that
+    # negative values are transit-like and positive values overshoots.
     # TODO: Use mean(50%ile) instead?
     bool_mask = mask > 0
     if any(bool_mask):
@@ -224,17 +224,18 @@ def mask_transit(time, duration, period, mask_width=2, phase_limit=0.1):
 
 
 def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
-  """
-    Mask out transits, rearrange LC such that time goes from 0 to period. Then perform grid search for most likely
-    secondary eclipse. To be called after preprocess.phase_fold_and_sort_light_curve. OOT flux should be 1.
-    :param time: 1D array of time values, folded and sorted in ascending order, with the transit located at time 0.
+  """Mask out transits, rearrange LC such that time goes from 0 to period. Then
+  perform grid search for most likely secondary eclipse. To be called after
+  preprocess.phase_fold_and_sort_light_curve. OOT flux should be 1.
+    :param time: 1D array of time values, folded and sorted in ascending order,
+        with the transit located at time 0.
     :param flux: 1D array of fluxes.
     :param duration: The duration of the event (in days).
     :param period: the period of the event (in days).
     :param mask_width: number of durations to mask out.
     :param phase_limit: minimum phase to search for secondary eclipse.
     :return: time of centre of most likely secondary.
-    """
+  """
   if period < 1:
     mask_width = 1
 
@@ -297,21 +298,22 @@ def secondary_view(tic_id,
                    num_durations=2,
                    scale=None,
                    depth=None):
-  """Generates a 'local view' of a phase folded light curve, centered on phase 0.5.
-      See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
-      http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
-      Args:
-        time: 1D array of time values, sorted in ascending order, with the transit located at time 0.
-        flux: 1D array of flux values.
-        period: The period of the event (in days).
-        duration: The duration of the event (in days).
-        num_bins: The number of intervals to divide the time axis into.
-        num_durations: The number of durations to consider on either side of 0 (the
-            event is assumed to be centered at 0).
-      Returns:
-        1D NumPy array of size num_bins containing the median flux values of
-        uniformly spaced bins on the phase-folded time axis.
-      """
+  """Generates a 'local view' of a phase folded light curve, centered on phase
+  0.5. See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
+  http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
+  Args:
+    time: 1D array of time values, sorted in ascending order, with the transit
+        located at time 0.
+    flux: 1D array of flux values.
+    period: The period of the event (in days).
+    duration: The duration of the event (in days).
+    num_bins: The number of intervals to divide the time axis into.
+    num_durations: The number of durations to consider on either side of 0 (the
+        event is assumed to be centered at 0).
+  Returns:
+    1D NumPy array of size num_bins containing the median flux values of
+    uniformly spaced bins on the phase-folded time axis.
+  """
 
   if len(time):
     t0, new_time, new_flux = find_secondary(time, flux, duration, period)
