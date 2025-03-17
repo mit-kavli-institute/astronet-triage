@@ -66,6 +66,6 @@ def get_model_config(model_name, config_name):
     config = getattr(config_module, config_name)()
     config = configdict.ConfigDict(config)
     return config
-  except AttributeError:
+  except AttributeError as e:
     raise ValueError("Config name '%s' not found in configuration module: %s" %
-                     (config_name, config_module.__name__))
+                     (config_name, config_module.__name__)) from e
