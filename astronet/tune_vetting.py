@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Script for tuning an AstroNet model.
 
 Required PIP packages:
@@ -44,8 +43,8 @@ from astronet import train
 from astronet import models
 
 from tensorflow.python.eager import def_function
-def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
+def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
 parser = argparse.ArgumentParser()
 
@@ -116,11 +115,7 @@ parser.add_argument(
     help="Total number of trials to tune the model for.")
 
 parser.add_argument(
-    "--ensemble_count",
-    type=int,
-    default=4,
-    help="Model ensemble size.")
-
+    "--ensemble_count", type=int, default=4, help="Model ensemble size.")
 
 REGION = 'us-central1'
 
@@ -154,15 +149,18 @@ def operation_name(operation_id):
 
 def study_config(config):
   metrics = [
-      {'metric': 'loss', 'goal': 'MINIMIZE'},
+      {
+          'metric': 'loss',
+          'goal': 'MINIMIZE'
+      },
   ]
 
   return {
       'study_config': {
-          'algorithm' : 'ALGORITHM_UNSPECIFIED',
-          'parameters' : config['tune_params'],
-          'metrics' : metrics,
-          'max_trial_count' : FLAGS.tune_trials,
+          'algorithm': 'ALGORITHM_UNSPECIFIED',
+          'parameters': config['tune_params'],
+          'metrics': metrics,
+          'max_trial_count': FLAGS.tune_trials,
       }
   }
 
@@ -178,8 +176,7 @@ def initialize_client():
   bucket = client.get_bucket('caip-optimizer-public')
   blob = bucket.get_blob('api/ml_public_google_rest_v1.json')
   service = blob.download_as_string()
-  return discovery.build_from_document(
-      service=service, credentials=credentials)
+  return discovery.build_from_document(service=service, credentials=credentials)
 
 
 def create_study(client, study):
@@ -187,15 +184,16 @@ def create_study(client, study):
       parent=study_parent(), studyId=study_id(), body=study)
   try:
     return req.execute()
-  except errors.HttpError as e: 
+  except errors.HttpError as e:
     if e.resp.status != 409:  # Study already exists
       raise e
-    
+
 
 # FIXME
 def map_param(hparams, vetting_hparams, param, inputs_config):
   name = param['parameter']
-  if name in ('learning_rate', 'one_minus_adam_beta_1', 'one_minus_adam_beta_2', 'adam_epsilon'):
+  if name in ('learning_rate', 'one_minus_adam_beta_1', 'one_minus_adam_beta_2',
+              'adam_epsilon'):
     hparams[name] = param['floatValue']
   elif name in ('batch_size',):
     hparams[name] = int(param['intValue'])
@@ -204,10 +202,12 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
   elif name in ('num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
     vetting_hparams[name] = int(param['intValue'])
   elif name == 'cnn_block_filter_factor':
-    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = float(param['floatValue'])
-  elif name in (
-    'cnn_block_size', 'cnn_initial_num_filters', 'cnn_kernel_size', 'pool_strides', 'cnn_num_blocks', 'pool_size'):
-    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(param['intValue'])
+    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = float(
+        param['floatValue'])
+  elif name in ('cnn_block_size', 'cnn_initial_num_filters', 'cnn_kernel_size',
+                'pool_strides', 'cnn_num_blocks', 'pool_size'):
+    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(
+        param['intValue'])
   elif name == 'train_steps':
     train.FLAGS.train_steps = int(param['intValue'])
   elif name == 'exclusive_labels':
@@ -215,68 +215,76 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
   elif name in ('use_batch_norm', 'use_preds_layer'):
     vetting_hparams[name] = (param['stringValue'].lower() == 'true')
   elif name == 'separable':
-    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = (param['stringValue'].lower() == 'true')
+    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = (
+        param['stringValue'].lower() == 'true')
   elif name == 'convolution_padding':
-    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = param['stringValue'].lower()
+    vetting_hparams['time_series_hidden']['local_aperture_s'][name] = param[
+        'stringValue'].lower()
   else:
     raise InternalError('param missing from tune.map_param' + str(param))
-    
-    
+
+
 prev_losses = None
 cached_attempts = 0
-    
-    
+
+
 def load_prev_losses(client, study_id):
-    global prev_losses
-    global cached_attempts
-    
-    if prev_losses is None or cached_attempts > 10:
-        study_id = '{}/studies/{}'.format(study_parent(), study_id)
-        resp = client.projects().locations().studies().trials().list(parent=study_id).execute()
+  global prev_losses
+  global cached_attempts
 
-        prev_losses = []
-        cached_attempts = 0
-        for trial in resp['trials']:
-          if 'finalMeasurement' not in trial:
-            continue
+  if prev_losses is None or cached_attempts > 10:
+    study_id = '{}/studies/{}'.format(study_parent(), study_id)
+    resp = client.projects().locations().studies().trials().list(
+        parent=study_id).execute()
 
-          loss, = (m['value'] for m in trial['finalMeasurement']['metrics'] if m['metric'] == 'loss')  
-          prev_losses.append(loss)
-    else:
-        cached_attempts += 1
+    prev_losses = []
+    cached_attempts = 0
+    for trial in resp['trials']:
+      if 'finalMeasurement' not in trial:
+        continue
 
-    return prev_losses
+      loss, = (
+          m['value']
+          for m in trial['finalMeasurement']['metrics']
+          if m['metric'] == 'loss')
+      prev_losses.append(loss)
+  else:
+    cached_attempts += 1
+
+  return prev_losses
 
 
 def execute_trial(trial_id, params, model_class, config, ensemble_count):
   print(f'=========== Start Trial: [{trial_id}] =============')
   for param in params:
-    map_param(config['hparams'], config['vetting_hparams'], param, config['inputs'])
-  
+    map_param(config['hparams'], config['vetting_hparams'], param,
+              config['inputs'])
+
   ensemble_val_loss = []
   for _ in range(ensemble_count):
     run_id = random.randint(1, 10)
     base_dir = f'{FLAGS.pretrain_model_dir}/{run_id}'
     pretrain_model = tf.keras.models.load_model(
-        os.path.join(base_dir, os.listdir(base_dir)[0]))
+        os.path.join(base_dir,
+                     os.listdir(base_dir)[0]))
     model = model_class(config, pretrain_model)
     try:
-        history = train.train(model, config).history
+      history = train.train(model, config).history
     except KeyboardInterrupt:
-        print('\nAborting runs for this trial. Break again for full stop.')
-        if ensemble_val_loss:
-            break
-        else:
-            return
+      print('\nAborting runs for this trial. Break again for full stop.')
+      if ensemble_val_loss:
+        break
+      else:
+        return
 
     val_loss = history['val_loss'][-1]
-        
+
     ensemble_val_loss.append(val_loss)
 
     # Only ensemble promising models.
     if val_loss > 1.3:
       break
-    
+
     if prev_losses and val_loss > min(prev_losses):
       break
 
@@ -294,67 +302,69 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
 
 
 def tune(client, model_class, config, ensemble_count):
-  suggestion_count_per_request =  1
+  suggestion_count_per_request = 1
   max_trial_id_to_stop = FLAGS.tune_trials
 
   trial_id = 0
   operation = None
   iter_id = 0
   while trial_id < max_trial_id_to_stop:
-    client_id = FLAGS.client_id + 'client' + str(iter_id % 2) 
+    client_id = FLAGS.client_id + 'client' + str(iter_id % 2)
     iter_id += 1
 
     resp = client.projects().locations().studies().trials().suggest(
-        parent=trial_parent(), 
+        parent=trial_parent(),
         body={
             'client_id': client_id,
-            'suggestion_count': suggestion_count_per_request}
-    ).execute()
+            'suggestion_count': suggestion_count_per_request
+        }).execute()
     op_id = resp['name'].split('/')[-1]
 
     # Use the (step - 1) operation if available.
     # This lets us execute the trial while the next trial results are generated.
     if operation is not None:
-        for suggested_trial in operation['response']['trials']:
-          trial_id = int(suggested_trial['name'].split('/')[-1])
+      for suggested_trial in operation['response']['trials']:
+        trial_id = int(suggested_trial['name'].split('/')[-1])
 
-          # Featch the suggested trials.
-          trial = client.projects().locations().studies().trials().get(
-              name=trial_name(trial_id)
-          ).execute()
-          if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
-            continue
+        # Featch the suggested trials.
+        trial = client.projects().locations().studies().trials().get(
+            name=trial_name(trial_id)).execute()
+        if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
+          continue
 
-          load_prev_losses(client, study_id())
-          try:
-            measurement = execute_trial(trial_id, trial['parameters'], model_class, config, ensemble_count)
-            if measurement is None:
-                return
-            feasible = True
-          except (ValueError, tf.errors.OpError) as e:
-            print(type(e), e)
-            measurement = None
-            feasible = False
-            infeasible_reason = str(e)
+        load_prev_losses(client, study_id())
+        try:
+          measurement = execute_trial(trial_id, trial['parameters'],
+                                      model_class, config, ensemble_count)
+          if measurement is None:
+            return
+          feasible = True
+        except (ValueError, tf.errors.OpError) as e:
+          print(type(e), e)
+          measurement = None
+          feasible = False
+          infeasible_reason = str(e)
 
-          if feasible:
-            client.projects().locations().studies().trials().addMeasurement(
-                name=trial_name(trial_id), 
-                body={'measurement': measurement}
-            ).execute()
-            client.projects().locations().studies().trials().complete(
-              name=trial_name(trial_id)
-            ).execute()
-          else:
-            client.projects().locations().studies().trials().complete(
+        if feasible:
+          client.projects().locations().studies().trials().addMeasurement(
+              name=trial_name(trial_id), body={
+                  'measurement': measurement
+              }).execute()
+          client.projects().locations().studies().trials().complete(
+              name=trial_name(trial_id)).execute()
+        else:
+          client.projects().locations().studies().trials().complete(
               name=trial_name(trial_id),
-              body={'trialInfeasible': True, 'infeasibleReason': infeasible_reason}
-            ).execute()        
+              body={
+                  'trialInfeasible': True,
+                  'infeasibleReason': infeasible_reason
+              }).execute()
 
     # Poll the suggestion long-running operations.
     sys.stdout.flush()
     print('Waiting', end='')
-    get_op = client.projects().locations().operations().get(name=operation_name(op_id))
+    get_op = client.projects().locations().operations().get(
+        name=operation_name(op_id))
     sleep_t = 1.0
     tot_sleep = 0.0
     step = 1
@@ -375,7 +385,7 @@ def tune(client, model_class, config, ensemble_count):
 def main(_):
   config = models.get_model_config(FLAGS.model, FLAGS.config_name)
 
-  model_class = models.get_model_class(FLAGS.model) 
+  model_class = models.get_model_class(FLAGS.model)
   study = study_config(config)
 
   client = initialize_client()
@@ -383,7 +393,7 @@ def main(_):
   pprint.pprint(create_study(client, study))
 
   tune(client, model_class, config, FLAGS.ensemble_count)
-    
+
   print('All done. Study name:', study_name())
 
 

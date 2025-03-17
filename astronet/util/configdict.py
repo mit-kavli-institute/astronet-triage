@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Configuration container for TensorFlow models.
 
 A ConfigDict is simply a dict whose values can be accessed via both dot syntax

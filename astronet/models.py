@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Library of AstroNet models and configurations."""
 
 from __future__ import absolute_import
@@ -27,7 +26,8 @@ from astronet.util import configdict
 # Dictionary of model name to (model_class, configuration_module).
 _MODELS = {
     "AstroCNNModel": (astro_cnn_model.AstroCNNModel, configurations),
-    "AstroCNNModelVetting": (astro_cnn_model_vetting.AstroCNNModelVetting, configurations_vetting),
+    "AstroCNNModelVetting":
+        (astro_cnn_model_vetting.AstroCNNModelVetting, configurations_vetting),
 }
 
 

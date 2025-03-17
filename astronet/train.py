@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Script for training an AstroNet model."""
 
 import argparse
@@ -78,84 +77,86 @@ parser.add_argument(
 
 
 def train(model, config):
-    if FLAGS.model_dir:
-        dir_name = "{}/{}_{}_{}".format(
-            FLAGS.model_dir,
-            FLAGS.model,
-            FLAGS.config_name,
-            datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-        config_util.log_and_save_config(config, dir_name)
+  if FLAGS.model_dir:
+    dir_name = "{}/{}_{}_{}".format(
+        FLAGS.model_dir, FLAGS.model, FLAGS.config_name,
+        datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    config_util.log_and_save_config(config, dir_name)
 
-    ds = input_ds.build_dataset(
-        file_pattern=FLAGS.train_files,
+  ds = input_ds.build_dataset(
+      file_pattern=FLAGS.train_files,
+      input_config=config.inputs,
+      batch_size=config.hparams.batch_size,
+      shuffle_values_buffer=FLAGS.shuffle_buffer_size,
+      repeat=None)
+
+  if FLAGS.eval_files:
+    eval_ds = input_ds.build_dataset(
+        file_pattern=FLAGS.eval_files,
         input_config=config.inputs,
-        batch_size=config.hparams.batch_size,
-        shuffle_values_buffer=FLAGS.shuffle_buffer_size,
-        repeat=None)
+        batch_size=config.hparams.batch_size)
+  else:
+    eval_ds = None
 
-    if FLAGS.eval_files:
-        eval_ds = input_ds.build_dataset(
-            file_pattern=FLAGS.eval_files,
-            input_config=config.inputs,
-            batch_size=config.hparams.batch_size)
-    else:
-        eval_ds = None
+  assert config.hparams.optimizer == 'adam'
+  lr = config.hparams.learning_rate
+  beta_1 = 1.0 - config.hparams.one_minus_adam_beta_1
+  beta_2 = 1.0 - config.hparams.one_minus_adam_beta_2
+  epsilon = config.hparams.adam_epsilon
+  optimizer = tf.keras.optimizers.Adam(
+      learning_rate=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
 
-    assert config.hparams.optimizer == 'adam'
-    lr = config.hparams.learning_rate
-    beta_1 = 1.0 - config.hparams.one_minus_adam_beta_1
-    beta_2 = 1.0 - config.hparams.one_minus_adam_beta_2
-    epsilon = config.hparams.adam_epsilon
-    optimizer=tf.keras.optimizers.Adam(learning_rate=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
+  if config.inputs.get('exclusive_labels', False):
+    loss = tf.keras.losses.CategoricalCrossentropy()
+  else:
+    loss = tf.keras.losses.BinaryCrossentropy()
 
-    if config.inputs.get('exclusive_labels', False):
-        loss = tf.keras.losses.CategoricalCrossentropy()
-    else:
-        loss = tf.keras.losses.BinaryCrossentropy()
+  metrics = [
+      tf.keras.metrics.Recall(
+          name='r',
+          class_id=config.inputs.primary_class,
+          thresholds=0.2,
+      ),
+      tf.keras.metrics.Precision(
+          name='p',
+          class_id=config.inputs.primary_class,
+          thresholds=0.2,
+      ),
+  ]
 
-    metrics = [
-        tf.keras.metrics.Recall(
-            name='r',
-            class_id=config.inputs.primary_class,
-            thresholds=0.2,
-        ),
-        tf.keras.metrics.Precision(
-            name='p',
-            class_id=config.inputs.primary_class,
-            thresholds=0.2,
-        ),
-    ]
+  model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
-    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-    
-    history = model.fit(ds, steps_per_epoch=config['train_steps'], validation_data=eval_ds)
+  history = model.fit(
+      ds, steps_per_epoch=config['train_steps'], validation_data=eval_ds)
 
-    if FLAGS.model_dir:
-        model.save(dir_name)
+  if FLAGS.model_dir:
+    model.save(dir_name)
 
-    return history
+  return history
 
 
 def main(_):
-    config = models.get_model_config(FLAGS.model, FLAGS.config_name)
-    model_class = models.get_model_class(FLAGS.model) 
+  config = models.get_model_config(FLAGS.model, FLAGS.config_name)
+  model_class = models.get_model_class(FLAGS.model)
 
-    if FLAGS.pretrain_model_dir:
-        pretrain_model = tf.keras.models.load_model(
-            os.path.join(FLAGS.pretrain_model_dir, os.listdir(FLAGS.pretrain_model_dir + '/')[0]))
-        model = model_class(config, pretrain_model)
-    else:
-        model = model_class(config)
+  if FLAGS.pretrain_model_dir:
+    pretrain_model = tf.keras.models.load_model(
+        os.path.join(FLAGS.pretrain_model_dir,
+                     os.listdir(FLAGS.pretrain_model_dir + '/')[0]))
+    model = model_class(config, pretrain_model)
+  else:
+    model = model_class(config)
 
-    # Set the number of training steps.
-    config['train_steps'] = FLAGS.train_steps or config['train_steps']
-    if not config['train_steps']:
-        raise ValueError('train_steps must be set in the config or via --train_steps')
-        
-    train(model, config)
+  # Set the number of training steps.
+  config['train_steps'] = FLAGS.train_steps or config['train_steps']
+  if not config['train_steps']:
+    raise ValueError(
+        'train_steps must be set in the config or via --train_steps')
+
+  train(model, config)
 
 
 if __name__ == "__main__":
-    logging.set_verbosity(logging.INFO)
-    FLAGS, unparsed = parser.parse_known_args()
-    app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  logging.set_verbosity(logging.INFO)
+  FLAGS, unparsed = parser.parse_known_args()
+  app.run(main=main, argv=[sys.argv[0]] + unparsed)
