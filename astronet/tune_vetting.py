@@ -120,24 +120,24 @@ REGION = 'us-central1'
 CLOUD_PROJECT_ID = os.environ['CLOUD_PROJECT_ID']
 
 
-def study_parent():
+def get_study_parent():
   return 'projects/{}/locations/{}'.format(CLOUD_PROJECT_ID, REGION)
 
 
-def study_id():
+def get_study_id():
   return '{}_{}'.format(FLAGS.study_id, FLAGS.config_name)
 
 
-def study_name():
-  return '{}/studies/{}'.format(study_parent(), study_id())
+def get_study_name():
+  return '{}/studies/{}'.format(get_study_parent(), get_study_id())
 
 
 def trial_parent():
-  return study_name()
+  return get_study_name()
 
 
 def trial_name(trial_id):
-  return '{}/trials/{}'.format(study_name(), trial_id)
+  return '{}/trials/{}'.format(get_study_name(), trial_id)
 
 
 def operation_name(operation_id):
@@ -179,7 +179,7 @@ def initialize_client():
 
 def create_study(client, study):
   req = client.projects().locations().studies().create(
-      parent=study_parent(), studyId=study_id(), body=study)
+      parent=get_study_parent(), studyId=get_study_id(), body=study)
   try:
     return req.execute()
   except errors.HttpError as e:
@@ -209,9 +209,9 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
   elif name == 'train_steps':
     train.FLAGS.train_steps = int(param['intValue'])
   elif name == 'exclusive_labels':
-    inputs_config[name] = (param['stringValue'].lower() == 'true')
+    inputs_config[name] = param['stringValue'].lower() == 'true'
   elif name in ('use_batch_norm', 'use_preds_layer'):
-    vetting_hparams[name] = (param['stringValue'].lower() == 'true')
+    vetting_hparams[name] = param['stringValue'].lower() == 'true'
   elif name == 'separable':
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = (
         param['stringValue'].lower() == 'true')
@@ -219,7 +219,7 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = param[
         'stringValue'].lower()
   else:
-    raise InternalError('param missing from tune.map_param' + str(param))
+    raise ValueError('param missing from tune.map_param' + str(param))
 
 
 prev_losses = None
@@ -231,7 +231,7 @@ def load_prev_losses(client, study_id):
   global cached_attempts
 
   if prev_losses is None or cached_attempts > 10:
-    study_id = '{}/studies/{}'.format(study_parent(), study_id)
+    study_id = '{}/studies/{}'.format(get_study_parent(), study_id)
     resp = client.projects().locations().studies().trials().list(
         parent=study_id).execute()
 
@@ -330,13 +330,14 @@ def tune(client, model_class, config, ensemble_count):
         if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
           continue
 
-        load_prev_losses(client, study_id())
+        load_prev_losses(client, get_study_id())
         try:
           measurement = execute_trial(trial_id, trial['parameters'],
                                       model_class, config, ensemble_count)
           if measurement is None:
             return
           feasible = True
+          infeasible_reason = None
         except (ValueError, tf.errors.OpError) as e:
           print(type(e), e)
           measurement = None
@@ -392,7 +393,7 @@ def main(_):
 
   tune(client, model_class, config, FLAGS.ensemble_count)
 
-  print('All done. Study name:', study_name())
+  print('All done. Study name:', get_study_name())
 
 
 if __name__ == '__main__':

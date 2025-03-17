@@ -106,24 +106,24 @@ REGION = 'us-central1'
 CLOUD_PROJECT_ID = os.environ['CLOUD_PROJECT_ID']
 
 
-def study_parent():
+def get_study_parent():
   return 'projects/{}/locations/{}'.format(CLOUD_PROJECT_ID, REGION)
 
 
-def study_id():
+def get_study_id():
   return '{}_{}'.format(FLAGS.study_id, FLAGS.config_name)
 
 
-def study_name():
-  return '{}/studies/{}'.format(study_parent(), study_id())
+def get_study_name():
+  return '{}/studies/{}'.format(get_study_parent(), get_study_id())
 
 
-def trial_parent():
-  return study_name()
+def get_trial_parent():
+  return get_study_name()
 
 
-def trial_name(trial_id):
-  return '{}/trials/{}'.format(study_name(), trial_id)
+def get_trial_name(trial_id):
+  return '{}/trials/{}'.format(get_study_name(), trial_id)
 
 
 def operation_name(operation_id):
@@ -165,7 +165,7 @@ def initialize_client():
 
 def create_study(client, study):
   req = client.projects().locations().studies().create(
-      parent=study_parent(), studyId=study_id(), body=study)
+      parent=get_study_parent(), studyId=get_study_id(), body=study)
   try:
     return req.execute()
   except errors.HttpError as e:
@@ -184,7 +184,7 @@ def map_param(hparams, param, inputs_config):
   elif name == 'batch_size':
     hparams[name] = int(param['intValue'])
   elif name == 'use_batch_norm':
-    inputs_config[name] = (param['stringValue'].lower() == 'true')
+    inputs_config[name] = param['stringValue'].lower() == 'true'
   elif name in ('num_pre_logits_hidden_layers', 'pre_logits_hidden_layer_size'):
     hparams[name] = int(param['intValue'])
   elif name == 'pre_logits_dropout_rate':
@@ -232,7 +232,7 @@ def load_prev_losses(client, study_id):
   global prev_losses
 
   if prev_losses is None:
-    study_id = '{}/studies/{}'.format(study_parent(), study_id)
+    study_id = '{}/studies/{}'.format(get_study_parent(), study_id)
     resp = client.projects().locations().studies().trials().list(
         parent=study_id).execute()
 
@@ -304,7 +304,7 @@ def tune(client, model_class, config, ensemble_count):
     iter_id += 1
 
     resp = client.projects().locations().studies().trials().suggest(
-        parent=trial_parent(),
+        parent=get_trial_parent(),
         body={
             'client_id': client_id,
             'suggestion_count': suggestion_count_per_request
@@ -319,17 +319,18 @@ def tune(client, model_class, config, ensemble_count):
 
         # Featch the suggested trials.
         trial = client.projects().locations().studies().trials().get(
-            name=trial_name(trial_id)).execute()
+            name=get_trial_name(trial_id)).execute()
         if trial['state'] in ['COMPLETED', 'INFEASIBLE']:
           continue
 
-        load_prev_losses(client, study_id())
+        load_prev_losses(client, get_study_id())
         try:
           measurement = execute_trial(trial_id, trial['parameters'],
                                       model_class, config, ensemble_count)
           if measurement is None:
             return
           feasible = True
+          infeasible_reason = None
         except (ValueError, tf.errors.OpError) as e:
           print(type(e), e)
           measurement = None
@@ -338,14 +339,14 @@ def tune(client, model_class, config, ensemble_count):
 
         if feasible:
           client.projects().locations().studies().trials().addMeasurement(
-              name=trial_name(trial_id), body={
+              name=get_trial_name(trial_id), body={
                   'measurement': measurement
               }).execute()
           client.projects().locations().studies().trials().complete(
-              name=trial_name(trial_id)).execute()
+              name=get_trial_name(trial_id)).execute()
         else:
           client.projects().locations().studies().trials().complete(
-              name=trial_name(trial_id),
+              name=get_trial_name(trial_id),
               body={
                   'trialInfeasible': True,
                   'infeasibleReason': infeasible_reason
@@ -385,7 +386,7 @@ def main(_):
 
   tune(client, model_class, config, FLAGS.ensemble_count)
 
-  print('All done. Study name:', study_name())
+  print('All done. Study name:', get_study_name())
 
 
 if __name__ == '__main__':
