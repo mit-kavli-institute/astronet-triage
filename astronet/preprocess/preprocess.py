@@ -13,6 +13,8 @@
 # limitations under the License.
 """Functions for reading and preprocessing light curves."""
 
+import os
+
 import numpy as np
 
 from light_curve_util import keplersplinev2, median_filter2, tess_io, util
