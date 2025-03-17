@@ -13,13 +13,10 @@ import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
 
-from astronet.direct_tensor.features import (aperture_features,
-                                             double_period_features,
-                                             even_features, global_features,
-                                             half_period_features,
-                                             local_features, odd_features,
-                                             sample_segments_features,
-                                             secondary_features)
+from astronet.direct_tensor.features import (
+    aperture_features, double_period_features, even_features, global_features,
+    half_period_features, local_features, odd_features,
+    sample_segments_features, secondary_features)
 from astronet.preprocess import preprocess
 
 
@@ -145,10 +142,8 @@ def standard_view_features(
           local_depth,
       ))
 
-  sec_features, secondary_scale = secondary_features(tic, folded_time,
-                                                     folded_flux, period,
-                                                     duration, local_scale,
-                                                     local_depth)
+  sec_features, _ = secondary_features(tic, folded_time, folded_flux, period,
+                                       duration, local_scale, local_depth)
   all_features.update(sec_features)
 
   all_features.update(
@@ -163,15 +158,17 @@ def standard_view_features(
           duration,
       ))
 
-  double_fold_time, double_fold_flux, _, _ = (
-      preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
-                                                 transit_mask, period * 2,
-                                                 epoch - period / 2))
+  res = preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
+                                                   transit_mask, period * 2,
+                                                   epoch - period / 2)
+  double_fold_time, double_fold_flux, _, _ = res
   all_features.update(
       double_period_features(tic, double_fold_time, double_fold_flux, period))
 
-  half_fold_time, half_fold_flux, _, _ = preprocess.phase_fold_and_sort_light_curve(
-      det_time, det_flux, transit_mask, period / 2, epoch)
+  res = preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
+                                                   transit_mask, period / 2,
+                                                   epoch)
+  half_fold_time, half_fold_flux = res
   all_features.update(
       half_period_features(tic, half_fold_time, half_fold_flux, period,
                            duration))
@@ -326,9 +323,8 @@ def build_dataset(
 
 
 def find_checkpoints(base_dir: Path, nruns: Optional[int] = None) -> list[Path]:
+  """Find checkpoint directories, assuming structure of training checkpoints.
   """
-    Find directories containing models, assuming structure of training checkpoints.
-    """
   if nruns is None:
     nruns = len(list(base_dir.iterdir()))
   return [next((base_dir / str(i)).iterdir()) for i in range(1, nruns + 1)]
@@ -370,7 +366,8 @@ def batch_predict(
           f"\n{model_dir}:\n{model_cfg['inputs']['features']}")
     if model_cfg["inputs"]["label_columns"] != output_labels:
       raise ValueError(
-          f"Configured output labels in {model_dir} do not match first checkpoint."
+          f"Configured output labels in {model_dir} do not match first "
+          "checkpoint."
           f"\nFirst checkpoint:\n{output_labels}"
           f"\n{model_dir}:\n{model_cfg['inputs']['label_columns']}")
 
