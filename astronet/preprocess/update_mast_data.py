@@ -1,5 +1,5 @@
-from astroquery import mast
 import pandas as pd
+from astroquery import mast
 
 
 def update_ext_mast_data(tces):

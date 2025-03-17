@@ -14,17 +14,15 @@
 
 """Functions for reading TESS data."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-import h5py
 import glob
 import os
 import re
 
+import astropy
+import h5py
 import numpy as np
-import astropy 
 from astropy.io import fits
 
 SECTOR_RE = re.compile('.*-s([^-]+)-.*')

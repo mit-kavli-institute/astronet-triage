@@ -13,16 +13,14 @@
 # limitations under the License.
 """Utility functions for configurations."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import json
 import os.path
 
-from astronet.util import configdict
-
 import tensorflow as tf
+
+from astronet.util import configdict
 
 
 def merge_configs(base, source):

@@ -3,9 +3,7 @@
 The mean of the distribution is 2, and the standard deviation is 1.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 RANDOM_NORMAL = [
     0.692741320869,

@@ -13,19 +13,17 @@
 # limitations under the License.
 """Generates predictions using a trained model."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import argparse
-import sys
 import multiprocessing
 import os
+import sys
 from typing import Optional
 
-from absl import app
-import tensorflow as tf
 import pandas as pd
+import tensorflow as tf
+from absl import app
 from tqdm import tqdm
 
 from astronet.astro_cnn_model import input_ds

@@ -17,9 +17,7 @@ A ConfigDict is simply a dict whose values can be accessed via both dot syntax
 (config.key) and dict syntax (config['key']).
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 
 def _maybe_convert_dict(value):

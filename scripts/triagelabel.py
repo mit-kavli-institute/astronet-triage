@@ -1,8 +1,8 @@
-import tkinter
+import functools
 import os
 import pickle
-import functools
 import sys
+import tkinter
 
 from PIL import Image, ImageTk
 

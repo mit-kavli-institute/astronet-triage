@@ -4,9 +4,7 @@ This is a modified Python implementation of this file:
 https://idlastro.gsfc.nasa.gov/ftp/pro/robust/resistant_mean.pro
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import numpy as np
 

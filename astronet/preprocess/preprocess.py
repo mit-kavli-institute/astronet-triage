@@ -16,10 +16,7 @@ import os
 
 import numpy as np
 
-from light_curve_util import keplersplinev2
-from light_curve_util import median_filter2
-from light_curve_util import util
-from light_curve_util import tess_io
+from light_curve_util import keplersplinev2, median_filter2, tess_io, util
 
 
 def read_and_process_light_curve(tess_data_dir, flux_key, filename, min_t,

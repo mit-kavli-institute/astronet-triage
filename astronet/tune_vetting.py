@@ -25,24 +25,22 @@ Required PIP packages:
 import argparse
 import datetime
 import logging
-import time
 import os
 import pprint
 import random
 import sys
+import time
 
+import tensorflow as tf
 from absl import app
 from absl import logging as absl_logging
 from apiclient import errors
 from google.cloud import storage
-from googleapiclient import discovery
 from google_auth_oauthlib import flow
-import tensorflow as tf
-
-from astronet import train
-from astronet import models
-
+from googleapiclient import discovery
 from tensorflow.python.eager import def_function
+
+from astronet import models, train
 
 def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 

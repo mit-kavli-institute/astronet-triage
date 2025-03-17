@@ -14,12 +14,10 @@
 
 """Tests the Python wrapping of the view_generator library."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-from absl.testing import absltest
 import numpy as np
+from absl.testing import absltest
 
 from light_curve_util.cc.python import view_generator
 

@@ -18,10 +18,8 @@ import datetime
 import os
 import sys
 
-from absl import app
-from absl import logging
-
 import tensorflow as tf
+from absl import app, logging
 
 from astronet import models
 from astronet.astro_cnn_model import input_ds

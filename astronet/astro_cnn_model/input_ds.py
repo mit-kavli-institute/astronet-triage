@@ -13,12 +13,10 @@
 # limitations under the License.
 """Functions to build an input pipeline that reads from TFRecord files."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-from absl import logging
 import tensorflow as tf
+from absl import logging
 
 
 class ExampleParser:

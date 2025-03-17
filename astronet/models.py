@@ -13,14 +13,10 @@
 # limitations under the License.
 """Library of AstroNet models and configurations."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-from astronet.astro_cnn_model import astro_cnn_model
-from astronet.astro_cnn_model import astro_cnn_model_vetting
-from astronet.astro_cnn_model import configurations
-from astronet.astro_cnn_model import configurations_vetting
+from astronet.astro_cnn_model import (astro_cnn_model, astro_cnn_model_vetting,
+                                      configurations, configurations_vetting)
 from astronet.util import configdict
 
 # Dictionary of model name to (model_class, configuration_module).
