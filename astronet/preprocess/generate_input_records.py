@@ -332,7 +332,7 @@ def create(
     logging.info(f"Processing {len(tce_table)} TCEs")
 
     tce_shards: tuple[pd.DataFrame, str] = []  # List of (tce_table_shard, file_name)
-    boundaries = np.linspace(0, len(tce_table), num_shards + 1).astype(np.int)
+    boundaries = np.linspace(0, len(tce_table), num_shards + 1).astype(int)
     for i in range(num_shards):
         start, end = boundaries[i : i + 2]
         tce_shards.append(
@@ -402,7 +402,7 @@ def main(_):
     # Further split training TCEs into file shards.
     file_shards = []  # List of (tce_table_shard, file_name).
     boundaries = np.linspace(
-        0, len(tce_table), FLAGS.num_shards + 1).astype(np.int)
+        0, len(tce_table), FLAGS.num_shards + 1,).astype(int)
     for i in range(FLAGS.num_shards):
       start = boundaries[i]
       end = boundaries[i + 1]
