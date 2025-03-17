@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Script for generating TFrecord files from TESS TCEs."""
+
 import argparse
 import multiprocessing
 import os
@@ -87,8 +89,8 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
 
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
-  odds = ((fold_num % 2) == 1)
-  evens = ((fold_num % 2) == 0)
+  odds = (fold_num % 2) == 1
+  evens = (fold_num % 2) == 0
 
   view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period)
   tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period)
@@ -283,7 +285,6 @@ def _process_file_shard(
     mode: AstronetMode,
     training: bool,
 ):
-  process_name = multiprocessing.current_process().name
   shard_name = os.path.basename(file_name)
   shard_size = len(tce_table)
 
@@ -333,9 +334,8 @@ def _process_file_shard(
         writer.write(example.SerializeToString())
 
   num_new = num_processed - num_skipped - num_existing
-  print(
-      f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new {num_skipped} bad            "
-  )
+  print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new "
+        "{num_skipped} bad            ")
 
 
 def create(
