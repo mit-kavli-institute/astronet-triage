@@ -70,7 +70,8 @@ def predict(model_dir: str,
       include_labels=False,
       include_identifiers=True)
 
-  label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
+  label_columns = config.inputs.label_columns
+  label_index = {i: k.lower() for i, k in enumerate(label_columns)}
 
   print("0 records", end="")
   series = []
@@ -147,7 +148,8 @@ def main(_):
       repeat=1,
       include_identifiers=True)
 
-  label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
+  label_columns = config.inputs.label_columns
+  label_index = {i: k.lower() for i, k in enumerate(label_columns)}
 
   series = []
   for features, identifiers in tqdm(ds, unit="records"):
