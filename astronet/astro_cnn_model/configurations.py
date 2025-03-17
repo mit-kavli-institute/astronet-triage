@@ -4030,7 +4030,8 @@ def final_alpha_1():
 
 
 def final_alpha_1_tuned():
-  # projects/mdan-playground/locations/us-central1/studies/38_final_alpha_1_1_final_alpha_1
+  # projects/mdan-playground/locations/us-central1/studies/
+  # 38_final_alpha_1_1_final_alpha_1
   # (930 0.05156385153532028)
   config = final_alpha_1()
   config["hparams"] = {

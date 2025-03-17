@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Configurations for model building, training and evaluation."""
 
 from astronet.astro_cnn_model import configurations
 from astronet.util import config_util
@@ -433,7 +434,8 @@ def vrevised():
 
 
 def vrevised_tuned():
-  # projects/mdan-playground/locations/us-central1/studies/6_vrevised_1b_vrevised
+  # projects/mdan-playground/locations/us-central1/studies/
+  # 6_vrevised_1b_vrevised
   config = vrevised()
   config["train_steps"] = 20000
   config["vetting_hparams"] = {
