@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Functions for reading and preprocessing light curves."""
-import os
 
 import numpy as np
 
@@ -54,7 +53,7 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
 
 
 def phase_fold_and_sort_light_curve(time, flux, mask, period, t0):
-  if not len(time):
+  if not np.size(time):
     return np.array([]), np.array([]), np.array([]), np.array([])
 
   # Phase fold time.
@@ -338,7 +337,7 @@ def secondary_view(tic_id,
 
 
 def sample_segments(time, flux, fold_num, num_transits):
-  if not len(time):
+  if not np.size(time):
     return [], [], []
 
   n_folds = max(fold_num) + 1
