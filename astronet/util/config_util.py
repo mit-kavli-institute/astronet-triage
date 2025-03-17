@@ -23,7 +23,7 @@ from astronet.util import configdict
 
 def merge_configs(base, source):
   if not isinstance(source, dict) and isinstance(base, dict):
-    raise ValueError(f'source is {type(soure)}, but base is {type(base)}')
+    raise ValueError(f"source is {type(soure)}, but base is {type(base)}")
   for k in source:
     if k not in base:
       base[k] = source[k]
@@ -58,5 +58,5 @@ def load_config(output_dir):
   Returns:
     A dictionary; the parsed JSON.
   """
-  with tf.io.gfile.GFile(config_file(output_dir), 'r') as f:
+  with tf.io.gfile.GFile(config_file(output_dir), "r") as f:
     return configdict.ConfigDict(json.loads(f.read()))

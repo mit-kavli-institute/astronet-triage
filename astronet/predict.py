@@ -44,7 +44,7 @@ parser.add_argument(
 parser.add_argument(
     "--output_file",
     type=str,
-    default='',
+    default="",
     help="Name of file in which predictions will be saved.")
 
 
@@ -57,7 +57,7 @@ def predict(model_dir: str,
 
   if legacy:
     for f in config.inputs.features.values():
-      l = getattr(f, 'length', None)
+      l = getattr(f, "length", None)
       if l is None:
         f.shape = []
       else:
@@ -72,18 +72,18 @@ def predict(model_dir: str,
 
   label_index = {i: k.lower() for i, k in enumerate(config.inputs.label_columns)}
 
-  print('0 records', end='')
+  print("0 records", end="")
   series = []
   for features, identifiers in ds:
     preds = model(features)
 
     row = {}
-    row['astro_id'] = identifiers.numpy().item()
+    row["astro_id"] = identifiers.numpy().item()
     for i, p in enumerate(preds.numpy()[0]):
       row[label_index[i]] = p
 
     series.append(row)
-    print('\r{} records'.format(len(series)), end='')
+    print("\r{} records".format(len(series)), end="")
 
   results = pd.DataFrame.from_dict(series)
 
@@ -154,7 +154,7 @@ def main(_):
     preds = model(features)
 
     row = {}
-    row['astro_id'] = identifiers.numpy().item()
+    row["astro_id"] = identifiers.numpy().item()
     for i, p in enumerate(preds.numpy()[0]):
       row[label_index[i]] = p
 

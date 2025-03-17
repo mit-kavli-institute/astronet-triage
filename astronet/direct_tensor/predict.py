@@ -72,7 +72,7 @@ def standard_view_features(
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]]
         For triage model: empty dict.
         For vetting model: {aperture_name: (lightcurve_time, lightcurve_flux)}
-        for all apertures to be considered ('s', 'm', 'l').
+        for all apertures to be considered ("s", "m", "l").
 
 
     Returns
@@ -202,7 +202,7 @@ def prediction_features(
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]]
         For triage model: empty dict.
         For vetting model: {aperture_name: (lightcurve_time, lightcurve_flux)}
-            for all apertures to be considered ('s', 'm', 'l').
+            for all apertures to be considered ("s", "m", "l").
 
     Returns
     -------
@@ -254,7 +254,7 @@ def prediction_features(
         feature for feature, value in scalar_features.items()
         if np.isnan(value))
     raise ValueError(
-        f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}.")
+        f"Bad nan feature for Astro ID {tce["Astro ID"]}: {nan_feature_name}.")
 
   all_features.update({
       feature: np.array([value]) for feature, value in scalar_features.items()
@@ -284,7 +284,7 @@ def prepare_input(
 
   features = {}
   if any((feature not in tce_features) for feature in feature_cfg.keys()):
-    features = ','.join(feature for feature in feature_cfg.keys()
+    features = ",".join(feature for feature in feature_cfg.keys()
                         if feature not in tce_features)
     raise ValueError(f"Missing feature(s) in input data: {features}")
   for name, value in tce_features.items():

@@ -47,77 +47,77 @@ def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "--model", type=str, required=True, help="Name of the model class.")
+    '--model', type=str, required=True, help='Name of the model class.')
 
 parser.add_argument(
-    "--config_name",
+    '--config_name',
     type=str,
-    help="Name of the model and training configuration.")
+    help='Name of the model and training configuration.')
 
 parser.add_argument(
-    "--pretrain_model_dir",
+    '--pretrain_model_dir',
     type=str,
-    default="",
-    help="Directory for pretrained model checkpoints.")
+    default='',
+    help='Directory for pretrained model checkpoints.')
 
 parser.add_argument(
-    "--train_files",
+    '--train_files',
     type=str,
     required=True,
-    help="Comma-separated list of file patterns matching the TFRecord files in "
-    "the training dataset.")
+    help='Comma-separated list of file patterns matching the TFRecord files in '
+    'the training dataset.')
 
 parser.add_argument(
-    "--eval_files",
+    '--eval_files',
     type=str,
-    help="Comma-separated list of file patterns matching the TFRecord files in "
-    "the validation dataset.")
+    help='Comma-separated list of file patterns matching the TFRecord files in '
+    'the validation dataset.')
 
 parser.add_argument(
-    "--train_steps",
+    '--train_steps',
     type=int,
     default=12000,
-    help="Total number of steps to train the model for.")
+    help='Total number of steps to train the model for.')
 
 parser.add_argument(
-    "--shuffle_buffer_size",
+    '--shuffle_buffer_size',
     type=int,
     default=6000,
-    help="Size of the shuffle buffer for the training dataset.")
+    help='Size of the shuffle buffer for the training dataset.')
 
 parser.add_argument(
-    "--client_secrets",
+    '--client_secrets',
     type=str,
     required=True,
-    help="OAuth secrets file, see https://github.com/googleapis/"
-    "google-api-python-client/blob/master/docs/client-secrets.md.")
+    help='OAuth secrets file, see https://github.com/googleapis/'
+    'google-api-python-client/blob/master/docs/client-secrets.md.')
 
 parser.add_argument(
-    "--client_id",
+    '--client_id',
     type=str,
     required=False,
-    default="",
-    help="Used for multi-machine tuning.")
+    default='',
+    help='Used for multi-machine tuning.')
 
 parser.add_argument(
-    "--study_id",
+    '--study_id',
     type=str,
-    default="vetting_base_{}".format(
+    default='vetting_base_{}'.format(
         datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
-    help="Unique identifier string for the study.")
+    help='Unique identifier string for the study.')
 
 parser.add_argument(
-    "--tune_trials",
+    '--tune_trials',
     type=int,
     default=1000,
-    help="Total number of trials to tune the model for.")
+    help='Total number of trials to tune the model for.')
 
 parser.add_argument(
-    "--ensemble_count", type=int, default=4, help="Model ensemble size.")
+    '--ensemble_count', type=int, default=4, help='Model ensemble size.')
 
 REGION = 'us-central1'
 
-CLOUD_PROJECT_ID = os.environ["CLOUD_PROJECT_ID"]
+CLOUD_PROJECT_ID = os.environ['CLOUD_PROJECT_ID']
 
 
 def study_parent():
@@ -395,11 +395,11 @@ def main(_):
   print('All done. Study name:', study_name())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   logger = logging.getLogger().setLevel(logging.WARNING)
   absl_logging.set_verbosity(absl_logging.WARNING)
 
   FLAGS, unparsed = parser.parse_known_args()
   train.FLAGS = FLAGS
-  train.FLAGS.model_dir = ""
+  train.FLAGS.model_dir = ''
   app.run(main=main, argv=[sys.argv[0]] + unparsed)
