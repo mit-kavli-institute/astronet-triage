@@ -13,7 +13,7 @@ def update_ext_mast_data(tces):
       print(' skiped')
       continue
     catalog_data = mast.Catalogs.query_object(
-        f'TIC {tic}', catalog="TIC", radius='0.1s')
+        f'TIC {tic}', catalog='TIC', radius='0.1s')
     print(' loaded')
     row_i = None
     for i, entry in enumerate(catalog_data['ID']):
