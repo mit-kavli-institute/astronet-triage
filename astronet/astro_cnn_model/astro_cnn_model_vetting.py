@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""A convolutional model for classifying light curves for TESS vetting."""
 
 import tensorflow as tf
 
@@ -18,6 +19,7 @@ from astronet.astro_cnn_model import astro_cnn_model
 
 
 class AstroCNNModelVetting(tf.keras.Model):
+  """A convolutional model for classifying light curves for TESS vetting."""
 
   def __init__(self, config, triage_model):
     super(AstroCNNModelVetting, self).__init__()
@@ -30,7 +32,7 @@ class AstroCNNModelVetting(tf.keras.Model):
     self.ts_blocks = self._create_ts_blocks(config)
 
     self.final = [tf.keras.layers.Concatenate()]
-    for i in range(hps.num_pre_logits_hidden_layers):
+    for _ in range(hps.num_pre_logits_hidden_layers):
       self.final.append(
           tf.keras.layers.Dense(
               units=hps.pre_logits_hidden_layer_size, activation='relu'))
@@ -97,7 +99,8 @@ class AstroCNNModelVetting(tf.keras.Model):
     def is_vetting_input(k):
       if k.endswith('_present'):
         k = k[:-len('_present')]
-      # The dataset makes them lowercase. We should change things to lowercase throughout.
+      # The dataset makes them lowercase. We should change things to lowercase
+      # throughout.
       if k not in self.config.inputs.features:
         k, = tuple(
             ck for ck in self.config.inputs.features.keys() if ck.lower() == k)

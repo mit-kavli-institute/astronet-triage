@@ -45,6 +45,7 @@ import tensorflow as tf
 
 
 class AstroCNNModel(tf.keras.Model):
+  """A convolutional model for classifying light curves."""
 
   def __init__(self, config, pretrain_model=None, embeds_only=False):
     super(AstroCNNModel, self).__init__()
@@ -65,7 +66,7 @@ class AstroCNNModel(tf.keras.Model):
       self.final = [tf.keras.layers.Concatenate()]
 
       hps = config.hparams
-      for i in range(hps.num_pre_logits_hidden_layers):
+      for _ in range(hps.num_pre_logits_hidden_layers):
         self.final.append(
             tf.keras.layers.Dense(
                 units=hps.pre_logits_hidden_layer_size, activation='relu'))

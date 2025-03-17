@@ -18,6 +18,7 @@ from absl import logging
 
 
 class ExampleParser:
+  """Function to parse a single tf.Example into feature and label tensors."""
 
   def __init__(self, config, include_labels, include_identifiers):
     if include_labels and include_identifiers:
