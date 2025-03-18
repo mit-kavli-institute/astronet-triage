@@ -57,22 +57,16 @@ class AstroCNNModelVetting(tf.keras.Model):
       num_filters = int(block_params.cnn_initial_num_filters *
                         block_params.cnn_block_filter_factor**i)
       for j in range(block_params.cnn_block_size):
-        if block_params.separable:
-          layers.append(
-              tf.keras.layers.SeparableConv1D(
-                  filters=num_filters,
-                  kernel_size=block_params.cnn_kernel_size,
-                  padding=block_params.convolution_padding,
-                  activation='relu',
-                  name=f'{block_name}_conv_{j+1}'))
-        else:
-          layers.append(
-              tf.keras.layers.Conv1D(
-                  filters=num_filters,
-                  kernel_size=block_params.cnn_kernel_size,
-                  padding=block_params.convolution_padding,
-                  activation='relu',
-                  name=f'{block_name}_conv_{j+1}'))
+        Conv1D = (
+            tf.keras.layers.SeparableConv1D
+            if block_params.separable else tf.keras.layers.Conv1D)
+        layers.append(
+            Conv1D(
+                filters=num_filters,
+                kernel_size=block_params.cnn_kernel_size,
+                padding=block_params.convolution_padding,
+                activation='relu',
+                name=f'{block_name}_conv_{j+1}'))
       if block_params.pool_size:
         layers.append(
             tf.keras.layers.MaxPool1D(
