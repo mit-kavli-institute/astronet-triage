@@ -13,65 +13,51 @@
 # limitations under the License.
 """Script for training an AstroNet model."""
 
-import argparse
 import datetime
 import os
-import sys
 
 import tensorflow as tf
-from absl import app, logging
+from absl import app, flags, logging
 
 from astronet import models
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
 
-parser = argparse.ArgumentParser()
+flags.DEFINE_string("model", None, "Name of the model class.", required=True)
 
-parser.add_argument(
-    "--model", type=str, required=True, help="Name of the model class.")
-
-parser.add_argument(
-    "--config_name",
-    type=str,
+flags.DEFINE_string(
+    "config_name",
+    None,
+    "Name of the model and training configuration.",
     required=True,
-    help="Name of the model and training configuration.")
+)
 
-parser.add_argument(
-    "--train_files",
-    type=str,
+flags.DEFINE_string(
+    "train_files",
+    None,
+    "Comma-separated list of file patterns matching the TFRecord files in "
+    "the training dataset.",
     required=True,
-    help="Comma-separated list of file patterns matching the TFRecord files in "
-    "the training dataset.")
+)
 
-parser.add_argument(
-    "--eval_files",
-    type=str,
-    help="Comma-separated list of file patterns matching the TFRecord files in "
+flags.DEFINE_string(
+    "eval_files", None,
+    "Comma-separated list of file patterns matching the TFRecord files in "
     "the validation dataset.")
 
-parser.add_argument(
-    "--model_dir",
-    type=str,
-    default="",
-    help="Directory for model checkpoints and summaries.")
+flags.DEFINE_string("model_dir", None,
+                    "Directory for model checkpoints and summaries.")
 
-parser.add_argument(
-    "--pretrain_model_dir",
-    type=str,
-    default="",
-    help="Directory for pretrained model checkpoints.")
+flags.DEFINE_string("pretrain_model_dir", None,
+                    "Directory for pretrained model checkpoints.")
 
-parser.add_argument(
-    "--train_steps",
-    type=int,
-    default=None,
-    help="Total number of steps to train the model for.")
+flags.DEFINE_integer("train_steps", None,
+                     "Total number of steps to train the model for.")
 
-parser.add_argument(
-    "--shuffle_buffer_size",
-    type=int,
-    default=25000,
-    help="Size of the shuffle buffer for the training dataset.")
+flags.DEFINE_integer("shuffle_buffer_size", 25000,
+                     "Size of the shuffle buffer for the training dataset.")
+
+FLAGS = flags.FLAGS
 
 
 def train(model, config):
@@ -155,5 +141,4 @@ def main(_):
 
 if __name__ == "__main__":
   logging.set_verbosity(logging.INFO)
-  FLAGS, unparsed = parser.parse_known_args()
-  app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  app.run(main)

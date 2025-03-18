@@ -13,39 +13,34 @@
 # limitations under the License.
 """Generates predictions using a trained model."""
 
-import argparse
 import multiprocessing
 import os
-import sys
 from typing import Optional
 
 import pandas as pd
 import tensorflow as tf
-from absl import app
+from absl import app, flags
 from tqdm import tqdm
 
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
 
-parser = argparse.ArgumentParser()
+flags.DEFINE_string(
+    "model_dir",
+    None,
+    "Directory containing a model checkpoint.",
+    required=True)
 
-parser.add_argument(
-    "--model_dir",
-    type=str,
-    required=True,
-    help="Directory containing a model checkpoint.")
+flags.DEFINE_string(
+    "data_files",
+    None,
+    "Comma-separated list of file patterns matching the TFRecord files.",
+    required=True)
 
-parser.add_argument(
-    "--data_files",
-    type=str,
-    required=True,
-    help="Comma-separated list of file patterns matching the TFRecord files.")
+flags.DEFINE_string("output_file", None,
+                    "Name of file in which predictions will be saved.")
 
-parser.add_argument(
-    "--output_file",
-    type=str,
-    default="",
-    help="Name of file in which predictions will be saved.")
+FLAGS = flags.FLAGS
 
 
 def predict(model_dir: str,
@@ -172,5 +167,4 @@ def main(_):
 
 
 if __name__ == "__main__":
-  FLAGS, unparsed = parser.parse_known_args()
-  app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  app.run(main)

@@ -12,7 +12,6 @@
 # limitations under the License.
 """Script for generating TFrecord files from TESS TCEs."""
 
-import argparse
 import multiprocessing
 import os
 import sys
@@ -21,7 +20,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from absl import app, logging
+from absl import app, flags, logging
 from typing_extensions import Protocol
 
 from astronet.preprocess import preprocess
@@ -37,20 +36,25 @@ class LCGetter(Protocol):
 
 AstronetMode = Literal["triage", "vetting"]
 
-parser = argparse.ArgumentParser()
+flags.DEFINE_string(
+    "input_tce_csv_file", None, "Filename of input TCE file.", required=True)
 
-parser.add_argument("--input_tce_csv_file", type=str, required=True)
+flags.DEFINE_string(
+    "tess_data_dir", None, "TESS data directory.", required=True)
 
-parser.add_argument("--tess_data_dir", type=str, required=True)
+flags.DEFINE_string("output_dir", None, "Output directory.", required=True)
 
-parser.add_argument("--output_dir", type=str, required=True)
+flags.DEFINE_integer("num_shards", 20, "Number of output shards.")
 
-parser.add_argument("--num_shards", type=int, default=20)
+flags.DEFINE_enum(
+    "mode",
+    None, ["triage", "vetting"],
+    "Whether to generate for triage or vetting.",
+    required=True)
 
-parser.add_argument(
-    "--mode", type=str, choices=["triage", "vetting"], required=True)
+flags.DEFINE_bool("training", True, "Whether to generate for training.")
 
-parser.add_argument("--not-training", action="store_true")
+FLAGS = flags.FLAGS
 
 
 def _set_float_feature(ex, name, value):
@@ -421,11 +425,10 @@ def main(_):
   logging.info("Processing %d total file shards", len(file_shards))
   for start, end, file_shard in file_shards:
     _process_file_shard(tce_table[start:end], file_shard, get_lightcurve,
-                        FLAGS.mode, not FLAGS.not_training)
+                        FLAGS.mode, FLAGS.training)
   logging.info("Finished processing %d total file shards", len(file_shards))
 
 
 if __name__ == "__main__":
   logging.set_verbosity(logging.INFO)
-  FLAGS, unparsed = parser.parse_known_args()
-  app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  app.run(main)

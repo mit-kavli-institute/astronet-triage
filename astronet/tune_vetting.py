@@ -22,7 +22,6 @@ Required PIP packages:
   tf
 """
 
-import argparse
 import datetime
 import logging
 import os
@@ -32,7 +31,7 @@ import sys
 import time
 
 import tensorflow as tf
-from absl import app
+from absl import app, flags
 from absl import logging as absl_logging
 from apiclient import errors
 from google.cloud import storage
@@ -44,75 +43,51 @@ from astronet import models, train
 
 def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
-parser = argparse.ArgumentParser()
+flags.DEFINE_string('model', None, 'Name of the model class.', required=True)
 
-parser.add_argument(
-    '--model', type=str, required=True, help='Name of the model class.')
+flags.DEFINE_string('config_name', None,
+                    'Name of the model and training configuration.')
 
-parser.add_argument(
-    '--config_name',
-    type=str,
-    help='Name of the model and training configuration.')
+flags.DEFINE_string('pretrain_model_dir', None,
+                    'Directory for pretrained model checkpoints.')
 
-parser.add_argument(
-    '--pretrain_model_dir',
-    type=str,
-    default='',
-    help='Directory for pretrained model checkpoints.')
+flags.DEFINE_string(
+    'train_files',
+    None,
+    'Comma-separated list of file patterns matching the TFRecord files in '
+    'the training dataset.',
+    required=True)
 
-parser.add_argument(
-    '--train_files',
-    type=str,
-    required=True,
-    help='Comma-separated list of file patterns matching the TFRecord files in '
-    'the training dataset.')
-
-parser.add_argument(
-    '--eval_files',
-    type=str,
-    help='Comma-separated list of file patterns matching the TFRecord files in '
+flags.DEFINE_string(
+    'eval_files', None,
+    'Comma-separated list of file patterns matching the TFRecord files in '
     'the validation dataset.')
 
-parser.add_argument(
-    '--train_steps',
-    type=int,
-    default=12000,
-    help='Total number of steps to train the model for.')
+flags.DEFINE_integer('train_steps', 12000,
+                     'Total number of steps to train the model for.')
 
-parser.add_argument(
-    '--shuffle_buffer_size',
-    type=int,
-    default=6000,
-    help='Size of the shuffle buffer for the training dataset.')
+flags.DEFINE_integer('shuffle_buffer_size', 6000,
+                     'Size of the shuffle buffer for the training dataset.')
 
-parser.add_argument(
-    '--client_secrets',
-    type=str,
-    required=True,
-    help='OAuth secrets file, see https://github.com/googleapis/'
-    'google-api-python-client/blob/master/docs/client-secrets.md.')
+flags.DEFINE_string(
+    'client_secrets',
+    None, 'OAuth secrets file, see https://github.com/googleapis/'
+    'google-api-python-client/blob/master/docs/client-secrets.md.',
+    required=True)
 
-parser.add_argument(
-    '--client_id',
-    type=str,
-    required=False,
-    default='',
-    help='Used for multi-machine tuning.')
+flags.DEFINE_string('client_id', None, 'Used for multi-machine tuning.')
 
-parser.add_argument(
-    '--study_id',
-    type=str,
-    default=f'vetting_base_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
-    help='Unique identifier string for the study.')
+flags.DEFINE_string(
+    'study_id',
+    f'vetting_base_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
+    'Unique identifier string for the study.')
 
-parser.add_argument(
-    '--tune_trials',
-    type=int,
-    default=1000,
-    help='Total number of trials to tune the model for.')
+flags.DEFINE_integer('tune_trials', 1000,
+                     'Total number of trials to tune the model for.')
 
-parser.add_argument(
-    '--ensemble_count', type=int, default=4, help='Model ensemble size.')
+flags.DEFINE_integer('ensemble_count', 4, 'Model ensemble size.')
+
+FLAGS = flags.FLAGS
 
 REGION = 'us-central1'
 
@@ -398,8 +373,5 @@ def main(_):
 if __name__ == '__main__':
   logger = logging.getLogger().setLevel(logging.WARNING)
   absl_logging.set_verbosity(absl_logging.WARNING)
-
-  FLAGS, unparsed = parser.parse_known_args()
-  train.FLAGS = FLAGS
   train.FLAGS.model_dir = ''
-  app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  app.run(main)
