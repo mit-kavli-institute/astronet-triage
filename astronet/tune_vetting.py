@@ -39,7 +39,7 @@ from google_auth_oauthlib import flow
 from googleapiclient import discovery
 from tensorflow.python.eager import def_function
 
-from astronet import models, training
+from astronet import evaluation, models, training
 
 def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
@@ -242,12 +242,16 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
                      os.listdir(base_dir)[0]))
     model = model_class(config, pretrain_model)
     try:
-      history = training.train(
+      training.train(
           model,
           config,
           train_files=FLAGS.train_files,
-          eval_files=FLAGS.eval_files,
           shuffle_buffer_size=FLAGS.shuffle_buffer_size)
+      metrics = evaluation.evaluate_model(
+          model,
+          config.inputs,
+          FLAGS.eval_files,
+          batch_size=config.hparams.batch_size)
     except KeyboardInterrupt:
       print('\nAborting runs for this trial. Break again for full stop.')
       if ensemble_val_loss:
@@ -255,9 +259,7 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
       else:
         return
 
-    val_loss = history.history['val_loss'][-1]
-
-    ensemble_val_loss.append(val_loss)
+    ensemble_val_loss.append(metrics['loss'])
 
     # Only ensemble promising models.
     if val_loss > 1.3:

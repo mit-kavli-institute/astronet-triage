@@ -85,9 +85,11 @@ def main(_):
       model,
       config,
       train_files=FLAGS.train_files,
-      eval_files=FLAGS.eval_files,
       model_dir=model_dir,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
+
+  if FLAGS.eval_files:
+    logging.warn("--eval_files is currently unused")
 
 
 if __name__ == "__main__":

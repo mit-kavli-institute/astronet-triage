@@ -39,16 +39,8 @@ def compile_model(model, config):
   model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
 
-def train(model,
-          config,
-          train_files,
-          eval_files=None,
-          model_dir=None,
-          shuffle_buffer_size=2500):
+def train(model, config, train_files, model_dir=None, shuffle_buffer_size=2500):
   """Trains a model."""
-  if model_dir:
-    config_util.save_config(config, model_dir)
-
   ds = input_ds.build_dataset(
       file_pattern=train_files,
       input_config=config.inputs,
@@ -56,18 +48,11 @@ def train(model,
       shuffle_values_buffer=shuffle_buffer_size,
       repeat=None)
 
-  eval_ds = None
-  if eval_files:
-    eval_ds = input_ds.build_dataset(
-        file_pattern=eval_files,
-        input_config=config.inputs,
-        batch_size=config.hparams.batch_size)
-
   compile_model(model, config)
-  history = model.fit(
-      ds, steps_per_epoch=config["train_steps"], validation_data=eval_ds)
+  history = model.fit(ds, steps_per_epoch=config["train_steps"])
 
   if model_dir:
+    config_util.save_config(config, model_dir)
     model.save(model_dir)
 
   return history
