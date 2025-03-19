@@ -39,7 +39,7 @@ from google_auth_oauthlib import flow
 from googleapiclient import discovery
 from tensorflow.python.eager import def_function
 
-from astronet import models, train
+from astronet import models, training
 
 def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
@@ -162,7 +162,9 @@ def create_study(client, study):
 
 
 # FIXME
-def map_param(hparams, vetting_hparams, param, inputs_config):
+def map_param(config, param):
+  hparams = config['hparams']
+  vetting_hparams = config['vetting_hparams']
   name = param['parameter']
   if name in ('learning_rate', 'one_minus_adam_beta_1', 'one_minus_adam_beta_2',
               'adam_epsilon'):
@@ -181,9 +183,9 @@ def map_param(hparams, vetting_hparams, param, inputs_config):
     vetting_hparams['time_series_hidden']['local_aperture_s'][name] = int(
         param['intValue'])
   elif name == 'train_steps':
-    train.FLAGS.train_steps = int(param['intValue'])
+    config['train_steps'] = int(param['intValue'])
   elif name == 'exclusive_labels':
-    inputs_config[name] = param['stringValue'].lower() == 'true'
+    config['inputs'][name] = param['stringValue'].lower() == 'true'
   elif name in ('use_batch_norm', 'use_preds_layer'):
     vetting_hparams[name] = param['stringValue'].lower() == 'true'
   elif name == 'separable':
@@ -229,8 +231,7 @@ def load_prev_losses(client):
 def execute_trial(trial_id, params, model_class, config, ensemble_count):
   print(f'=========== Start Trial: [{trial_id}] =============')
   for param in params:
-    map_param(config['hparams'], config['vetting_hparams'], param,
-              config['inputs'])
+    map_param(config, param)
 
   ensemble_val_loss = []
   for _ in range(ensemble_count):
@@ -241,7 +242,12 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
                      os.listdir(base_dir)[0]))
     model = model_class(config, pretrain_model)
     try:
-      history = train.train(model, config).history
+      history = training.train(
+          model,
+          config,
+          train_files=FLAGS.train_files,
+          eval_files=FLAGS.eval_files,
+          shuffle_buffer_size=FLAGS.shuffle_buffer_size)
     except KeyboardInterrupt:
       print('\nAborting runs for this trial. Break again for full stop.')
       if ensemble_val_loss:
@@ -249,7 +255,7 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
       else:
         return
 
-    val_loss = history['val_loss'][-1]
+    val_loss = history.history['val_loss'][-1]
 
     ensemble_val_loss.append(val_loss)
 
@@ -373,5 +379,4 @@ def main(_):
 if __name__ == '__main__':
   logger = logging.getLogger().setLevel(logging.WARNING)
   absl_logging.set_verbosity(absl_logging.WARNING)
-  train.FLAGS.model_dir = ''
   app.run(main)

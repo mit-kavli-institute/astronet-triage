@@ -19,9 +19,7 @@ import os
 import tensorflow as tf
 from absl import app, flags, logging
 
-from astronet import models
-from astronet.astro_cnn_model import input_ds
-from astronet.util import config_util
+from astronet import models, training
 
 flags.DEFINE_string("model", None, "Name of the model class.", required=True)
 
@@ -60,74 +58,14 @@ flags.DEFINE_integer("shuffle_buffer_size", 25000,
 FLAGS = flags.FLAGS
 
 
-def compile(model, config):
-  """Compiles a model for training."""
-  if config.hparams.optimizer != "adam":
-    raise ValueError(config.hparams.optimizer)
-
-  lr = config.hparams.learning_rate
-  beta_1 = 1.0 - config.hparams.one_minus_adam_beta_1
-  beta_2 = 1.0 - config.hparams.one_minus_adam_beta_2
-  epsilon = config.hparams.adam_epsilon
-  optimizer = tf.keras.optimizers.Adam(
-      learning_rate=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
-
-  if config.inputs.get("exclusive_labels", False):
-    loss = tf.keras.losses.CategoricalCrossentropy()
-  else:
-    loss = tf.keras.losses.BinaryCrossentropy()
-
-  metrics = [
-      tf.keras.metrics.Recall(
-          name="r",
-          class_id=config.inputs.primary_class,
-          thresholds=0.2,
-      ),
-      tf.keras.metrics.Precision(
-          name="p",
-          class_id=config.inputs.primary_class,
-          thresholds=0.2,
-      ),
-  ]
-
-  model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-
-
-def train(model, config):
-  """Trains a model."""
-  if FLAGS.model_dir:
-    dir_name = (f"{FLAGS.model_dir}/{FLAGS.model}_{FLAGS.config_name}_"
-                f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
-    config_util.log_and_save_config(config, dir_name)
-
-  ds = input_ds.build_dataset(
-      file_pattern=FLAGS.train_files,
-      input_config=config.inputs,
-      batch_size=config.hparams.batch_size,
-      shuffle_values_buffer=FLAGS.shuffle_buffer_size,
-      repeat=None)
-
-  if FLAGS.eval_files:
-    eval_ds = input_ds.build_dataset(
-        file_pattern=FLAGS.eval_files,
-        input_config=config.inputs,
-        batch_size=config.hparams.batch_size)
-  else:
-    eval_ds = None
-
-  compile(model, config)
-  history = model.fit(
-      ds, steps_per_epoch=config["train_steps"], validation_data=eval_ds)
-
-  if FLAGS.model_dir:
-    model.save(dir_name)
-
-  return history
-
-
 def main(_):
   config = models.get_model_config(FLAGS.model, FLAGS.config_name)
   model_class = models.get_model_class(FLAGS.model)
+
+  model_dir = None
+  if FLAGS.model_dir:
+    model_dir = (f"{FLAGS.model_dir}/{FLAGS.model}_{FLAGS.config_name}_"
+                 f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
   if FLAGS.pretrain_model_dir:
     pretrain_model = tf.keras.models.load_model(
@@ -143,7 +81,13 @@ def main(_):
     raise ValueError(
         "train_steps must be set in the config or via --train_steps")
 
-  train(model, config)
+  training.train(
+      model,
+      config,
+      train_files=FLAGS.train_files,
+      eval_files=FLAGS.eval_files,
+      model_dir=model_dir,
+      shuffle_buffer_size=FLAGS.shuffle_buffer_size)
 
 
 if __name__ == "__main__":

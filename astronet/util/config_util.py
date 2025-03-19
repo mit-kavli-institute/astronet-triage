@@ -35,8 +35,8 @@ def config_file(output_dir):
   return os.path.join(output_dir, "config.json")
 
 
-def log_and_save_config(config, output_dir):
-  """Logs and writes a JSON-serializable configuration object.
+def save_config(config, output_dir):
+  """Writes a JSON-serializable configuration object.
   Args:
     config: A JSON-serializable object.
     output_dir: Destination directory.
