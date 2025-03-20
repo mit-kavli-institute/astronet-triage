@@ -72,6 +72,10 @@ def unpack_inputs(inputs, hparams):
   ts_inputs = {}
   aux_inputs = {}
   for key, config in hparams.time_series_hidden.items():
+    # The TensorFlow Dataset class converts keys from the input config to
+    # lowercase, so do the same for the feature names.
+    key = key.lower()
+
     chans = [inputs[key]]
     for extra in config.get('extra_channels', []):
       chans.append(inputs[extra])
