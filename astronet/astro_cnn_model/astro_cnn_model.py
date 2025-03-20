@@ -66,9 +66,7 @@ class AstroCNNModel(tf.keras.Model):
       self.final = base.build_final_fc_layers(config.inputs, config.hparams)
 
   def call(self, inputs, training=None):
-    ts_inputs, aux_inputs = base.unpack_inputs(
-        inputs, self.config.hparams.time_series_hidden,
-        self.config.hparams.aux_inputs)
+    ts_inputs, aux_inputs = base.unpack_inputs(inputs, self.config.hparams)
     y = []
     for k in sorted(ts_inputs.keys()):
       v = ts_inputs[k]

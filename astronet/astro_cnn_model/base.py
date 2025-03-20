@@ -67,22 +67,19 @@ def build_final_fc_layers(input_config, hparams):
   return layers
 
 
-# TODO(shallue): clean this up.
-def unpack_inputs(inputs, time_series_hidden, aux_inputs):
+def unpack_inputs(inputs, hparams):
   """Unpacks inputs into time-series and auxiliary features."""
   ts_inputs = {}
   aux_inputs = {}
-  for k, v in inputs.items():
-    if k in time_series_hidden:
-      c = time_series_hidden[k]
-      chans = [v]
-      for extra in getattr(c, 'extra_channels', []):
-        chans.append(inputs[extra])
-      if getattr(c, 'multichannel', False):
-        ts_inputs[k] = tf.concat(chans, axis=-1)
-      else:
-        ts_inputs[k] = tf.stack(chans, axis=-1)
-    elif k in aux_inputs:
-      aux_inputs[k] = v
+  for key, config in hparams.time_series_hidden.items():
+    chans = [inputs[key]]
+    for extra in config.get('extra_channels', []):
+      chans.append(inputs[extra])
+    if config.get('multichannel'):
+      ts_inputs[key] = tf.concat(chans, axis=-1)
+    else:
+      ts_inputs[key] = tf.stack(chans, axis=-1)
+  for key in hparams.aux_inputs:
+    aux_inputs[key] = inputs[key]
 
   return ts_inputs, aux_inputs
