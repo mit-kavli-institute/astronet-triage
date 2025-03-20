@@ -23,31 +23,14 @@ class AstroCNNModelVetting(tf.keras.Model):
 
   def __init__(self, config, triage_model):
     super(AstroCNNModelVetting, self).__init__()
-
-    hps = config.vetting_hparams
-    self.triage_model = astro_cnn_model.AstroCNNModel(
-        config, triage_model, embeds_only=not hps.use_preds_layer)
     self.config = config
 
+    embeds_only = not config.vetting_hparams.use_preds_layer
+    self.triage_model = astro_cnn_model.AstroCNNModel(
+        config, triage_model, embeds_only=embeds_only)
     self.ts_blocks = base.create_ts_blocks(config.hparams)
-
-    self.final = [tf.keras.layers.Concatenate()]
-    for _ in range(hps.num_pre_logits_hidden_layers):
-      self.final.append(
-          tf.keras.layers.Dense(
-              units=hps.pre_logits_hidden_layer_size, activation='relu'))
-      if hps.use_batch_norm:
-        self.final.append(tf.keras.layers.BatchNormalization())
-      self.final.append(tf.keras.layers.Dropout(hps.pre_logits_dropout_rate))
-    if config.inputs.get('exclusive_labels', False):
-      self.final.append(
-          tf.keras.layers.Dense(
-              units=len(config.inputs.label_columns), activation=None))
-      self.final.append(tf.keras.layers.Softmax())
-    else:
-      self.final.append(
-          tf.keras.layers.Dense(
-              units=len(config.inputs.label_columns), activation='sigmoid'))
+    self.final = base.build_final_fc_layers(config.inputs,
+                                            config.vetting_hparams)
 
   def call(self, inputs, training=None):
 

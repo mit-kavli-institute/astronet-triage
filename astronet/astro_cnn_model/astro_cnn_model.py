@@ -61,24 +61,9 @@ class AstroCNNModel(tf.keras.Model):
         self.final = pretrain_model.final[:-1]
       else:
         self.final = pretrain_model.final
-
     else:
       self.ts_blocks = base.create_ts_blocks(config.hparams)
-
-      self.final = [tf.keras.layers.Concatenate()]
-
-      hps = config.hparams
-      for _ in range(hps.num_pre_logits_hidden_layers):
-        self.final.append(
-            tf.keras.layers.Dense(
-                units=hps.pre_logits_hidden_layer_size, activation='relu'))
-        if hps.use_batch_norm:
-          self.final.append(tf.keras.layers.BatchNormalization())
-        self.final.append(tf.keras.layers.Dropout(hps.pre_logits_dropout_rate))
-
-      self.final.append(
-          tf.keras.layers.Dense(
-              units=len(config.inputs.label_columns), activation='sigmoid'))
+      self.final = base.build_final_fc_layers(config.inputs, config.hparams)
 
   def call(self, inputs, training=None):
     ts_inputs = {}

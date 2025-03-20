@@ -33,6 +33,7 @@ def create_conv_block(name, block_params):
 
 
 def create_ts_blocks(hparams):
+  """Builds time series convolutional blocks."""
   blocks = {}
   for name, block_params in hparams.time_series_hidden.items():
     blocks[name] = create_conv_block(name, block_params)
@@ -40,7 +41,27 @@ def create_ts_blocks(hparams):
 
 
 def apply_block(block, input, training):
+  """Applies a block of layers."""
   y = input
   for layer in block:
     y = layer(y, training=training)
   return y
+
+
+def build_final_fc_layers(input_config, hparams):
+  """Builds the final fully-connected layers."""
+  layers = [tf.keras.layers.Concatenate()]
+  for _ in range(hparams.num_pre_logits_hidden_layers):
+    hidden_units = hparams.pre_logits_hidden_layer_size
+    layers.append(tf.keras.layers.Dense(units=hidden_units, activation='relu'))
+    if hparams.use_batch_norm:
+      layers.append(tf.keras.layers.BatchNormalization())
+    layers.append(tf.keras.layers.Dropout(hparams.pre_logits_dropout_rate))
+  n_labels = len(input_config.label_columns)
+  if input_config.get('exclusive_labels'):
+    layers.append(tf.keras.layers.Dense(units=n_labels, activation=None))
+    layers.append(tf.keras.layers.Softmax())
+  else:
+    layers.append(tf.keras.layers.Dense(units=n_labels, activation='sigmoid'))
+
+  return layers
