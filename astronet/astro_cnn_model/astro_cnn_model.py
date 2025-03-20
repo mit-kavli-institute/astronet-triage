@@ -44,6 +44,7 @@ The architecture of this model is:
 import tensorflow as tf
 
 from astronet.astro_cnn_model import base
+from astronet.util import config_util
 
 
 class AstroCNNModel(tf.keras.Model):
@@ -52,7 +53,7 @@ class AstroCNNModel(tf.keras.Model):
   def __init__(self, config, pretrain_model=None, embeds_only=False):
     super(AstroCNNModel, self).__init__()
 
-    self.config = config
+    self.config = config_util.validate(config)
     self.embeds_only = embeds_only
 
     if pretrain_model is not None:

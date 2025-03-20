@@ -23,6 +23,8 @@ class AstroCNNModelVetting(tf.keras.Model):
 
   def __init__(self, config, triage_model):
     super(AstroCNNModelVetting, self).__init__()
+    # TODO(cshallue): use config_util.validate(), but make sure to validate both
+    # the triage and vetting configs.
     self.config = config
 
     embeds_only = not config.vetting_hparams.use_preds_layer
