@@ -43,6 +43,8 @@ The architecture of this model is:
 
 import tensorflow as tf
 
+from astronet.astro_cnn_model import base
+
 
 class AstroCNNModel(tf.keras.Model):
   """A convolutional model for classifying light curves."""
@@ -61,7 +63,7 @@ class AstroCNNModel(tf.keras.Model):
         self.final = pretrain_model.final
 
     else:
-      self.ts_blocks = self._create_ts_blocks(config)
+      self.ts_blocks = base.create_ts_blocks(config.hparams)
 
       self.final = [tf.keras.layers.Concatenate()]
 
@@ -77,46 +79,6 @@ class AstroCNNModel(tf.keras.Model):
       self.final.append(
           tf.keras.layers.Dense(
               units=len(config.inputs.label_columns), activation='sigmoid'))
-
-  def _create_conv_block(self, config, name):
-    block_params = config.hparams.time_series_hidden[name]
-    layers = []
-    for i in range(block_params.cnn_num_blocks):
-      block_name = f'{name}_block_{i+1}'
-      num_filters = int(
-          float(block_params.cnn_initial_num_filters) *
-          block_params.cnn_block_filter_factor**i)
-      for j in range(block_params.cnn_block_size):
-        Conv1D = (
-            tf.keras.layers.SeparableConv1D
-            if block_params.get('separable') else tf.keras.layers.Conv1D)
-        layers.append(
-            Conv1D(
-                filters=num_filters,
-                kernel_size=block_params.cnn_kernel_size,
-                padding=block_params.convolution_padding,
-                activation='relu',
-                name=f'{block_name}_conv_{j+1}'))
-      if block_params.pool_size:
-        layers.append(
-            tf.keras.layers.MaxPool1D(
-                pool_size=block_params.pool_size,
-                strides=block_params.pool_strides,
-                name=f'{block_name}_pool'))
-    layers.append(tf.keras.layers.Flatten())
-    return layers
-
-  def _create_ts_blocks(self, config):
-    blocks = {}
-    for key in config.hparams.time_series_hidden:
-      blocks[key] = self._create_conv_block(config, key)
-    return blocks
-
-  def _apply_block(self, block, input_, training):
-    y = input_
-    for layer in block:
-      y = layer(y, training=training)
-    return y
 
   def call(self, inputs, training=None):
     ts_inputs = {}
@@ -136,9 +98,8 @@ class AstroCNNModel(tf.keras.Model):
     y = []
     for k in sorted(ts_inputs.keys()):
       v = ts_inputs[k]
-      y_k = self._apply_block(self.ts_blocks[k], v, training)
-      y.append(y_k)
+      y.append(base.apply_block(self.ts_blocks[k], v, training))
     y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
-    y = self._apply_block(self.final, y, training)
+    y = base.apply_block(self.final, y, training)
 
     return y
