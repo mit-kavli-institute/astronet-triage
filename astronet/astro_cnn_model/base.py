@@ -40,9 +40,9 @@ def create_ts_blocks(hparams):
   return blocks
 
 
-def apply_block(block, input, training):
+def apply_block(block, x, training):
   """Applies a block of layers."""
-  y = input
+  y = x
   for layer in block:
     y = layer(y, training=training)
   return y
