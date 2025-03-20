@@ -75,7 +75,6 @@ def unpack_inputs(inputs, hparams):
     # The TensorFlow Dataset class converts keys from the input config to
     # lowercase, so do the same for the feature names.
     key = key.lower()
-
     chans = [inputs[key]]
     for extra in config.get('extra_channels', []):
       chans.append(inputs[extra])
@@ -84,6 +83,9 @@ def unpack_inputs(inputs, hparams):
     else:
       ts_inputs[key] = tf.stack(chans, axis=-1)
   for key in hparams.aux_inputs:
+    # The TensorFlow Dataset class converts keys from the input config to
+    # lowercase, so do the same for the feature names.
+    key = key.lower()
     aux_inputs[key] = inputs[key]
 
   return ts_inputs, aux_inputs
