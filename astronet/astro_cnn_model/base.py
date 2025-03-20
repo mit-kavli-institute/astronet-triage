@@ -65,3 +65,24 @@ def build_final_fc_layers(input_config, hparams):
     layers.append(tf.keras.layers.Dense(units=n_labels, activation='sigmoid'))
 
   return layers
+
+
+# TODO(shallue): clean this up.
+def unpack_inputs(inputs, time_series_hidden, aux_inputs):
+  """Unpacks inputs into time-series and auxiliary features."""
+  ts_inputs = {}
+  aux_inputs = {}
+  for k, v in inputs.items():
+    if k in time_series_hidden:
+      c = time_series_hidden[k]
+      chans = [v]
+      for extra in getattr(c, 'extra_channels', []):
+        chans.append(inputs[extra])
+      if getattr(c, 'multichannel', False):
+        ts_inputs[k] = tf.concat(chans, axis=-1)
+      else:
+        ts_inputs[k] = tf.stack(chans, axis=-1)
+    elif k in aux_inputs:
+      aux_inputs[k] = v
+
+  return ts_inputs, aux_inputs

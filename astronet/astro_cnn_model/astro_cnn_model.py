@@ -66,20 +66,9 @@ class AstroCNNModel(tf.keras.Model):
       self.final = base.build_final_fc_layers(config.inputs, config.hparams)
 
   def call(self, inputs, training=None):
-    ts_inputs = {}
-    aux_inputs = {}
-    for k, v in inputs.items():
-      if k in self.config.hparams.time_series_hidden:
-        c = self.config.hparams.time_series_hidden[k]
-        chans = [v]
-        for extra in getattr(c, 'extra_channels', []):
-          chans.append(inputs[extra])
-        if getattr(c, 'multichannel', False):
-          ts_inputs[k] = tf.concat(chans, axis=-1)
-        else:
-          ts_inputs[k] = tf.stack(chans, axis=-1)
-      elif k in self.config.hparams.aux_inputs:
-        aux_inputs[k] = v
+    ts_inputs, aux_inputs = base.unpack_inputs(
+        inputs, self.config.hparams.time_series_hidden,
+        self.config.hparams.aux_inputs)
     y = []
     for k in sorted(ts_inputs.keys()):
       v = ts_inputs[k]

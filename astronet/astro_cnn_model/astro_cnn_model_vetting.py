@@ -49,6 +49,7 @@ class AstroCNNModelVetting(tf.keras.Model):
 
     triage_embedding = self.triage_model(triage_inputs, training=training)
 
+    # TODO(cshallue): use base.unpack_inputs() once I confirm what goes where.
     ts_inputs = {}
     aux_inputs = {}
     for k, v in vetting_inputs.items():
