@@ -49,12 +49,19 @@ class ExampleParser:
           parsed_features.pop(name) for name in self.config.label_columns
       ]
       label_features = tf.cast(tf.stack(label_features), tf.float32)
-      labels = tf.minimum(label_features, 1)
 
-      weight = tf.reduce_max(label_features) / tf.maximum(
-          tf.reduce_sum(label_features), 1.0)
-      if labels[self.config.primary_class] < 1:
-        weight /= 2.0
+      label_scheme = self.config.get("label_scheme", "tey_2023")
+      if label_scheme == "tey_2023":
+        labels = tf.minimum(label_features, 1)
+        weight = tf.reduce_max(label_features) / tf.maximum(
+            tf.reduce_sum(label_features), 1.0)
+        if labels[self.config.primary_class] < 1:
+          weight /= 2.0
+      elif label_scheme == "shallue":
+        labels = label_features / tf.reduce_sum(label_features)
+        weight = 1.0
+      else:
+        raise ValueError(f"Unrecognized label_scheme: {label_scheme}")
 
     if self.include_identifiers:
       identifiers = parsed_features.pop("astro_id")
