@@ -107,7 +107,7 @@ def build_dataset(file_pattern,
   example_parser = ExampleParser(input_config, include_labels,
                                  include_identifiers)
   ds = ds.map(example_parser)
-  if repeat != 1 and use_cache:
+  if use_cache:
     # Cache the dataset in memory to avoid re-reading it over the network.
     ds = ds.cache()
     if shuffle_filenames:
