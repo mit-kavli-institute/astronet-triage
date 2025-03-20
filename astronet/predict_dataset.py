@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from absl import app, flags, logging
 
-from astronet.astro_cnn_model import input_ds
+from astronet import evaluation
 from astronet.util import config_util
 
 flags.DEFINE_string(
@@ -51,17 +51,8 @@ def main(_):
   # Build model and dataset.
   config = config_util.load_config(FLAGS.model_dir)
   model = tf.keras.models.load_model(FLAGS.model_dir)
-  ds = input_ds.build_dataset(
-      file_pattern=FLAGS.eval_files,
-      input_config=config.inputs,
-      batch_size=FLAGS.batch_size)
-  # Generate predictions.
-  y_pred = model.predict(ds)
-  # Get the true labels.
-  y_label = []
-  for _, labels, _ in ds:
-    y_label.append(labels)
-  y_label = np.concatenate(y_label).astype(np.int32)
+  y_label, y_pred = evaluation.generate_labels_and_predictions(
+      model, config.inputs, FLAGS.eval_files, FLAGS.batch_size)
   # Save the arrays.
   _save_array(y_pred, f"{FLAGS.output_basename}_pred")
   _save_array(y_label, f"{FLAGS.output_basename}_label")

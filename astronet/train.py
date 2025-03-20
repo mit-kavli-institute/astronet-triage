@@ -16,10 +16,11 @@
 import datetime
 import os
 
+import numpy as np
 import tensorflow as tf
 from absl import app, flags, logging
 
-from astronet import models, training
+from astronet import evaluation, models, training
 
 flags.DEFINE_string("model", None, "Name of the model class.", required=True)
 
@@ -38,10 +39,12 @@ flags.DEFINE_string(
     required=True,
 )
 
-flags.DEFINE_string(
+flags.DEFINE_multi_string(
     "eval_files", None,
-    "Comma-separated list of file patterns matching the TFRecord files in "
-    "the validation dataset.")
+    "File patterns matching the TFRecord files in the evaluation dataset(s). "
+    "Multiple evaluation datasets are allowed. The training set does not need "
+    "to be specified. Each evaluation dataset can be named with the format "
+    "name:file_patterns.")
 
 flags.DEFINE_string("model_dir", None,
                     "Directory for model checkpoints and summaries.")
@@ -88,8 +91,29 @@ def main(_):
       model_dir=model_dir,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
 
-  if FLAGS.eval_files:
-    logging.warn("--eval_files is currently unused")
+  # Construct evaluation datasets.
+  # This includes the training set and possibly additional datasets.
+  eval_datasets = [("train", FLAGS.train_files)]
+  for file_pattern in FLAGS.eval_files:
+    if ":" in file_pattern:
+      name, file_pattern = file_pattern.split(":")
+    elif len(FLAGS.eval_files) == 1:
+      # If there is only a single evaluation dataset, default name is 'eval'.
+      name = "eval"
+    else:
+      raise ValueError("Multiple evaluation datasets must be named with format "
+                       "name:file_patterns")
+    eval_datasets.append((name, file_pattern))
+
+  # Generate predictions on the evaluation datasets and save the output files.
+  eval_dir = os.path.join(model_dir, "evaluation")
+  if not os.path.exists(eval_dir):
+    os.makedirs(eval_dir)
+  for name, file_pattern in eval_datasets:
+    labels, predictions = evaluation.generate_labels_and_predictions(
+        model, config.inputs, file_pattern, config.hparams.batch_size)
+    np.save(os.path.join(eval_dir, f"{name}_label.npy"), labels)
+    np.save(os.path.join(eval_dir, f"{name}_pred.npy"), predictions)
 
 
 if __name__ == "__main__":
