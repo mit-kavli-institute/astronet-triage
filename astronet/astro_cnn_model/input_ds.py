@@ -30,14 +30,13 @@ class ExampleParser:
 
   def __call__(self, serialized_example):
     """Parses a single tf.Example into feature and label tensors."""
-
     data_fields = {
         feature_name: tf.io.FixedLenFeature(feature.shape, tf.float32)
         for feature_name, feature in self.config.features.items()
     }
     if self.include_labels:
-      for n in self.config.label_columns:
-        data_fields[n] = tf.io.FixedLenFeature([], tf.int64)
+      for name in self.config.label_columns:
+        data_fields[name] = tf.io.FixedLenFeature([], tf.int64)
     if self.include_identifiers:
       assert "astro_id" not in data_fields
       data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
@@ -49,14 +48,13 @@ class ExampleParser:
       label_features = [
           parsed_features.pop(name) for name in self.config.label_columns
       ]
-      labels = tf.stack(label_features)
-      labels_f = tf.cast(labels, tf.float32)
-      labels = tf.cast(tf.minimum(labels, 1), tf.float32)
+      label_features = tf.cast(tf.stack(label_features), tf.float32)
+      labels = tf.minimum(label_features, 1)
 
-      weights = tf.reduce_max(labels_f) / tf.maximum(
-          tf.reduce_sum(labels_f), 1.0)
+      weight = tf.reduce_max(label_features) / tf.maximum(
+          tf.reduce_sum(label_features), 1.0)
       if labels[self.config.primary_class] < 1:
-        weights /= 2.0
+        weight /= 2.0
 
     if self.include_identifiers:
       identifiers = parsed_features.pop("astro_id")
@@ -81,7 +79,7 @@ class ExampleParser:
       features[name.lower()] = value
 
     if self.include_labels:
-      return features, labels, weights
+      return features, labels, weight
     elif self.include_identifiers:
       return features, identifiers
     return features
@@ -96,7 +94,7 @@ def build_dataset(file_pattern,
                   repeat=1,
                   include_identifiers=False,
                   use_cache=True):
-
+  """Builds a Tensorflow Dataset from TFrecord files."""
   filenames = tf.io.gfile.glob(file_pattern)
   if not filenames:
     raise ValueError(f"Found no files matching '{file_pattern}'")
