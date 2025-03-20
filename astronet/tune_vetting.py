@@ -259,7 +259,8 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
       else:
         return
 
-    ensemble_val_loss.append(metrics['loss'])
+    val_loss = metrics['loss']
+    ensemble_val_loss.append(val_loss)
 
     # Only ensemble promising models.
     if val_loss > 1.3:
