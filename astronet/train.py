@@ -46,8 +46,11 @@ flags.DEFINE_multi_string(
     "to be specified. Each evaluation dataset can be named with the format "
     "name:file_patterns.")
 
-flags.DEFINE_string("model_dir", None,
-                    "Directory for model checkpoints and summaries.")
+flags.DEFINE_string(
+    "model_dir",
+    None,
+    "Directory for model checkpoints and summaries.",
+    required=True)
 
 flags.DEFINE_string("pretrain_model_dir", None,
                     "Directory for pretrained model checkpoints.")
@@ -64,11 +67,8 @@ FLAGS = flags.FLAGS
 def main(_):
   config = models.get_model_config(FLAGS.model, FLAGS.config_name)
   model_class = models.get_model_class(FLAGS.model)
-
-  model_dir = None
-  if FLAGS.model_dir:
-    model_dir = (f"{FLAGS.model_dir}/{FLAGS.model}_{FLAGS.config_name}_"
-                 f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
+  model_dir = (f"{FLAGS.model_dir}/{FLAGS.model}_{FLAGS.config_name}_"
+               f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
   if FLAGS.pretrain_model_dir:
     pretrain_model = tf.keras.models.load_model(
