@@ -1,5 +1,8 @@
 """Functions for evaluating a trained model."""
 
+import json
+import os
+
 import numpy as np
 
 from astronet.astro_cnn_model import input_ds
@@ -50,3 +53,10 @@ def evaluate_model(model, input_config, file_pattern, batch_size):
   keras_metrics = calc_keras_metrics(model, dataset)
   metrics.update(keras_metrics)
   return metrics, y_label, y_pred
+
+
+def save_metrics(metrics, eval_dir):
+  """Saves the metrics dictionary as a json file."""
+  filename = os.path.join(eval_dir, "metrics.json")
+  with open(filename, "w", encoding="utf-8") as f:
+    json.dump(metrics, f, indent=2)

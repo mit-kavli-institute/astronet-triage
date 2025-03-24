@@ -14,7 +14,6 @@
 """Script for training an AstroNet model."""
 
 import datetime
-import json
 import os
 
 import numpy as np
@@ -117,9 +116,7 @@ def main(_):
     all_metrics[name] = metrics
     np.save(os.path.join(eval_dir, f"{name}_label.npy"), labels)
     np.save(os.path.join(eval_dir, f"{name}_pred.npy"), predictions)
-  metrics_filename = os.path.join(eval_dir, "metrics.json")
-  with open(metrics_filename, "w", encoding="utf-8") as f:
-    json.dump(all_metrics, f, indent=2)
+  evaluation.save_metrics(all_metrics, eval_dir)
 
 
 if __name__ == "__main__":
