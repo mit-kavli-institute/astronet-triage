@@ -131,11 +131,11 @@ def merge_configs(base, source):
       merge_configs(base[key], value)
 
 
-def config_file(output_dir):
-  return os.path.join(output_dir, "config.json")
+def config_file(output_dir, basename="config"):
+  return os.path.join(output_dir, f"{basename}.json")
 
 
-def save_config(config, output_dir):
+def save_config(config, output_dir, basename="config"):
   """Writes a JSON-serializable configuration object.
   Args:
     config: A JSON-serializable object.
@@ -147,7 +147,7 @@ def save_config(config, output_dir):
     config_json = json.dumps(config, indent=2)
 
   tf.io.gfile.makedirs(output_dir)
-  with tf.io.gfile.GFile(config_file(output_dir), "w") as f:
+  with tf.io.gfile.GFile(config_file(output_dir, basename), "w") as f:
     f.write(config_json)
 
 
