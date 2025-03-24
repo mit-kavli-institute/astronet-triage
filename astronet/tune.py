@@ -39,6 +39,7 @@ from googleapiclient import discovery
 from tensorflow.python.eager import def_function
 
 from astronet import evaluation, models, training
+from astronet.astro_cnn_model import input_ds
 
 def_function.FREQUENT_TRACING_WARNING_THRESHOLD = sys.maxsize
 
@@ -253,11 +254,11 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
           config,
           train_files=FLAGS.train_files,
           shuffle_buffer_size=FLAGS.shuffle_buffer_size)
-      metrics = evaluation.evaluate_model(
-          model,
-          config.inputs,
-          FLAGS.eval_files,
+      eval_ds = input_ds.build_dataset(
+          file_pattern=FLAGS.eval_files,
+          input_config=config.inputs,
           batch_size=config.hparams.batch_size)
+      metrics = evaluation.calc_keras_metrics(model, eval_ds)
     except KeyboardInterrupt:
       print('\nAborting runs for this trial. Break again for full stop.')
       if ensemble_val_loss:

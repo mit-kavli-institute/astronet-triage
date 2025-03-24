@@ -14,6 +14,7 @@
 """Script for training an AstroNet model."""
 
 import datetime
+import json
 import os
 
 import numpy as np
@@ -109,11 +110,16 @@ def main(_):
   eval_dir = os.path.join(model_dir, "evaluation")
   if not os.path.exists(eval_dir):
     os.makedirs(eval_dir)
+  all_metrics = {}
   for name, file_pattern in eval_datasets:
-    labels, predictions = evaluation.generate_labels_and_predictions(
+    metrics, labels, predictions = evaluation.evaluate_model(
         model, config.inputs, file_pattern, config.hparams.batch_size)
+    all_metrics[name] = metrics
     np.save(os.path.join(eval_dir, f"{name}_label.npy"), labels)
     np.save(os.path.join(eval_dir, f"{name}_pred.npy"), predictions)
+  metrics_filename = os.path.join(eval_dir, "metrics.json")
+  with open(metrics_filename, "w", encoding="utf-8") as f:
+    json.dump(all_metrics, f, indent=2)
 
 
 if __name__ == "__main__":
