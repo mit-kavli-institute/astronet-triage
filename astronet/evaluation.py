@@ -1,7 +1,6 @@
 """Functions for evaluating a trained model."""
 
 import numpy as np
-import sklearn
 
 from astronet.astro_cnn_model import input_ds
 
@@ -26,6 +25,11 @@ def generate_labels_and_predictions(model, dataset):
 
 def calc_auc_scores(y_label, y_pred, primary_class):
   """Calculates AUC scores for predictions and labels."""
+  # Lazily import sklearn as it is currently only used within this function.
+  # This makes the code backwards-compatible with environments that don't have
+  # sklearn installed.
+  import sklearn
+
   p_label = y_label[:, primary_class]
   p_pred = y_pred[:, primary_class]
   auc = sklearn.metrics.roc_auc_score(p_label, p_pred)
