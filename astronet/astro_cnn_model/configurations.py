@@ -4457,7 +4457,7 @@ def cshallue():
           "one_minus_adam_beta_1": 0.16168028483420177,
           "one_minus_adam_beta_2": 0.022674419033475692,
           "adam_epsilon": 2.5037055725611666e-07,
-          "adam_weight_decay": 0.0,
+          "weight_decay": None,
           "use_batch_norm": False,
           "num_pre_logits_hidden_layers": 4,
           "pre_logits_hidden_layer_size": 482,
