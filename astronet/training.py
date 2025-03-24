@@ -23,20 +23,7 @@ def compile_model(model, config):
   else:
     loss = tf.keras.losses.BinaryCrossentropy()
 
-  metrics = [
-      tf.keras.metrics.Recall(
-          name="r",
-          class_id=config.inputs.primary_class,
-          thresholds=0.2,
-      ),
-      tf.keras.metrics.Precision(
-          name="p",
-          class_id=config.inputs.primary_class,
-          thresholds=0.2,
-      ),
-  ]
-
-  model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+  model.compile(optimizer=optimizer, loss=loss)
 
 
 def train(model, config, train_files, model_dir=None, shuffle_buffer_size=2500):
