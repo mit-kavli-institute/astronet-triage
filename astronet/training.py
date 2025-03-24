@@ -17,15 +17,9 @@ def compile_model(model, config):
       "beta_1": 1.0 - config.hparams.one_minus_adam_beta_1,
       "beta_2": 1.0 - config.hparams.one_minus_adam_beta_2,
       "epsilon": config.hparams.adam_epsilon,
+      "weight_decay": config.hparams.get("adam_weight_decay")
   }
-  weight_decay = config.hparams.get("adam_weight_decay", 0)
-  if weight_decay:
-    hparams["weight_decay"] = weight_decay
-    opt_class = tf.keras.optimizers.AdamW
-  else:
-    opt_class = tf.keras.optimizers.Adam
-
-  optimizer = opt_class(**hparams)
+  optimizer = tf.keras.optimizers.Adam(**hparams)
   logging.info(f"Using '{optimizer.name}' optimizer with parameters {hparams}")
 
   if config.inputs.get("exclusive_labels", False):
