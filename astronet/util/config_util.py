@@ -95,6 +95,19 @@ def unflatten(flat_config):
   return config
 
 
+def flatten(config):
+  """Flattens a nested config."""
+  flat_config = {}
+  for key, subconfig_or_value in config.items():
+    if isinstance(subconfig_or_value, dict):
+      flat_subconfig = flatten(subconfig_or_value)
+      for subkey, value in flat_subconfig.items():
+        flat_config[f"{key}.{subkey}"] = value
+    else:
+      flat_config[key] = subconfig_or_value
+  return flat_config
+
+
 def update(base, source):
   """Replaces parameters from base with source.
   
