@@ -1,6 +1,7 @@
 """Functions used for training an AstroNet model."""
 
 import tensorflow as tf
+from absl import logging
 
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
@@ -11,17 +12,27 @@ def compile_model(model, config):
   if config.hparams.optimizer != "adam":
     raise ValueError(config.hparams.optimizer)
 
-  lr = config.hparams.learning_rate
-  beta_1 = 1.0 - config.hparams.one_minus_adam_beta_1
-  beta_2 = 1.0 - config.hparams.one_minus_adam_beta_2
-  epsilon = config.hparams.adam_epsilon
-  optimizer = tf.keras.optimizers.Adam(
-      learning_rate=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
+  hparams = {
+      "learning_rate": config.hparams.learning_rate,
+      "beta_1": 1.0 - config.hparams.one_minus_adam_beta_1,
+      "beta_2": 1.0 - config.hparams.one_minus_adam_beta_2,
+      "epsilon": config.hparams.adam_epsilon,
+  }
+  weight_decay = config.hparams.get("adam_weight_decay", 0)
+  if weight_decay:
+    hparams["weight_decay"] = weight_decay
+    opt_class = tf.keras.optimizers.AdamW
+  else:
+    opt_class = tf.keras.optimizers.Adam
+
+  optimizer = opt_class(**hparams)
+  logging.info(f"Using '{optimizer.name}' optimizer with parameters {hparams}")
 
   if config.inputs.get("exclusive_labels", False):
     loss = tf.keras.losses.CategoricalCrossentropy()
   else:
     loss = tf.keras.losses.BinaryCrossentropy()
+  logging.info(f"Using '{loss.name}' loss")
 
   model.compile(optimizer=optimizer, loss=loss)
 
