@@ -61,14 +61,74 @@ def validate(config, convert_feature_names=False):
   return config
 
 
+def add_nested_param(config, path, value, overwrite=False):
+  """Adds a nested parameter to config.
+  
+  Args:
+    config: Configuration to add the parameter to.
+    path: Nested parameter specification of the form 'a.b.c'
+    value: Parameter value
+    """
+  if not isinstance(config, dict):
+    raise ValueError(f"Config has type {type(config)}")
+  if "." not in path:
+    # Adding a leaf node.
+    if path in config and not overwrite:
+      raise ValueError(f"'{path}' already exists and overwrite=False")
+    config[path] = value
+  else:
+    # Add nested parameter.
+    key, subpath = path.split(".", 1)
+    if key not in config:
+      config[key] = {}
+    add_nested_param(config[key], subpath, value, overwrite)
+
+
+def unflatten(flat_config):
+  """Unflattens a flattened config.
+  
+  E.g., {"a.b.c": 123, "a.d": 25} becomes {"a": {"b": {"c": 123}}, "d": 25}.
+  """
+  config = {}
+  for key, value in flat_config.items():
+    add_nested_param(config, key, value)
+  return config
+
+
+def update(base, source):
+  """Replaces parameters from base with source.
+  
+  Args:
+    base: Base configuration to modify.
+    source: Configuration parameters to update in base. Parameters must already
+      be in base.
+  """
+  if not (isinstance(base, dict) and isinstance(source, dict)):
+    raise ValueError(f"base is '{type(base)}', source is '{type(source)}'")
+  for key, value in source.items():
+    if key not in base:
+      raise KeyError(key)
+    if isinstance(value, dict):
+      update(base[key], value)
+    else:
+      base[key] = value
+
+
 def merge_configs(base, source):
-  if not isinstance(source, dict) and isinstance(base, dict):
-    raise ValueError(f"source is {type(source)}, but base is {type(base)}")
-  for k in source:
-    if k not in base:
-      base[k] = source[k]
-    elif isinstance(source[k], dict):
-      merge_configs(base[k], source[k])
+  """Adds new parameters from source to base.
+  
+  Args:
+    base: Base configuration to modify.
+    source: Configuration parameters to add to base. Parameters already in base
+      will be ignored.
+  """
+  if not (isinstance(base, dict) and isinstance(source, dict)):
+    raise ValueError(f"base is '{type(base)}', source is '{type(source)}'")
+  for key, value in source.items():
+    if key not in base:
+      base[key] = value
+    elif isinstance(value, dict):
+      merge_configs(base[key], value)
 
 
 def config_file(output_dir):
