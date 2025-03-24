@@ -8,6 +8,8 @@ from astronet.astro_cnn_model import input_ds
 def calc_keras_metrics(model, dataset):
   """Calculates a trained model's metrics over a dataset."""
   results = model.evaluate(dataset)
+  if len(model.metrics_names) == 1:
+    results = [results]
   return dict(zip(model.metrics_names, results))
 
 
