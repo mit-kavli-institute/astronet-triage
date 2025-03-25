@@ -45,6 +45,15 @@ def train(model, config, train_files, model_dir=None, shuffle_buffer_size=2500):
   history = model.fit(ds, steps_per_epoch=config["train_steps"])
 
   if model_dir:
+    # Save the training and model configs along with the model.
+    config_util.save_config(
+        {
+            # TODO(cshallue): add model name and base config name here too.
+            "train_files": train_files,
+            "shuffle_buffer_size": shuffle_buffer_size,
+        },
+        model_dir,
+        basename="train_config")
     config_util.save_config(config, model_dir)
     model.save(model_dir)
 
