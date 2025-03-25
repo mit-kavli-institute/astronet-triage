@@ -144,7 +144,8 @@ def merge_configs(base, source):
       merge_configs(base[key], value)
 
 
-def config_file(output_dir, basename="config"):
+def config_filename(output_dir, basename="config"):
+  """Returns the filepath of a configuration object."""
   return os.path.join(output_dir, f"{basename}.json")
 
 
@@ -153,6 +154,7 @@ def save_config(config, output_dir, basename="config"):
   Args:
     config: A JSON-serializable object.
     output_dir: Destination directory.
+    basename: Base name of the output JSON file.
   """
   if hasattr(config, "to_json") and callable(config.to_json):
     config_json = config.to_json(indent=2)
@@ -160,16 +162,17 @@ def save_config(config, output_dir, basename="config"):
     config_json = json.dumps(config, indent=2)
 
   tf.io.gfile.makedirs(output_dir)
-  with tf.io.gfile.GFile(config_file(output_dir, basename), "w") as f:
+  with tf.io.gfile.GFile(config_filename(output_dir, basename), "w") as f:
     f.write(config_json)
 
 
-def load_config(output_dir):
+def load_config(output_dir, basename="config"):
   """Parses values from a JSON file.
   Args:
     json_file: The path to a JSON file.
+    basename: Base name of the JSON file.
   Returns:
     A dictionary; the parsed JSON.
   """
-  with tf.io.gfile.GFile(config_file(output_dir), "r") as f:
+  with tf.io.gfile.GFile(config_filename(output_dir, basename), "r") as f:
     return configdict.ConfigDict(json.loads(f.read()))
