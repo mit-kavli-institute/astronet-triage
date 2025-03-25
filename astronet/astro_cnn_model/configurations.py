@@ -4170,6 +4170,8 @@ def cshallue():
       "train_steps": 20000,
       "inputs": {
           "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
+          "exclusive_labels": False,
+          "label_scheme": "tey_2023",
           "primary_class": 0,
           "features": {
               "global_view": {
