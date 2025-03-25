@@ -22,7 +22,8 @@ def compile_model(model, config):
   optimizer = tf.keras.optimizers.Adam(**hparams)
   logging.info(f"Using '{optimizer.name}' optimizer with parameters {hparams}")
 
-  if config.inputs.get("exclusive_labels", False):
+  n_labels = len(config.inputs.label_columns)
+  if n_labels > 1 and config.inputs.get("exclusive_labels", False):
     loss = tf.keras.losses.CategoricalCrossentropy()
   else:
     loss = tf.keras.losses.BinaryCrossentropy()
