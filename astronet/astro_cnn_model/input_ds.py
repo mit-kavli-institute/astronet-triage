@@ -58,7 +58,12 @@ class ExampleParser:
         if labels[self.config.primary_class] < 1:
           weight /= 2.0
       elif label_scheme == "shallue":
-        labels = label_features / tf.reduce_sum(label_features)
+        if len(self.config.label_columns) == 1:
+          # Binary classification.
+          labels = tf.cast(tf.squeeze(label_features) > 0, tf.float32)
+        else:
+          # Multi-class classification.
+          labels = label_features / tf.reduce_sum(label_features)
         weight = 1.0
       else:
         raise ValueError(f"Unrecognized label_scheme: {label_scheme}")

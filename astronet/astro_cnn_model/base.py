@@ -51,18 +51,22 @@ def apply_block(block, x, training):
 def build_final_fc_layers(input_config, hparams):
   """Builds the final fully-connected layers."""
   layers = [tf.keras.layers.Concatenate()]
+
+  # Hidden layers.
   for _ in range(hparams.num_pre_logits_hidden_layers):
     hidden_units = hparams.pre_logits_hidden_layer_size
     layers.append(tf.keras.layers.Dense(units=hidden_units, activation='relu'))
     if hparams.use_batch_norm:
       layers.append(tf.keras.layers.BatchNormalization())
     layers.append(tf.keras.layers.Dropout(hparams.pre_logits_dropout_rate))
+
+  # Output layer.
   n_labels = len(input_config.label_columns)
-  if input_config.get('exclusive_labels'):
-    layers.append(tf.keras.layers.Dense(units=n_labels, activation=None))
-    layers.append(tf.keras.layers.Softmax())
+  if n_labels > 1 and input_config.get('exclusive_labels'):
+    activation = 'softmax'
   else:
-    layers.append(tf.keras.layers.Dense(units=n_labels, activation='sigmoid'))
+    activation = 'sigmoid'
+  layers.append(tf.keras.layers.Dense(units=n_labels, activation=activation))
 
   return layers
 
