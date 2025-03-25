@@ -35,10 +35,14 @@ def calc_auc_scores(y_label, y_pred, primary_class):
   # sklearn installed.
   import sklearn
 
-  p_label = y_label[:, primary_class]
-  p_pred = y_pred[:, primary_class]
-  auc = sklearn.metrics.roc_auc_score(p_label, p_pred)
-  ap = sklearn.metrics.average_precision_score(p_label, p_pred)
+  if np.ndim(y_label) == 2:
+    y_label = y_label[:, primary_class]
+    y_pred = y_pred[:, primary_class]
+  elif np.ndim(y_label) != 1 or primary_class != 0:
+    raise ValueError(
+        f"y_label has shape {y_label.shape}, primary_class={primary_class}")
+  auc = sklearn.metrics.roc_auc_score(y_label, y_pred)
+  ap = sklearn.metrics.average_precision_score(y_label, y_pred)
   return {"roc_auc": auc, "average_precision": ap}
 
 
