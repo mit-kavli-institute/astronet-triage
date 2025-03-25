@@ -23,7 +23,7 @@ def _maybe_convert_dict(value):
     return ConfigDict(value)
 
   if isinstance(value, (tuple, list)):
-    return [_maybe_convert_dict[item] for item in value]
+    return [_maybe_convert_dict(item) for item in value]
 
   return value
 
