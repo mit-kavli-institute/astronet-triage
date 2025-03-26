@@ -50,23 +50,30 @@ class ExampleParser:
       ]
       label_features = tf.cast(tf.stack(label_features), tf.float32)
 
-      label_scheme = self.config.get("label_scheme", "tey_2023")
-      if label_scheme == "tey_2023":
-        labels = tf.minimum(label_features, 1)
-        weight = tf.reduce_max(label_features) / tf.maximum(
-            tf.reduce_sum(label_features), 1.0)
-        if labels[self.config.primary_class] < 1:
-          weight /= 2.0
-      elif label_scheme == "shallue":
-        if len(self.config.label_columns) == 1:
-          # Binary classification.
-          labels = tf.cast(tf.squeeze(label_features) > 0, tf.float32)
-        else:
-          # Multi-class classification.
-          labels = label_features / tf.reduce_sum(label_features)
-        weight = 1.0
+      label_scheme = self.config.get("label_scheme", "binary")
+      if len(self.config.label_columns) == 1 and label_scheme != "binary":
+        raise ValueError("Single label class requires label_scheme=binary")
+      if label_scheme == "binary":
+        # Each element of the label vector can be 0 or 1 independently.
+        labels = tf.squeeze(tf.minimum(label_features, 1))
+      elif label_scheme == "categorical":
+        # Label vector is a probability distribution that sums to 1.
+        labels = label_features / tf.reduce_sum(label_features)
       else:
         raise ValueError(f"Unrecognized label_scheme: {label_scheme}")
+
+      weight_scheme = self.config.get("weight_scheme", "tey_2023")
+      if weight_scheme == "tey_2023":
+        weight = tf.reduce_max(label_features) / tf.maximum(
+            tf.reduce_sum(label_features), 1.0)
+      elif weight_scheme == "unweighted":
+        weight = 1.0
+      else:
+        raise ValueError(f"Unrecognized weight_scheme: {weight_scheme}")
+
+      downweight_factor = self.config.get("non_primary_downweight_factor", 2.0)
+      if label_features[self.config.primary_class] < 1:
+        weight /= downweight_factor
 
     if self.include_identifiers:
       identifiers = parsed_features.pop("astro_id")
