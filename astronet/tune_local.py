@@ -12,6 +12,9 @@ flags.DEFINE_string(
     "Path of JSON file containing the study configuration.",
     required=True)
 
+flags.DEFINE_string("config_overrides", None,
+                    "Overrides to the base configuration.")
+
 flags.DEFINE_string(
     "study_dir", None, "Directory to write study results.", required=True)
 
@@ -33,6 +36,9 @@ def main(_):
         f"Set logical GPU devices to {tf.config.list_logical_devices('GPU')}")
 
   study_config = config_util.load_config(FLAGS.config_file)
+  overrides = config_util.parse_config_str(FLAGS.config_overrides)
+  config_util.update(study_config, overrides)
+  logging.info(f"Updated study config with overrides {overrides}")
 
   # TODO(cshallue): support vetting model with pretrain_model_dir.
   study.run_tuning_study(
