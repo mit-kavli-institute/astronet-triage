@@ -15,6 +15,7 @@
 
 import json
 import os.path
+from contextlib import suppress
 
 import tensorflow as tf
 from absl import logging
@@ -125,6 +126,39 @@ def update(base, source):
       update(base[key], value)
     else:
       base[key] = value
+
+
+def _parse_override_value(value):
+  if value[0] == "'" and value[-1] == "'":
+    return value[1:-1]
+  if value[0] == "[" and value[-1] == "]":
+    return [_parse_override_value(v) for v in value[1:-1].split(";") if v]
+  with suppress(ValueError):
+    return int(value)
+  with suppress(ValueError):
+    return float(value)
+  if value.lower() == "true":
+    return True
+  if value.lower() == "false":
+    return False
+  return value
+
+
+def parse_config_str(config_str):
+  """Parses a string specifying configuration options."""
+  overrides = {}
+  while config_str:
+    key, remainder = config_str.split("=", 1)
+    if remainder.startswith("'"):
+      split_i = remainder.index("'", 1)  # Closing quote
+      value = remainder[:split_i + 1]
+      config_str = remainder[split_i + 2:]  # Also omit comma
+    else:
+      split = remainder.split(",", 1)
+      value = split[0]
+      config_str = split[1] if len(split) == 2 else ""
+    overrides[key] = _parse_override_value(value)
+  return unflatten(overrides)
 
 
 def merge_configs(base, source):

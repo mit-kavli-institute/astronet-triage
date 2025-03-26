@@ -31,6 +31,9 @@ flags.DEFINE_string("config_name", None,
 flags.DEFINE_string("config_file", None,
                     "File containing the model and training configuration.")
 
+flags.DEFINE_string("config_overrides", None,
+                    "Overrides to the base configuration.")
+
 flags.DEFINE_string(
     "train_files",
     None,
@@ -72,8 +75,12 @@ def main(_):
     config = models.get_model_config(FLAGS.model, FLAGS.config_name)
     expt_name = f"{FLAGS.model}_{FLAGS.config_name}"
   else:
-    config = config_util.load_config()
-    expt_name = {FLAGS.model}
+    config = config_util.load_config(FLAGS.config_file)
+    logging.info(f"Loaded config from {FLAGS.config_file}")
+    expt_name = FLAGS.model
+  overrides = config_util.parse_config_str(FLAGS.config_overrides)
+  config_util.update(config, overrides)
+  logging.info(f"Updated config with overrides {overrides}")
 
   model_class = models.get_model_class(FLAGS.model)
   timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
