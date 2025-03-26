@@ -50,17 +50,13 @@ class ExampleParser:
       ]
       label_features = tf.cast(tf.stack(label_features), tf.float32)
 
-      label_scheme = self.config.get("label_scheme", "binary")
-      if len(self.config.label_columns) == 1 and label_scheme != "binary":
-        raise ValueError("Single label class requires label_scheme=binary")
-      if label_scheme == "binary":
+      exclusive_labels = self.config.get("exclusive_labels", False)
+      if len(self.config.label_columns) == 1 or not exclusive_labels:
         # Each element of the label vector can be 0 or 1 independently.
         labels = tf.squeeze(tf.minimum(label_features, 1))
-      elif label_scheme == "categorical":
+      else:
         # Label vector is a probability distribution that sums to 1.
         labels = label_features / tf.reduce_sum(label_features)
-      else:
-        raise ValueError(f"Unrecognized label_scheme: {label_scheme}")
 
       weight_scheme = self.config.get("weight_scheme", "tey_2023")
       if weight_scheme == "tey_2023":
