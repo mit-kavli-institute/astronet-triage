@@ -21,15 +21,15 @@ import tensorflow as tf
 from absl import app, flags, logging
 
 from astronet import evaluation, models, training
+from astronet.util import config_util
 
 flags.DEFINE_string("model", None, "Name of the model class.", required=True)
 
-flags.DEFINE_string(
-    "config_name",
-    None,
-    "Name of the model and training configuration.",
-    required=True,
-)
+flags.DEFINE_string("config_name", None,
+                    "Name of the model and training configuration.")
+
+flags.DEFINE_string("config_file", None,
+                    "File containing the model and training configuration.")
 
 flags.DEFINE_string(
     "train_files",
@@ -65,10 +65,19 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
-  config = models.get_model_config(FLAGS.model, FLAGS.config_name)
+  # Load the config.
+  if bool(FLAGS.config_name) == bool(FLAGS.config_file):
+    raise ValueError("Exactly one of config_name and config_file is required")
+  if FLAGS.config_name:
+    config = models.get_model_config(FLAGS.model, FLAGS.config_name)
+    expt_name = f"{FLAGS.model}_{FLAGS.config_name}"
+  else:
+    config = config_util.load_config()
+    expt_name = {FLAGS.model}
+
   model_class = models.get_model_class(FLAGS.model)
-  model_dir = (f"{FLAGS.model_dir}/{FLAGS.model}_{FLAGS.config_name}_"
-               f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
+  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+  model_dir = os.path.join(FLAGS.model_dir, f"{expt_name}_{timestamp}")
 
   if FLAGS.pretrain_model_dir:
     pretrain_model = tf.keras.models.load_model(
