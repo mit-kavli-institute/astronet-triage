@@ -1,7 +1,5 @@
 """Script for tuning an AstroNet model locally."""
 
-import os
-
 import tensorflow as tf
 from absl import app, flags, logging
 
@@ -34,8 +32,7 @@ def main(_):
     logging.info(
         f"Set logical GPU devices to {tf.config.list_logical_devices('GPU')}")
 
-  config_dir, filename = os.path.split(FLAGS.config_file)
-  study_config = config_util.load_config(config_dir, os.path.basename(filename))
+  study_config = config_util.load_config(FLAGS.config_file)
 
   # TODO(cshallue): support vetting model with pretrain_model_dir.
   study.run_tuning_study(

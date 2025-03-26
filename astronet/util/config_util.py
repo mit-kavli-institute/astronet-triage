@@ -166,13 +166,18 @@ def save_config(config, output_dir, basename="config"):
     f.write(config_json)
 
 
-def load_config(output_dir, basename="config"):
+def load_config(config_dir_or_filename, basename="config"):
   """Parses values from a JSON file.
   Args:
-    json_file: The path to a JSON file.
+    config_dir_or_filename: Either the path to a JSON file or a directory
+      containing a JSON file.
     basename: Base name of the JSON file.
   Returns:
     A dictionary; the parsed JSON.
   """
-  with tf.io.gfile.GFile(config_filename(output_dir, basename), "r") as f:
-    return configdict.ConfigDict(json.loads(f.read()))
+  if tf.io.gfile.isdir(config_dir_or_filename):
+    filename = config_filename(config_dir_or_filename, basename)
+  else:
+    filename = config_dir_or_filename
+  with tf.io.gfile.GFile(filename, "r") as f:
+    return configdict.ConfigDict(json.load(f))
