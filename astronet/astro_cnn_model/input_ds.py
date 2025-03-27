@@ -28,6 +28,55 @@ class ExampleParser:
     self.include_labels = include_labels
     self.include_identifiers = include_identifiers
 
+  def _extract_features(self, parsed_features):
+    """Extracts and processes features from raw parsed features."""
+    features = {}
+    for name, cfg in self.config.features.items():
+      value = parsed_features.pop(name)
+      if not cfg.is_time_series:
+        if cfg.get("scale") == "log":
+          value = tf.cast(value, tf.float64)
+          value = tf.maximum(value, cfg.min_val)
+          value = tf.minimum(value, cfg.max_val)
+          value = value - cfg.min_val + 1
+          value = tf.math.log(value) / tf.math.log(
+              tf.constant(cfg.max_val, tf.float64))
+          value = tf.cast(value, tf.float32)
+        elif cfg.get("scale") == "norm":
+          value = (value - cfg["mean"]) / cfg["std"]
+      features[name.lower()] = value
+    return features
+
+  def _extract_labels(self, parsed_features):
+    """Extracts labels from raw parsed features."""
+    label_features = [
+        parsed_features.pop(name) for name in self.config.label_columns
+    ]
+    label_features = tf.cast(tf.stack(label_features), tf.float32)
+
+    is_single_label = len(self.config.label_columns) == 1
+    exclusive_labels = self.config.get("exclusive_labels", False)
+    if is_single_label or not exclusive_labels:
+      # Each element of the label vector can be 0 or 1 independently.
+      labels = tf.squeeze(tf.minimum(label_features, 1))
+    else:
+      # Label vector is a probability distribution that sums to 1.
+      labels = label_features / tf.reduce_sum(label_features)
+
+    weight = 1.0
+    if self.config.get("uncertainty_weight"):
+      if len(self.config.label_columns) == 1:
+        raise ValueError("uncertainty_weight requires multiple labels")
+      weight = tf.reduce_max(label_features) / tf.maximum(
+          tf.reduce_sum(label_features), 1.0)
+
+    downweight_factor = self.config.get("non_primary_downweight_factor", 2.0)
+    primary_class = 0 if is_single_label else self.config.primary_class
+    if downweight_factor and label_features[primary_class] < 1:
+      weight /= downweight_factor
+
+    return labels, weight
+
   def __call__(self, serialized_example):
     """Parses a single tf.Example into feature and label tensors."""
     data_fields = {
@@ -44,59 +93,16 @@ class ExampleParser:
     parsed_features = tf.io.parse_single_example(
         serialized_example, features=data_fields)
 
+    features = self._extract_features(parsed_features)
+
     if self.include_labels:
-      label_features = [
-          parsed_features.pop(name) for name in self.config.label_columns
-      ]
-      label_features = tf.cast(tf.stack(label_features), tf.float32)
-
-      is_single_label = len(self.config.label_columns) == 1
-      exclusive_labels = self.config.get("exclusive_labels", False)
-      if is_single_label or not exclusive_labels:
-        # Each element of the label vector can be 0 or 1 independently.
-        labels = tf.squeeze(tf.minimum(label_features, 1))
-      else:
-        # Label vector is a probability distribution that sums to 1.
-        labels = label_features / tf.reduce_sum(label_features)
-
-      weight = 1.0
-      if self.config.get("uncertainty_weight"):
-        if len(self.config.label_columns) == 1:
-          raise ValueError("uncertainty_weight requires multiple labels")
-        weight = tf.reduce_max(label_features) / tf.maximum(
-            tf.reduce_sum(label_features), 1.0)
-
-      downweight_factor = self.config.get("non_primary_downweight_factor", 2.0)
-      primary_class = 0 if is_single_label else self.config.primary_class
-      if downweight_factor and label_features[primary_class] < 1:
-        weight /= downweight_factor
+      labels, weight = self._extract_labels(parsed_features)
+      return features, labels, weight
 
     if self.include_identifiers:
       identifiers = parsed_features.pop("astro_id")
-    else:
-      assert "astro_id" not in parsed_features
-
-    features = {}
-    assert set(parsed_features.keys()) == set(self.config.features.keys())
-    for name, value in parsed_features.items():
-      cfg = self.config.features[name]
-      if not cfg.is_time_series:
-        if getattr(cfg, "scale", None) == "log":
-          value = tf.cast(value, tf.float64)
-          value = tf.maximum(value, cfg.min_val)
-          value = tf.minimum(value, cfg.max_val)
-          value = value - cfg.min_val + 1
-          value = tf.math.log(value) / tf.math.log(
-              tf.constant(cfg.max_val, tf.float64))
-          value = tf.cast(value, tf.float32)
-        elif getattr(cfg, "scale", None) == "norm":
-          value = (value - cfg["mean"]) / cfg["std"]
-      features[name.lower()] = value
-
-    if self.include_labels:
-      return features, labels, weight
-    elif self.include_identifiers:
       return features, identifiers
+
     return features
 
 
