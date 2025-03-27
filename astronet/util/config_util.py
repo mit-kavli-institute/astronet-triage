@@ -190,4 +190,6 @@ def load_config(config_dir_or_filename, basename="config"):
   else:
     filename = config_dir_or_filename
   with tf.io.gfile.GFile(filename, "r") as f:
-    return configdict.ConfigDict(json.load(f))
+    config = configdict.ConfigDict(json.load(f))
+  logging.info(f"Loaded config from {filename}")
+  return config
