@@ -20,7 +20,7 @@ from absl import logging
 class ExampleParser:
   """Function to parse a single tf.Example into feature and label tensors."""
 
-  def __init__(self, config, include_labels, include_identifiers):
+  def __init__(self, config, include_labels=False, include_identifiers=False):
     if include_labels and include_identifiers:
       raise ValueError("Cannot set both include_labels and include_identifiers")
 
@@ -50,25 +50,25 @@ class ExampleParser:
       ]
       label_features = tf.cast(tf.stack(label_features), tf.float32)
 
+      is_single_label = len(self.config.label_columns) == 1
       exclusive_labels = self.config.get("exclusive_labels", False)
-      if len(self.config.label_columns) == 1 or not exclusive_labels:
+      if is_single_label or not exclusive_labels:
         # Each element of the label vector can be 0 or 1 independently.
         labels = tf.squeeze(tf.minimum(label_features, 1))
       else:
         # Label vector is a probability distribution that sums to 1.
         labels = label_features / tf.reduce_sum(label_features)
 
-      weight_scheme = self.config.get("weight_scheme", "tey_2023")
-      if weight_scheme == "tey_2023":
+      weight = 1.0
+      if self.config.get("uncertainty_weight"):
+        if len(self.config.label_columns) == 1:
+          raise ValueError("uncertainty_weight requires multiple labels")
         weight = tf.reduce_max(label_features) / tf.maximum(
             tf.reduce_sum(label_features), 1.0)
-      elif weight_scheme == "unweighted":
-        weight = 1.0
-      else:
-        raise ValueError(f"Unrecognized weight_scheme: {weight_scheme}")
 
       downweight_factor = self.config.get("non_primary_downweight_factor", 2.0)
-      if label_features[self.config.primary_class] < 1:
+      primary_class = 0 if is_single_label else self.config.primary_class
+      if downweight_factor and label_features[primary_class] < 1:
         weight /= downweight_factor
 
     if self.include_identifiers:

@@ -4171,7 +4171,7 @@ def cshallue():
       "inputs": {
           "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
           "exclusive_labels": False,
-          "weight_scheme": "tey_2023",
+          "uncertainty_weight": True,
           "non_primary_downweight_factor": 2.0,
           "primary_class": 0,
           "features": {
