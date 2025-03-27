@@ -68,44 +68,68 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
+  # Keep track of training flags for record-keeping purposes.
+  train_flags = {
+      "model": FLAGS.model,
+      "train_files": FLAGS.train_files,
+      "eval_files": FLAGS.eval_files,
+      "shuffle_buffer_size": FLAGS.shuffle_buffer_size,
+  }
+
   # Load the config.
   if bool(FLAGS.config_name) == bool(FLAGS.config_file):
     raise ValueError("Exactly one of config_name and config_file is required")
   if FLAGS.config_name:
     config = models.get_model_config(FLAGS.model, FLAGS.config_name)
+    train_flags["config_name"] = FLAGS.config_name
     expt_name = f"{FLAGS.model}_{FLAGS.config_name}"
   else:
     config = config_util.load_config(FLAGS.config_file)
+    train_flags["config_file"] = FLAGS.config_file
     logging.info(f"Loaded config from {FLAGS.config_file}")
     expt_name = FLAGS.model
-  overrides = config_util.parse_config_str(FLAGS.config_overrides)
-  config_util.update(config, overrides)
-  logging.info(f"Updated config with overrides {overrides}")
-
-  model_class = models.get_model_class(FLAGS.model)
-  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-  model_dir = os.path.join(FLAGS.model_dir, f"{expt_name}_{timestamp}")
-
-  if FLAGS.pretrain_model_dir:
-    pretrain_model = tf.keras.models.load_model(
-        os.path.join(FLAGS.pretrain_model_dir,
-                     os.listdir(FLAGS.pretrain_model_dir + "/")[0]))
-    model = model_class(config, pretrain_model)
-  else:
-    model = model_class(config)
+  if FLAGS.config_overrides:
+    overrides = config_util.parse_config_str(FLAGS.config_overrides)
+    train_flags["config_overrides"] = overrides
+    config_util.update(config, overrides)
+    logging.info(f"Updated config with overrides {overrides}")
 
   # Set the number of training steps.
-  config["train_steps"] = FLAGS.train_steps or config["train_steps"]
+  if FLAGS.train_steps:
+    config["train_steps"] = FLAGS.train_steps
+    logging.info(f"Set config.train_steps to {FLAGS.train_steps}")
   if not config["train_steps"]:
     raise ValueError(
         "train_steps must be set in the config or via --train_steps")
 
+  # Build the model.
+  model_class = models.get_model_class(FLAGS.model)
+  if FLAGS.pretrain_model_dir:
+    pretrain_model = tf.keras.models.load_model(
+        os.path.join(FLAGS.pretrain_model_dir,
+                     os.listdir(FLAGS.pretrain_model_dir + "/")[0]))
+    train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
+    model = model_class(config, pretrain_model)
+  else:
+    model = model_class(config)
+
+  # Make model directory and save the configs.
+  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+  model_dir = os.path.join(FLAGS.model_dir, f"{expt_name}_{timestamp}")
+  os.makedirs(model_dir)
+  if FLAGS.pretrain_model_dir:
+    train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
+  config_util.save_config(train_flags, model_dir, basename="train_flags")
+  config_util.save_config(config, model_dir)
+
+  # Train and save model.
   training.train(
       model,
       config,
       train_files=FLAGS.train_files,
       model_dir=model_dir,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
+  model.save(model_dir)
 
   # Construct evaluation datasets.
   # This includes the training set and possibly additional datasets.
