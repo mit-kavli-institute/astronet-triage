@@ -15,7 +15,7 @@
 
 import tensorflow as tf
 
-from astronet.astro_cnn_model import astro_cnn_model, base
+from astronet.astro_cnn_model import base
 
 
 class AstroCNNModelVetting(tf.keras.Model):
@@ -27,9 +27,9 @@ class AstroCNNModelVetting(tf.keras.Model):
     # the triage and vetting configs.
     self.config = config
 
-    embeds_only = not config.vetting_hparams.use_preds_layer
-    self.triage_model = astro_cnn_model.AstroCNNModel(
-        config, triage_model, embeds_only=embeds_only)
+    self.triage_model = triage_model
+    if not config.vetting_hparams.use_preds_layer:
+      self.triage_model.make_embeds_only()
     self.ts_blocks = base.create_ts_blocks(config.hparams)
     self.final = base.build_final_fc_layers(config.inputs,
                                             config.vetting_hparams)

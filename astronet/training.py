@@ -4,7 +4,6 @@ import tensorflow as tf
 from absl import logging
 
 from astronet.astro_cnn_model import input_ds
-from astronet.util import config_util
 
 
 def compile_model(model, config):

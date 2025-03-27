@@ -17,7 +17,6 @@ import datetime
 import os
 
 import numpy as np
-import tensorflow as tf
 from absl import app, flags, logging
 
 from astronet import evaluation, models, training
@@ -105,16 +104,15 @@ def main(_):
   # Build the model.
   model_class = models.get_model_class(FLAGS.model)
   if FLAGS.pretrain_model_dir:
-    pretrain_model = tf.keras.models.load_model(
-        os.path.join(FLAGS.pretrain_model_dir,
-                     os.listdir(FLAGS.pretrain_model_dir + "/")[0]))
+    pretrain_model = models.load_from_weights("AstroCNNModel",
+                                              FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
     model = model_class(config, pretrain_model)
   else:
     model = model_class(config)
 
   # Make model directory and save the configs.
-  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+  timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
   model_dir = os.path.join(FLAGS.model_dir, f"{expt_name}_{timestamp}")
   os.makedirs(model_dir)
   if FLAGS.pretrain_model_dir:
@@ -127,7 +125,6 @@ def main(_):
       model,
       config,
       train_files=FLAGS.train_files,
-      model_dir=model_dir,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
 
   # Save the model in Keras format and the model weights in h5 format. This
@@ -143,7 +140,7 @@ def main(_):
     if ":" in file_pattern:
       name, file_pattern = file_pattern.split(":")
     elif len(FLAGS.eval_files) == 1:
-      # If there is only a single evaluation dataset, default name is 'eval'.
+      # If there is only a single evaluation dataset, default name is "eval".
       name = "eval"
     else:
       raise ValueError("Multiple evaluation datasets must be named with format "
