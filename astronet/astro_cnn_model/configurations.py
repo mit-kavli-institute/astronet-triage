@@ -4155,10 +4155,6 @@ def final_alpha_1_tuned():
 
 # Same as final_alpha_1, but with the following changes to the names in
 # hparams.aux_inputs, reflecting the names saved in the TFRecord files.
-#   Period -> period
-#   Duration -> duration
-#   Transit_Depth -> transit_depth
-#   Tmag -> tmag
 #   est_star_rad -> star_rad_est
 #   est_star_rad_present -> star_rad_est_present
 #   local_scale_0.5 -> local_scale_5.0
@@ -4466,10 +4462,10 @@ def cshallue():
           "pre_logits_hidden_layer_size": 482,
           "pre_logits_dropout_rate": 0.1690298097832756,
           "aux_inputs": [
-              "period",
-              "duration",
-              "transit_depth",
-              "tmag",
+              "Period",
+              "Duration",
+              "Transit_Depth",
+              "Tmag",
               "star_mass",
               "star_mass_present",
               "star_rad",

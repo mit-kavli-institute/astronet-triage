@@ -44,7 +44,7 @@ class ExampleParser:
           value = tf.cast(value, tf.float32)
         elif cfg.get("scale") == "norm":
           value = (value - cfg["mean"]) / cfg["std"]
-      features[name.lower()] = value
+      features[name] = value
     return features
 
   def _extract_labels(self, parsed_features):

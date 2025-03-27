@@ -23,34 +23,11 @@ from absl import logging
 from astronet.util import configdict
 
 
-def _validate_feature_name(name, convert_if_not_lower):
-  name_lower = name.lower()
-  if name_lower != name:
-    if convert_if_not_lower:
-      logging.warn(f"Feature name '{name}' is not lowercase. Converting it to "
-                   f"to '{name_lower}'.")
-    else:
-      raise ValueError(f"Feature name '{name}' is not lowercase.")
-  return name_lower
-
-
-def validate(config, convert_feature_names=False):
-  """Validates a config, possibly converting feature names to lowercase."""
-  # Validate or convert time series hidden feature names to lowercase.
+def validate(config):
+  """Validates a configuration."""
+  # Make sure all model features are present in the input config.
   ts_hidden_config = config.hparams.time_series_hidden
-  for name in ts_hidden_config:
-    new_name = _validate_feature_name(name, convert_feature_names)
-    if new_name != name:
-      ts_hidden_config[new_name] = ts_hidden_config.pop(name)
-
-  # Validate or convert auxiliary feature names to lowercase.
   aux_inputs = config.hparams.aux_inputs
-  for i, name in enumerate(aux_inputs):
-    new_name = _validate_feature_name(name, convert_feature_names)
-    if new_name != name:
-      aux_inputs[i] = new_name
-
-  # Make sure all features are present in the input config.
   feature_names = (set(ts_hidden_config) | set(aux_inputs))
   input_features = set(name.lower() for name in config.inputs.features)
   for name in feature_names:
@@ -58,7 +35,6 @@ def validate(config, convert_feature_names=False):
       raise ValueError(
           f"Feature '{name}' is present in hparams but not the input config.")
 
-  # Config has already been modified in-place if convert_feature_names=True.
   return config
 
 

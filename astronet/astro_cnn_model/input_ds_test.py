@@ -53,9 +53,8 @@ class ExampleParserTest(absltest.TestCase):
     parser = input_ds.ExampleParser(input_config)
     features = parser(serialized_example)
     np.testing.assert_almost_equal(features.pop("global_view"), np.arange(10))
-    # TODO(cshallue): code currently makes feature names lowercase; fix this.
     np.testing.assert_almost_equal(
-        features.pop("transit_depth"),
+        features.pop("Transit_Depth"),
         np.log(1e6 + 1) / np.log(1e10))
     np.testing.assert_almost_equal(features.pop("period"), 10)
     np.testing.assert_almost_equal(features.pop("period_present"), 1)
