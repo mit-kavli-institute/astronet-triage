@@ -34,12 +34,11 @@ def compile_model(model, config):
 
 def train(model, config, train_files, model_dir=None, shuffle_buffer_size=2500):
   """Trains a model."""
-  ds = input_ds.build_dataset(
+  ds = input_ds.build_train_dataset(
       file_pattern=train_files,
       input_config=config.inputs,
       batch_size=config.hparams.batch_size,
-      shuffle_values_buffer=shuffle_buffer_size,
-      repeat=None)
+      shuffle_values_buffer=shuffle_buffer_size)
 
   compile_model(model, config)
   history = model.fit(ds, steps_per_epoch=config["train_steps"])

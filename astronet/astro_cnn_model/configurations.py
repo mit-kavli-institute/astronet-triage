@@ -4170,6 +4170,7 @@ def cshallue():
           "uncertainty_weight": True,
           "non_primary_downweight_factor": 2.0,
           "primary_class": 0,
+          "random_reverse_time_series": False,
           "features": {
               "global_view": {
                   "shape": [201],

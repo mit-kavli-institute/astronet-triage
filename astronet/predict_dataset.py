@@ -52,7 +52,7 @@ def main(_):
   # Build model and dataset.
   config = config_util.load_config(FLAGS.model_dir)
   model = tf.keras.models.load_model(FLAGS.model_dir)
-  dataset = input_ds.build_dataset(
+  dataset = input_ds.build_eval_dataset(
       file_pattern=FLAGS.eval_files,
       input_config=config.inputs,
       batch_size=FLAGS.batch_size)

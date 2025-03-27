@@ -48,7 +48,7 @@ def calc_auc_scores(y_label, y_pred, primary_class):
 
 def evaluate_model(model, input_config, file_pattern, batch_size):
   """Evaluates a model over a dataset."""
-  dataset = input_ds.build_dataset(
+  dataset = input_ds.build_eval_dataset(
       file_pattern=file_pattern,
       input_config=input_config,
       batch_size=batch_size)

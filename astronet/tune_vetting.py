@@ -248,7 +248,7 @@ def execute_trial(trial_id, params, model_class, config, ensemble_count):
           config,
           train_files=FLAGS.train_files,
           shuffle_buffer_size=FLAGS.shuffle_buffer_size)
-      eval_ds = input_ds.build_dataset(
+      eval_ds = input_ds.build_eval_dataset(
           file_pattern=FLAGS.eval_files,
           input_config=config.inputs,
           batch_size=config.hparams.batch_size)

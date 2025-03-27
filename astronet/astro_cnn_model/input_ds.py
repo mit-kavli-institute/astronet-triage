@@ -142,7 +142,8 @@ def build_dataset(file_pattern,
                   shuffle_values_buffer=0,
                   repeat=1,
                   include_identifiers=False,
-                  use_cache=True):
+                  use_cache=False,
+                  apply_data_augmentation=False):
   """Builds a Tensorflow Dataset from TFrecord files."""
   filenames = tf.io.gfile.glob(file_pattern)
   if not filenames:
@@ -161,6 +162,9 @@ def build_dataset(file_pattern,
       logging.warning("Both shuffle_filenames and use_cache are set to true. "
                       "Filenames will only be shuffled once, not each epoch.")
 
+  if apply_data_augmentation and input_config.get("random_reverse_time_series"):
+    ds = ds.map(TimeSeriesRandomReverser(input_config.features, prob=0.5))
+
   if shuffle_values_buffer > 0:
     ds = ds.shuffle(shuffle_values_buffer)
   if repeat != 1:
@@ -171,3 +175,23 @@ def build_dataset(file_pattern,
   ds = ds.prefetch(10)
 
   return ds
+
+
+def build_train_dataset(file_pattern,
+                        input_config,
+                        batch_size,
+                        shuffle_values_buffer=2500):
+  """Builds a dataset for training."""
+  return build_dataset(
+      file_pattern,
+      input_config,
+      batch_size,
+      shuffle_values_buffer=shuffle_values_buffer,
+      repeat=None,
+      use_cache=True,
+      apply_data_augmentation=True)
+
+
+def build_eval_dataset(file_pattern, input_config, batch_size):
+  """Builds a dataset for evaluation."""
+  return build_dataset(file_pattern, input_config, batch_size, use_cache=False)
