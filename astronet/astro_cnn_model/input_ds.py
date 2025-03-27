@@ -106,6 +106,34 @@ class ExampleParser:
     return features
 
 
+class TimeSeriesRandomReverser:
+
+  def __init__(self, feature_config, prob):
+    self.feature_config = feature_config
+    self.prob = prob
+
+  def __call__(self, inputs):
+    if isinstance(inputs, tuple):
+      features = inputs[0]
+      aux_inputs = inputs[1:]
+    else:
+      features = inputs
+      aux_inputs = None
+
+    if tf.random.uniform(shape=[]) < self.prob:
+      new_features = {}
+      for name, value in features.items():
+        if self.feature_config[name]["is_time_series"]:
+          value = tf.reverse(value, axis=[-1])
+        new_features[name] = value
+      features = new_features
+
+    if aux_inputs is None:
+      return features
+
+    return (features,) + aux_inputs
+
+
 def build_dataset(file_pattern,
                   input_config,
                   batch_size,

@@ -218,5 +218,74 @@ class ExampleParserTest(absltest.TestCase):
     self.assertEqual(identifiers, 12345)
 
 
+class TimeSeriesRandomReverserTest(absltest.TestCase):
+
+  @property
+  def feature_config(self):
+    return configdict.ConfigDict({
+        # Time series features.
+        "time_series_1": {
+            "shape": [10],
+            "is_time_series": True,
+        },
+        "time_series_2": {
+            "shape": [2, 10],
+            "is_time_series": True,
+        },
+        # Non-time series features.
+        "non_time_series_1": {
+            "shape": [5],
+            "is_time_series": False,
+        },
+        "non_time_series_2": {
+            "shape": [1],
+            "is_time_series": False,
+        },
+    })
+
+  @property
+  def input_features(self):
+    return {
+        "time_series_1": np.arange(10),
+        "time_series_2": np.stack([np.arange(10), 5 * np.arange(10)]),
+        "non_time_series_1": np.arange(5),
+        "non_time_series_2": 100.0,
+    }
+
+  def test_no_reverse(self):
+    # Probability 0: no-op.
+    reverser = input_ds.TimeSeriesRandomReverser(self.feature_config, prob=0.0)
+    features = reverser(self.input_features)
+    np.testing.assert_almost_equal(features.pop("time_series_1"), np.arange(10))
+    np.testing.assert_almost_equal(
+        features.pop("time_series_2"),
+        np.stack([np.arange(10), 5 * np.arange(10)]))
+    np.testing.assert_almost_equal(
+        features.pop("non_time_series_1"), np.arange(5))
+    np.testing.assert_almost_equal(features.pop("non_time_series_2"), 100)
+    self.assertEmpty(features)
+
+  def test_reverse(self):
+    # Probability 1: time series are reversed.
+    reverser = input_ds.TimeSeriesRandomReverser(self.feature_config, prob=1.0)
+
+    labels = np.array([1, 2, 3], dtype=float)
+    weight = 0.5
+    inputs = (self.input_features, labels, weight)
+    features, labels, weight = reverser(inputs)
+    np.testing.assert_almost_equal(
+        features.pop("time_series_1"), np.flip(np.arange(10)))
+    np.testing.assert_almost_equal(
+        features.pop("time_series_2"),
+        np.stack([np.flip(np.arange(10)), 5 * np.flip(np.arange(10))]))
+    np.testing.assert_almost_equal(
+        features.pop("non_time_series_1"), np.arange(5))
+    np.testing.assert_almost_equal(features.pop("non_time_series_2"), 100)
+    self.assertEmpty(features)
+
+    np.testing.assert_almost_equal(labels, [1, 2, 3])
+    np.testing.assert_almost_equal(weight, 0.5)
+
+
 if __name__ == "__main__":
   absltest.main()
