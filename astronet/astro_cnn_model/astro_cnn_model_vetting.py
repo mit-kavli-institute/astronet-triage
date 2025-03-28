@@ -13,26 +13,17 @@
 # limitations under the License.
 """A convolutional model for classifying light curves for TESS vetting."""
 
-import tensorflow as tf
-
-from astronet.astro_cnn_model import base
+from astronet.astro_cnn_model import astro_cnn_model, base
 
 
-class AstroCNNModelVetting(tf.keras.Model):
+class AstroCNNModelVetting(astro_cnn_model.AstroCNNModel):
   """A convolutional model for classifying light curves for TESS vetting."""
 
   def __init__(self, config, triage_model):
-    super(AstroCNNModelVetting, self).__init__()
-    # TODO(cshallue): use config_util.validate(), but make sure to validate both
-    # the triage and vetting configs.
-    self.config = config
-
+    super().__init__(config)
     self.triage_model = triage_model
-    if not config.vetting_hparams.use_preds_layer:
+    if not config.hparams.use_preds_layer:
       self.triage_model.make_embeds_only()
-    self.ts_blocks = base.create_ts_blocks(config.vetting_hparams)
-    self.final = base.build_final_fc_layers(config.inputs,
-                                            config.vetting_hparams)
 
   def call(self, inputs, training=None):
     ts_inputs, aux_inputs = base.unpack_inputs(inputs, self.config.hparams)

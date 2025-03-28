@@ -51,7 +51,7 @@ class AstroCNNModel(tf.keras.Model):
   """A convolutional model for classifying light curves."""
 
   def __init__(self, config):
-    super(AstroCNNModel, self).__init__()
+    super().__init__()
     self.config = config_util.validate(config)
     self.embeds_only = False
     self.ts_blocks = base.create_ts_blocks(config.hparams)

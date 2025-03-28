@@ -53,135 +53,6 @@ def base():
           'one_minus_adam_beta_2': 0.022674419033475692,
           'adam_epsilon': 2.5037055725611666e-07,
           'use_batch_norm': False,
-          'num_pre_logits_hidden_layers': 4,
-          'pre_logits_hidden_layer_size': 482,
-          'pre_logits_dropout_rate': 0.1690298097832756,
-          'aux_inputs': [
-              'Period', 'Duration', 'Transit_Depth', 'Tmag', 'star_mass',
-              'star_mass_present', 'star_rad', 'star_rad_present', 'n_folds',
-              'n_points', 'local_scale', 'local_scale_0.3', 'local_scale_0.5',
-              'local_scale_present', 'local_scale_present_0.3',
-              'local_scale_present_0.5', 'secondary_scale',
-              'secondary_scale_0.3', 'secondary_scale_0.5',
-              'secondary_scale_present', 'secondary_scale_present_0.3',
-              'secondary_scale_present_0.5'
-          ],
-          'time_series_hidden': {
-              'global_view': {
-                  'cnn_num_blocks':
-                      3,
-                  'cnn_block_size':
-                      1,
-                  'cnn_initial_num_filters':
-                      17,
-                  'cnn_block_filter_factor':
-                      2,
-                  'cnn_kernel_size':
-                      3,
-                  'convolution_padding':
-                      'same',
-                  'pool_size':
-                      5,
-                  'pool_strides':
-                      1,
-                  'extra_channels': [
-                      'global_std', 'global_mask', 'global_transit_mask',
-                      'global_view_0.3', 'global_view_5.0'
-                  ]
-              },
-              'global_view_double_period': {
-                  'cnn_num_blocks': 3,
-                  'cnn_block_size': 1,
-                  'cnn_initial_num_filters': 17,
-                  'cnn_block_filter_factor': 2,
-                  'cnn_kernel_size': 3,
-                  'convolution_padding': 'same',
-                  'pool_size': 7,
-                  'pool_strides': 2,
-                  'extra_channels': ['global_view_double_period_std']
-              },
-              'global_view_half_period': {
-                  'cnn_num_blocks': 3,
-                  'cnn_block_size': 1,
-                  'cnn_initial_num_filters': 17,
-                  'cnn_block_filter_factor': 2,
-                  'cnn_kernel_size': 3,
-                  'convolution_padding': 'same',
-                  'pool_size': 7,
-                  'pool_strides': 2,
-                  'extra_channels': ['global_view_half_period_std']
-              },
-              'local_view': {
-                  'cnn_num_blocks':
-                      3,
-                  'cnn_block_size':
-                      1,
-                  'cnn_initial_num_filters':
-                      17,
-                  'cnn_block_filter_factor':
-                      2,
-                  'cnn_kernel_size':
-                      3,
-                  'convolution_padding':
-                      'same',
-                  'pool_size':
-                      7,
-                  'pool_strides':
-                      1,
-                  'extra_channels': [
-                      'local_std', 'local_mask', 'local_view_0.3',
-                      'local_mask_0.3', 'local_view_5.0', 'local_mask_5.0'
-                  ]
-              },
-              'secondary_view': {
-                  'cnn_num_blocks':
-                      3,
-                  'cnn_block_size':
-                      1,
-                  'cnn_initial_num_filters':
-                      17,
-                  'cnn_block_filter_factor':
-                      2,
-                  'cnn_kernel_size':
-                      3,
-                  'convolution_padding':
-                      'same',
-                  'pool_size':
-                      7,
-                  'pool_strides':
-                      1,
-                  'extra_channels': [
-                      'secondary_std', 'secondary_mask', 'secondary_view_0.3',
-                      'secondary_mask_0.3', 'secondary_view_5.0',
-                      'secondary_mask_5.0'
-                  ]
-              },
-              'sample_segments_view': {
-                  'cnn_num_blocks':
-                      3,
-                  'cnn_block_size':
-                      1,
-                  'cnn_initial_num_filters':
-                      51,
-                  'cnn_block_filter_factor':
-                      2,
-                  'cnn_kernel_size':
-                      3,
-                  'convolution_padding':
-                      'same',
-                  'pool_size':
-                      7,
-                  'pool_strides':
-                      2,
-                  'multichannel':
-                      True,
-                  'extra_channels': [
-                      'sample_segments_view_0.3', 'sample_segments_view_5.0'
-                  ]
-              }
-          }
-      },
-      "vetting_hparams": {
           "num_pre_logits_hidden_layers": 3,
           "pre_logits_hidden_layer_size": 256,
           "pre_logits_dropout_rate": 0.1,
@@ -380,91 +251,6 @@ def vrevised():
               0.00,
           "adam_epsilon":
               1e-07,
-          "num_pre_logits_hidden_layers":
-              2,
-          "pre_logits_dropout_rate":
-              0.2716590871645748,
-          "pre_logits_hidden_layer_size":
-              443,
-          "time_series_hidden": {
-              'global_view': {
-                  'cnn_block_filter_factor': 1.007563093344749,
-                  'cnn_block_size': 2,
-                  'cnn_initial_num_filters': 29,
-                  'cnn_kernel_size': 5,
-                  'cnn_num_blocks': 1,
-                  'convolution_padding': 'valid',
-                  'extra_channels': [
-                      'global_view_0.3', 'global_view_5.0', 'global_std',
-                      'global_mask', 'global_transit_mask'
-                  ],
-                  'pool_size': 7,
-                  'pool_strides': 2,
-                  'separable': True
-              },
-              'local_view': {
-                  'cnn_block_filter_factor': 1.1900166187086434,
-                  'cnn_block_size': 1,
-                  'cnn_initial_num_filters': 19,
-                  'cnn_kernel_size': 6,
-                  'cnn_num_blocks': 2,
-                  'convolution_padding': 'valid',
-                  'extra_channels': [
-                      'local_view_0.3', 'local_view_5.0', 'local_view_odd',
-                      'local_view_even', 'local_std', 'local_std_odd',
-                      'local_std_even', 'local_view_half_period_std',
-                      'local_mask', 'local_mask_odd', 'local_mask_even'
-                  ],
-                  'pool_size': 4,
-                  'pool_strides': 3,
-                  'separable': False
-              },
-              'sample_segments_local_view': {
-                  'cnn_block_filter_factor': 0.9827415177848933,
-                  'cnn_block_size': 4,
-                  'cnn_initial_num_filters': 38,
-                  'cnn_kernel_size': 1,
-                  'cnn_num_blocks': 1,
-                  'convolution_padding': 'valid',
-                  'extra_channels': [
-                      'sample_segments_local_view_0.3',
-                      'sample_segments_local_view_5.0'
-                  ],
-                  'multichannel': True,
-                  'pool_size': 6,
-                  'pool_strides': 2,
-                  'separable': True
-              },
-              'secondary_view': {
-                  'cnn_block_filter_factor': 0.7760375262452452,
-                  'cnn_block_size': 2,
-                  'cnn_initial_num_filters': 116,
-                  'cnn_kernel_size': 6,
-                  'cnn_num_blocks': 2,
-                  'convolution_padding': 'valid',
-                  'extra_channels': [
-                      'secondary_std', 'secondary_view_0.3',
-                      'secondary_view_5.0', 'secondary_mask'
-                  ],
-                  'pool_size': 2,
-                  'pool_strides': 1,
-                  'separable': True
-              }
-          },
-          "use_batch_norm":
-              False,
-          "aux_inputs": [
-              'Period', 'Duration', 'Transit_Depth', 'Tmag', 'star_mass',
-              'star_mass_present', 'star_rad', 'star_rad_present', 'n_folds',
-              'local_scale', 'local_scale_0.3', 'local_scale_0.5',
-              'local_scale_present', 'local_scale_present_0.3',
-              'local_scale_present_0.5', 'secondary_scale',
-              'secondary_scale_0.3', 'secondary_scale_0.5',
-              'secondary_scale_present', 'secondary_scale_present_0.3',
-              'secondary_scale_present_0.5'
-          ],
-      },
-      "vetting_hparams": {
           "use_batch_norm":
               False,
           "use_preds_layer":
@@ -673,7 +459,13 @@ def vrevised_tuned():
   # 6_vrevised_1b_vrevised
   config = vrevised()
   config["train_steps"] = 20000
-  config["vetting_hparams"] = {
+  config["hparams"] = {
+      "adam_epsilon": 6.1506818994358365e-06,
+      "batch_size": 34,
+      "learning_rate": 2.930120708847796e-06,
+      "one_minus_adam_beta_1": 0.1813578657256338,
+      "one_minus_adam_beta_2": 0.2230986830387786,
+      "optimizer": "adam",
       "aux_inputs": [],
       "num_pre_logits_hidden_layers": 2,
       "pre_logits_dropout_rate": 0.1680582825717817,
@@ -695,92 +487,6 @@ def vrevised_tuned():
       "use_batch_norm": False,
       "use_preds_layer": False
   }
-  config["hparams"] = {
-      "adam_epsilon": 6.1506818994358365e-06,
-      "aux_inputs": [
-          "Period", "Duration", "Transit_Depth", "Tmag", "star_mass",
-          "star_mass_present", "star_rad", "star_rad_present", "n_folds",
-          "local_scale", "local_scale_0.3", "local_scale_0.5",
-          "local_scale_present", "local_scale_present_0.3",
-          "local_scale_present_0.5", "secondary_scale", "secondary_scale_0.3",
-          "secondary_scale_0.5", "secondary_scale_present",
-          "secondary_scale_present_0.3", "secondary_scale_present_0.5"
-      ],
-      "batch_size": 34,
-      "learning_rate": 2.930120708847796e-06,
-      "num_pre_logits_hidden_layers": 2,
-      "one_minus_adam_beta_1": 0.1813578657256338,
-      "one_minus_adam_beta_2": 0.2230986830387786,
-      "optimizer": "adam",
-      "pre_logits_dropout_rate": 0.27364918139937583,
-      "pre_logits_hidden_layer_size": 552,
-      "time_series_hidden": {
-          "global_view": {
-              "cnn_block_filter_factor": 1.1877588065340596,
-              "cnn_block_size": 2,
-              "cnn_initial_num_filters": 31,
-              "cnn_kernel_size": 6,
-              "cnn_num_blocks": 2,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "global_view_0.3", "global_view_5.0", "global_std",
-                  "global_mask", "global_transit_mask"
-              ],
-              "pool_size": 7,
-              "pool_strides": 1,
-              "separable": True
-          },
-          "local_view": {
-              "cnn_block_filter_factor": 0.9307389694001378,
-              "cnn_block_size": 1,
-              "cnn_initial_num_filters": 14,
-              "cnn_kernel_size": 8,
-              "cnn_num_blocks": 2,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "local_view_0.3", "local_view_5.0", "local_view_odd",
-                  "local_view_even", "local_std", "local_std_odd",
-                  "local_std_even", "local_view_half_period_std", "local_mask",
-                  "local_mask_odd", "local_mask_even"
-              ],
-              "pool_size": 4,
-              "pool_strides": 2,
-              "separable": True
-          },
-          "sample_segments_local_view": {
-              "cnn_block_filter_factor": 1.0601577845324794,
-              "cnn_block_size": 4,
-              "cnn_initial_num_filters": 16,
-              "cnn_kernel_size": 2,
-              "cnn_num_blocks": 3,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "sample_segments_local_view_0.3",
-                  "sample_segments_local_view_5.0"
-              ],
-              "multichannel": True,
-              "pool_size": 8,
-              "pool_strides": 1,
-              "separable": True
-          },
-          "secondary_view": {
-              "cnn_block_filter_factor": 0.8944552332537086,
-              "cnn_block_size": 3,
-              "cnn_initial_num_filters": 88,
-              "cnn_kernel_size": 7,
-              "cnn_num_blocks": 2,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "secondary_std", "secondary_view_0.3", "secondary_view_5.0",
-                  "secondary_mask"
-              ],
-              "pool_size": 3,
-              "pool_strides": 2,
-              "separable": True
-          }
-      },
-      "use_batch_norm": False
-  }
   return config
 
 
@@ -795,6 +501,12 @@ def direct():
       "is_time_series": True,
   }
   config["vetting_hparams"] = {
+      "adam_epsilon": 6.1506818994358365e-06,
+      "batch_size": 34,
+      "learning_rate": 2.930120708847796e-06,
+      "one_minus_adam_beta_1": 0.1813578657256338,
+      "one_minus_adam_beta_2": 0.2230986830387786,
+      "optimizer": "adam",
       "aux_inputs": [],
       "num_pre_logits_hidden_layers": 2,
       "pre_logits_dropout_rate": 0.1680582825717817,
@@ -845,92 +557,6 @@ def direct():
       "use_batch_norm": False,
       "use_preds_layer": False
   }
-  config["hparams"] = {
-      "adam_epsilon": 6.1506818994358365e-06,
-      "aux_inputs": [
-          "Period", "Duration", "Transit_Depth", "Tmag", "star_mass",
-          "star_mass_present", "star_rad", "star_rad_present", "n_folds",
-          "local_scale", "local_scale_0.3", "local_scale_0.5",
-          "local_scale_present", "local_scale_present_0.3",
-          "local_scale_present_0.5", "secondary_scale", "secondary_scale_0.3",
-          "secondary_scale_0.5", "secondary_scale_present",
-          "secondary_scale_present_0.3", "secondary_scale_present_0.5"
-      ],
-      "batch_size": 34,
-      "learning_rate": 2.930120708847796e-06,
-      "num_pre_logits_hidden_layers": 2,
-      "one_minus_adam_beta_1": 0.1813578657256338,
-      "one_minus_adam_beta_2": 0.2230986830387786,
-      "optimizer": "adam",
-      "pre_logits_dropout_rate": 0.27364918139937583,
-      "pre_logits_hidden_layer_size": 552,
-      "time_series_hidden": {
-          "global_view": {
-              "cnn_block_filter_factor": 1.1877588065340596,
-              "cnn_block_size": 2,
-              "cnn_initial_num_filters": 31,
-              "cnn_kernel_size": 6,
-              "cnn_num_blocks": 2,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "global_view_0.3", "global_view_5.0", "global_std",
-                  "global_mask", "global_transit_mask"
-              ],
-              "pool_size": 7,
-              "pool_strides": 1,
-              "separable": True
-          },
-          "local_view": {
-              "cnn_block_filter_factor": 0.9307389694001378,
-              "cnn_block_size": 1,
-              "cnn_initial_num_filters": 14,
-              "cnn_kernel_size": 8,
-              "cnn_num_blocks": 2,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "local_view_0.3", "local_view_5.0", "local_view_odd",
-                  "local_view_even", "local_std", "local_std_odd",
-                  "local_std_even", "local_view_half_period_std", "local_mask",
-                  "local_mask_odd", "local_mask_even"
-              ],
-              "pool_size": 4,
-              "pool_strides": 2,
-              "separable": True
-          },
-          "sample_segments_local_view": {
-              "cnn_block_filter_factor": 1.0601577845324794,
-              "cnn_block_size": 4,
-              "cnn_initial_num_filters": 16,
-              "cnn_kernel_size": 2,
-              "cnn_num_blocks": 3,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "sample_segments_local_view_0.3",
-                  "sample_segments_local_view_5.0"
-              ],
-              "multichannel": True,
-              "pool_size": 8,
-              "pool_strides": 1,
-              "separable": True
-          },
-          "secondary_view": {
-              "cnn_block_filter_factor": 0.8944552332537086,
-              "cnn_block_size": 3,
-              "cnn_initial_num_filters": 88,
-              "cnn_kernel_size": 7,
-              "cnn_num_blocks": 2,
-              "convolution_padding": "valid",
-              "extra_channels": [
-                  "secondary_std", "secondary_view_0.3", "secondary_view_5.0",
-                  "secondary_mask"
-              ],
-              "pool_size": 3,
-              "pool_strides": 2,
-              "separable": True
-          }
-      },
-      "use_batch_norm": False
-  }
   return config
 
 
@@ -961,123 +587,12 @@ def base_new():
       },
       "hparams": {
           'adam_epsilon': 6.816179817920565e-07,
-          'aux_inputs': [
-              'Period', 'Duration', 'Transit_Depth', 'Tmag', 'star_mass',
-              'star_mass_present', 'star_rad', 'star_rad_present',
-              'est_star_rad', 'est_star_rad_present', 'n_folds', 'local_scale',
-              'local_scale_0.3', 'local_scale_0.5', 'local_scale_present',
-              'local_scale_present_0.3', 'local_scale_present_0.5',
-              'secondary_scale', 'secondary_scale_0.3', 'secondary_scale_0.5',
-              'secondary_scale_present', 'secondary_scale_present_0.3',
-              'secondary_scale_present_0.5'
-          ],
           'batch_size': 187,
           'clip_gradient_norm': None,
           'learning_rate': 9.967886235128946e-06,
-          'num_pre_logits_hidden_layers': 2,
           'one_minus_adam_beta_1': 0.1671901607461752,
           'one_minus_adam_beta_2': 0.0016810682046840494,
           'optimizer': 'adam',
-          'pre_logits_dropout_rate': 0.28224955366921267,
-          'pre_logits_hidden_layer_size': 330,
-          'time_series_hidden': {
-              'global_view': {
-                  'cnn_block_filter_factor': 1.91786771926268,
-                  'cnn_block_size': 2,
-                  'cnn_initial_num_filters': 18,
-                  'cnn_kernel_size': 5,
-                  'cnn_num_blocks': 1,
-                  'convolution_padding': 'same',
-                  'extra_channels': [
-                      'global_std', 'global_mask', 'global_transit_mask',
-                      'global_view_0.3', 'global_view_5.0'
-                  ],
-                  'pool_size': 4,
-                  'pool_strides': 2,
-                  'separable': True
-              },
-              'global_view_double_period': {
-                  'cnn_block_filter_factor': 0.8012713491221781,
-                  'cnn_block_size': 2,
-                  'cnn_initial_num_filters': 50,
-                  'cnn_kernel_size': 3,
-                  'cnn_num_blocks': 2,
-                  'convolution_padding': 'same',
-                  'extra_channels': [
-                      'global_view_double_period_0.3',
-                      'global_view_double_period_5.0'
-                  ],
-                  'pool_size': 6,
-                  'pool_strides': 1,
-                  'separable': False
-              },
-              'local_view': {
-                  'cnn_block_filter_factor': 1.8539157128605275,
-                  'cnn_block_size': 2,
-                  'cnn_initial_num_filters': 50,
-                  'cnn_kernel_size': 4,
-                  'cnn_num_blocks': 3,
-                  'convolution_padding': 'same',
-                  'extra_channels': [
-                      'local_std', 'local_mask', 'local_view_0.3',
-                      'local_view_5.0', 'local_view_odd', 'local_std_odd',
-                      'local_view_even', 'local_std_even',
-                      'local_view_half_period_std'
-                  ],
-                  'pool_size': 6,
-                  'pool_strides': 2,
-                  'separable': False
-              },
-              'sample_segments_local_view': {
-                  'cnn_block_filter_factor': 0.20742222986127115,
-                  'cnn_block_size': 1,
-                  'cnn_initial_num_filters': 76,
-                  'cnn_kernel_size': 2,
-                  'cnn_num_blocks': 2,
-                  'convolution_padding': 'same',
-                  'extra_channels': [
-                      'sample_segments_local_view_0.3',
-                      'sample_segments_local_view_5.0'
-                  ],
-                  'multichannel': True,
-                  'pool_size': 6,
-                  'pool_strides': 2,
-                  'separable': False
-              },
-              'sample_segments_view': {
-                  'cnn_block_filter_factor': 0.35437138028042037,
-                  'cnn_block_size': 1,
-                  'cnn_initial_num_filters': 63,
-                  'cnn_kernel_size': 5,
-                  'cnn_num_blocks': 4,
-                  'convolution_padding': 'same',
-                  'extra_channels': [
-                      'sample_segments_view_0.3', 'sample_segments_view_5.0'
-                  ],
-                  'multichannel': True,
-                  'pool_size': 7,
-                  'pool_strides': 2,
-                  'separable': True
-              },
-              'secondary_view': {
-                  'cnn_block_filter_factor': 0.3482832940681012,
-                  'cnn_block_size': 1,
-                  'cnn_initial_num_filters': 44,
-                  'cnn_kernel_size': 5,
-                  'cnn_num_blocks': 3,
-                  'convolution_padding': 'same',
-                  'extra_channels': [
-                      'secondary_std', 'secondary_mask', 'secondary_view_0.3',
-                      'secondary_view_5.0'
-                  ],
-                  'pool_size': 8,
-                  'pool_strides': 2,
-                  'separable': False
-              }
-          },
-          'use_batch_norm': False
-      },
-      "vetting_hparams": {
           "aux_inputs": [],
           "num_pre_logits_hidden_layers": 2,
           "pre_logits_dropout_rate": 0.1680582825717817,
