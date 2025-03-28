@@ -64,3 +64,4 @@ else:
 
 # --- Sidebar Navigation ---
 st.sidebar.header("📌 Navigation")
+st.sidebar.page_link("pages/dataset_exploration.py", label="📈 Dataset Exploration")
