@@ -1,13 +1,36 @@
+from __future__ import annotations
 from dataclasses import dataclass
+from enum import Enum
+
+class Split(Enum):
+    TRAIN = 'train'
+    VALIDATION = 'validation'
+    TEST = 'test'
+    UNALLOCATED = 'unallocated'
+
+    @classmethod
+    def from_str(cls, s: str) -> Split:
+        s = str(s)
+        if s.lower() == cls.TRAIN.value:
+            return cls.TRAIN
+        elif s.lower() == cls.VALIDATION.value or s.lower() == 'val':
+            return cls.VALIDATION
+        elif s.lower() == cls.TEST:
+            return cls.TEST
+        else:
+            return cls.UNALLOCATED
 
 @dataclass
 class AstroData:
     astro_id: int
     tic_id: int
     fits_path: str
-    report_path: str | None
+    report_paths: list[str]
+    images_path: str | None
     properties: dict[str, object]
+    split: Split
     label: str | None = None
+    label_simplified: str | None = None
 
     @property
     def id(self) -> int | None:

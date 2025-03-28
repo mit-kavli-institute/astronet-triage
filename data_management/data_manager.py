@@ -1,11 +1,64 @@
+import re
 from pathlib import Path
 from config_parser import DatasetConfig
 from dataclasses import dataclass
-from data_management.astro_data import AstroData
+from data_management.astro_data import AstroData, Split
 from data_management.google_sheets_reader import GoogleSheetsReader
 from data_management.data_storage import DataStorage
+import pandas as pd
+import traceback
 
 dataset_config = DatasetConfig.from_yaml()
+
+dtype_dict = {
+    # Integer IDs (Nullable to handle missing values)
+    "astro_id": "Int64",
+    "tic_id": "Int64",
+
+    # File Paths / Text Columns
+    "fits_path": "string",
+    "report_paths": "string",
+    "filename": "string",
+    "comment": "string",
+
+    # Categorical/String Columns
+    "label": "string",
+    "label_simplified": "string",
+    "split": "string",
+    "final": "string",
+    "decision": "string",
+    "distinct": "string",
+    "mk": "string",
+    "ch": "string",
+    "et": "string",
+    "md": "string",
+    "as": "string",
+    "dm": "string",
+    "tansu": "string",
+    "shishir": "string",
+    "jh": "string",
+    "astronet_note": "string",
+    "sectors": "string",
+
+    # Numerical Values (Floats)
+    "ra": "float64",
+    "dec": "float64",
+    "tmag": "float64",
+    "epoc": "float64",
+    "period": "float64",
+    "duration": "float64",
+    "transit_depth": "float64",
+    "star_rad": "float64",
+    "star_mass": "float64",
+    "teff": "float64",
+    "logg": "float64",
+    "sn": "float64",
+    "qingress": "float64",
+    "star_rad_est": "float64",
+
+    # Random Seed (Nullable Integer)
+    "seed_randbetween(1,_100)": "string",
+}
 
 @dataclass
 class AstroDataReport:
@@ -13,21 +66,6 @@ class AstroDataReport:
     num_fits_failed_to_load: int = 0
     num_labels_failed_to_load: int = 0
     num_properties_failed_to_load: int = 0
-
-class DataManagerConstants:
-    TIC_ID_COLUMN = "TIC ID"
-    SPLIT_COLUMN = "Split" # Comes from dataset split sheet
-    LABEL_COLUMN = "Final" # Comes from labels sheet
-    ASTRO_ID_COLUMN = "Astro ID" # Comes from all sheets (primary key)
-    DISTINCT_COLUMN = "Distinct" # Comes from labels sheet
-    ASTRONET_NOTE_COLUMN = "Astronet note" # Comes from labels sheet (human notes about the labels)
-
-@dataclass
-class AstroDataReport:
-    num_successful_loads: int
-    num_fits_failed_to_load: int
-    num_labels_failed_to_load: int
-    num_properties_failed_to_load: int
 
     def __str__(self):
         return (
@@ -37,6 +75,14 @@ class AstroDataReport:
             f"  - Labels Failed to Load: {self.num_labels_failed_to_load}\n"
             f"  - Properties Failed to Load: {self.num_properties_failed_to_load}"
         )
+    
+class DataManagerConstants:
+    TIC_ID_COLUMN = "tic_id"
+    SPLIT_COLUMN = "split" # Comes from dataset split sheet
+    LABEL_COLUMN = "final" # Comes from labels sheet
+    ASTRO_ID_COLUMN = "astro_id" # Comes from all sheets (primary key)
+    DISTINCT_COLUMN = "distinct" # Comes from labels sheet
+    ASTRONET_NOTE_COLUMN = "astronet_note" # Comes from labels sheet (human notes about the labels)
 
 def to_camel_case(s: str):
     return s.lower().replace(' ', '_')
@@ -53,16 +99,20 @@ class DataManager:
     def __init__(self):
         print(f'Loading dataset from dataset_config:\n{dataset_config}\n')
         self.data_dir = dataset_config.raw_data_dir
-        self.data_storage = DataStorage(data_dir=self.data_dir)
+        self.data_storage = DataStorage(data_dir=self.data_dir, images_dir=dataset_config.images_dir, reports_dir=dataset_config.reports_dir)
 
         # Read sheets
         labels_sheet = dataset_config.labels_sheet
         sheets_reader = GoogleSheetsReader()
+        self.sheets_reader = sheets_reader
         self.labels_df = sheets_reader.from_url(labels_sheet)
+        self.labels_df = self.convert_columns_to_snake_case(self.labels_df)
         properties_sheet = dataset_config.properties_sheet
         self.properties_df = sheets_reader.from_url(properties_sheet)
+        self.properties_df = self.convert_columns_to_snake_case(self.properties_df)
         dataset_split_sheet = dataset_config.dataset_split_sheet
         self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
+        self.dataset_split_df = self.convert_columns_to_snake_case(self.dataset_split_df)
 
         # Init data
         (self.astro_data, report) = self._init_astro_data()
@@ -78,7 +128,8 @@ class DataManager:
         for index, row in self.dataset_split_df.iterrows():
             try:
                 tic_id = int(row[DataManagerConstants.TIC_ID_COLUMN])
-                split = row[DataManagerConstants.SPLIT_COLUMN]
+                split = Split.from_str(row[DataManagerConstants.SPLIT_COLUMN])
+
 
                 labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
                 labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
@@ -106,19 +157,26 @@ class DataManager:
                 if not fits_path:
                     astro_data_report.num_fits_failed_to_load += 1
                     continue
+                
+                images_path = self.data_storage.get_images_path(tic_id=tic_id)
+                report_paths = self.data_storage.get_reports_path(tic_id=tic_id)
+
 
 
                 astro_data.append(AstroData(
                     astro_id=astro_id,
                     tic_id=tic_id,
                     fits_path=fits_path,
-                    report_path=None,
+                    images_path=images_path,
+                    report_paths=report_paths,
                     properties=properties_dict,
                     label=label,
+                    split=split.value,
                 ))
                 astro_data_report.num_successful_loads += 1
             except Exception as e:
                 print(f'Failed to load tic_id={tic_id} with exception ' + str(e) + ', skipping...')
+                traceback.print_exc()
 
         report = AstroDataReport(
             num_successful_loads=astro_data_report.num_successful_loads,
@@ -128,11 +186,51 @@ class DataManager:
         )
         return (astro_data, report)
 
+    def to_snake_case(self, s):
+        s = re.sub(r'\s+', '_', s)  # Replace spaces with underscores
+        s = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s)  # Insert underscore before uppercase letters preceded by lowercase or number
+        s = re.sub(r'[^a-zA-Z0-9_]', '', s)  # Remove non-alphanumeric characters except underscores
+        return s.lower().strip('_')  # Convert to lowercase and remove leading/trailing underscores
+    
+    def convert_columns_to_snake_case(self, df):
+        df.columns = [self.to_snake_case(col) for col in df.columns]
+        return df
+
     def get_data_from_tic_id(self, tic_id: int) -> AstroData:
         data = self.tic_id_to_data.get(tic_id)
         if data is not None:
             raise Exception(f"Data not found for tic id {tic_id}")
         return data
+
+    def get_data_frame(self) -> pd.DataFrame:
+        """
+        Returns a DataFrame of all AstroData objects with properties unpacked.
+        """
+        TRUE_MAPPING = {
+            "eb": "Eclipsing Binary", "ebs": "Eclipsing Binary", "et": "Eclipsing Binary", "eu": "Eclipsing Binary",
+            "ets": "Eclipsing Binary", "eus": "Eclipsing Binary", "pt": "Planet", "pb": "Planet", "pu": "Planet",
+            "pts": "Planet", "pus": "Planet", "nt": "Noise", "nb": "Noise", "nu": "Noise", "jj": "Junk",
+            "ub": "Unknown", "i": "Indeterminate"
+        }
+        data_list = []
+        for data in self.astro_data:
+            label_simplified = TRUE_MAPPING.get(data.label)
+            data_dict = {
+                'astro_id': data.astro_id,
+                'tic_id': data.tic_id,
+                'fits_path': data.fits_path,
+                'report_paths': data.report_paths,
+                'label': data.label,
+                'label_simplified': label_simplified,
+                'split': data.split,
+            }
+            data_dict.update(data.properties)
+            data_list.append(data_dict)
+        
+        df = pd.DataFrame(data_list)
+        filtered_dtype_dict = {col: dtype for col, dtype in dtype_dict.items() if col in df.columns}
+        df = df.astype(filtered_dtype_dict)
+        return df
 
 data_manager = DataManager() # singleton
 

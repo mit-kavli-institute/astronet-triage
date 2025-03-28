@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import numpy as np
 
 class GoogleSheetsReader:
     def __init__(self):
@@ -55,6 +56,7 @@ class GoogleSheetsReader:
             # Get all data as records (list of dictionaries)
             data = worksheet.get_all_records()
             df = pd.DataFrame(data)
+            df.replace(["#N/A", "", "N/A"], np.nan, inplace=True)  
 
             return df
 

@@ -18,7 +18,6 @@ source of truth.
 import yaml
 from pathlib import Path
 from pydantic import BaseModel
-from typing import Optional
 
 
 class Constants:
@@ -30,6 +29,8 @@ class Constants:
     DATASET: str = "dataset"
     RAW_DATA_SOURCE_TYPE: str = "raw_data_source_type"
     RAW_DATA_DIR: str = "raw_data_dir"
+    IMAGES_DIR: str = "images_dir"
+    REPORTS_DIR: str = "reports_dir"
 
     # Source Types
     LOCAL: str = "local"
@@ -45,6 +46,8 @@ class DatasetConfig(BaseModel):
     """Pydantic model to store dataset configuration."""
     raw_data_source_type: str
     raw_data_dir: Path
+    images_dir: Path
+    reports_dir: Path
     labels_sheet: str
     properties_sheet: str
     dataset_split_sheet: str
@@ -70,6 +73,8 @@ class DatasetConfig(BaseModel):
         return "DatasetConfig(\n\t" \
             f"raw_data_source_type={self.raw_data_source_type}\n\t" \
             f"raw_data_dir={self.raw_data_dir}\n\t" \
+            f"reports_dir={self.reports_dir}\n\t" \
+            f"images_dir={self.images_dir}\n\t" \
             f"labels_sheet={self.labels_sheet}\n\t" \
             f"properties_sheet={self.properties_sheet}\n\t" \
             f"dataset_split_sheet={self.dataset_split_sheet}\n)"
