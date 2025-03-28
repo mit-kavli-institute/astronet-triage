@@ -72,7 +72,7 @@ class ExampleParserTest(absltest.TestCase):
     # Multi-class binary, uncertainty_weight=True, primary class.
     input_config = configdict.ConfigDict({
         "label_columns": ["a", "b", "c", "d"],
-        "exclusive_labels": False,
+        "label_scheme": "binary",
         "uncertainty_weight": True,
         "non_primary_downweight_factor": 2.0,
         "primary_class": 1,
@@ -120,7 +120,7 @@ class ExampleParserTest(absltest.TestCase):
     # Single-class binary, positive_example.
     input_config = configdict.ConfigDict({
         "label_columns": ["b"],
-        "exclusive_labels": False,
+        "label_scheme": "binary",
         "uncertainty_weight": False,
         "non_primary_downweight_factor": 2.0,
         "features": {}
@@ -147,7 +147,7 @@ class ExampleParserTest(absltest.TestCase):
     np.testing.assert_almost_equal(labels, 0)
     np.testing.assert_almost_equal(weight, 0.5)
 
-  def test_extract_labels_multiclass_categorical(self):
+  def test_extract_labels_multiclass_distribution(self):
     ex = tf.train.Example()
     example_util.set_int64_feature(ex, "a", [0])
     example_util.set_int64_feature(ex, "b", [3])
@@ -156,10 +156,10 @@ class ExampleParserTest(absltest.TestCase):
     serialized_example = ex.SerializeToString()
     del ex
 
-    # Multi-class categorical, uncertainty_weight=True, primary class.
+    # Multi-class distribution, uncertainty_weight=True, primary class.
     input_config = configdict.ConfigDict({
         "label_columns": ["a", "b", "c", "d"],
-        "exclusive_labels": True,
+        "label_scheme": "distribution",
         "uncertainty_weight": True,
         "non_primary_downweight_factor": 2.0,
         "primary_class": 1,
@@ -171,7 +171,7 @@ class ExampleParserTest(absltest.TestCase):
     np.testing.assert_almost_equal(labels, [0, 0.75, 0.25, 0])
     np.testing.assert_almost_equal(weight, 0.75)
 
-    # Multi-class categorical, uncertainty_weight=True, non-primary class.
+    # Multi-class distribution, uncertainty_weight=True, non-primary class.
     input_config.primary_class = 0
     parser = input_ds.ExampleParser(input_config, include_labels=True)
     features, labels, weight = parser(serialized_example)
@@ -179,7 +179,7 @@ class ExampleParserTest(absltest.TestCase):
     np.testing.assert_almost_equal(labels, [0, 0.75, 0.25, 0])
     np.testing.assert_almost_equal(weight, 0.375)
 
-    # Multi-class categorical, uncertainty_weight=False, non-primary class.
+    # Multi-class distribution, uncertainty_weight=False, non-primary class.
     input_config.uncertainty_weight = False
     parser = input_ds.ExampleParser(input_config, include_labels=True)
     features, labels, weight = parser(serialized_example)
@@ -187,13 +187,85 @@ class ExampleParserTest(absltest.TestCase):
     np.testing.assert_almost_equal(labels, [0, 0.75, 0.25, 0])
     np.testing.assert_almost_equal(weight, 0.5)
 
-    # Multi-class categorical, uncertainty_weight=False, no downweighting.
+    # Multi-class distribution, uncertainty_weight=False, no downweighting.
     input_config.non_primary_downweight_factor = 0
     parser = input_ds.ExampleParser(input_config, include_labels=True)
     features, labels, weight = parser(serialized_example)
     self.assertEmpty(features)
     np.testing.assert_almost_equal(labels, [0, 0.75, 0.25, 0])
     np.testing.assert_almost_equal(weight, 1.0)
+
+  def test_extract_labels_multiclass_maximum(self):
+    ex = tf.train.Example()
+    example_util.set_int64_feature(ex, "a", [0])
+    example_util.set_int64_feature(ex, "b", [3])
+    example_util.set_int64_feature(ex, "c", [1])
+    example_util.set_int64_feature(ex, "d", [0])
+    serialized_example = ex.SerializeToString()
+    del ex
+
+    # Multi-class maximum, uncertainty_weight=True, primary class.
+    input_config = configdict.ConfigDict({
+        "label_columns": ["a", "b", "c", "d"],
+        "label_scheme": "maximum",
+        "uncertainty_weight": True,
+        "non_primary_downweight_factor": 2.0,
+        "primary_class": 1,
+        "features": {}
+    })
+    parser = input_ds.ExampleParser(input_config, include_labels=True)
+    features, labels, weight = parser(serialized_example)
+    self.assertEmpty(features)
+    np.testing.assert_almost_equal(labels, [0, 1, 0, 0])
+    np.testing.assert_almost_equal(weight, 0.75)
+
+    # Multi-class maximum, uncertainty_weight=True, non-primary class.
+    input_config.primary_class = 0
+    parser = input_ds.ExampleParser(input_config, include_labels=True)
+    features, labels, weight = parser(serialized_example)
+    self.assertEmpty(features)
+    np.testing.assert_almost_equal(labels, [0, 1, 0, 0])
+    np.testing.assert_almost_equal(weight, 0.375)
+
+    # Multi-class maximum, uncertainty_weight=False, non-primary class.
+    input_config.uncertainty_weight = False
+    parser = input_ds.ExampleParser(input_config, include_labels=True)
+    features, labels, weight = parser(serialized_example)
+    self.assertEmpty(features)
+    np.testing.assert_almost_equal(labels, [0, 1, 0, 0])
+    np.testing.assert_almost_equal(weight, 0.5)
+
+    # Multi-class maximum, uncertainty_weight=False, no downweighting.
+    input_config.non_primary_downweight_factor = 0
+    parser = input_ds.ExampleParser(input_config, include_labels=True)
+    features, labels, weight = parser(serialized_example)
+    self.assertEmpty(features)
+    np.testing.assert_almost_equal(labels, [0, 1, 0, 0])
+    np.testing.assert_almost_equal(weight, 1)
+
+  def test_extract_labels_multiclass_maximum_tie(self):
+    ex = tf.train.Example()
+    example_util.set_int64_feature(ex, "a", [0])
+    example_util.set_int64_feature(ex, "b", [2])
+    example_util.set_int64_feature(ex, "c", [2])
+    example_util.set_int64_feature(ex, "d", [0])
+    serialized_example = ex.SerializeToString()
+    del ex
+
+    # Multi-class maximum, uncertainty_weight=True.
+    input_config = configdict.ConfigDict({
+        "label_columns": ["a", "b", "c", "d"],
+        "label_scheme": "maximum",
+        "uncertainty_weight": True,
+        "primary_class": 1,
+        "non_primary_downweight_factor": 1.0,
+        "features": {}
+    })
+    parser = input_ds.ExampleParser(input_config, include_labels=True)
+    features, labels, weight = parser(serialized_example)
+    self.assertEmpty(features)
+    np.testing.assert_almost_equal(labels, [0, 0.5, 0.5, 0])
+    np.testing.assert_almost_equal(weight, 0.5)
 
   def test_extract_identifiers(self):
     ex = tf.train.Example()

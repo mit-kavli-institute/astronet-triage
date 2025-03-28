@@ -54,11 +54,21 @@ class ExampleParser:
     ]
     label_features = tf.cast(tf.stack(label_features), tf.float32)
 
+    label_scheme = self.config.get("label_scheme", "binary")
     is_single_label = len(self.config.label_columns) == 1
-    exclusive_labels = self.config.get("exclusive_labels", False)
-    if is_single_label or not exclusive_labels:
-      # Each element of the label vector can be 0 or 1 independently.
+    if is_single_label and label_scheme != "binary":
+      raise ValueError("Single label requires label_scheme=binary")
+    if label_scheme == "binary":
+      # Each element of the label vector is 0 or 1 independently.
       labels = tf.squeeze(tf.minimum(label_features, 1))
+    elif label_scheme == "distribution":
+      # Label vector is a probability distribution that sums to 1.
+      labels = label_features / tf.reduce_sum(label_features)
+    elif label_scheme == "maximum":
+      # Set the maximum element(s) to 1 and all others to 0.
+      labels = tf.floor(label_features / tf.reduce_max(label_features))
+      # Account for ties.
+      labels /= tf.reduce_sum(labels)
     else:
       # Label vector is a probability distribution that sums to 1.
       labels = label_features / tf.reduce_sum(label_features)
