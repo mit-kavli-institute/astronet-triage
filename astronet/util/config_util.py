@@ -29,7 +29,7 @@ def validate(config):
   ts_hidden_config = config.hparams.time_series_hidden
   aux_inputs = config.hparams.aux_inputs
   feature_names = (set(ts_hidden_config) | set(aux_inputs))
-  input_features = set(name.lower() for name in config.inputs.features)
+  input_features = set(config.inputs.features)
   for name in feature_names:
     if name not in input_features:
       raise ValueError(
