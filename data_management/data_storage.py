@@ -1,12 +1,11 @@
 import re
-from typing import Optional
 from pathlib import Path
 
 
 class DataStorage:
     def __init__(self, data_dir: Path) -> None:
-        self.tic_id_to_path = {}
-        if ".." in str(data_dir): # enable both local and full paths
+        self.tic_id_to_path: dict[int, str] = {}
+        if not data_dir.is_absolute(): # enable both local and full paths
             data_dir = data_dir.resolve()
         for file in Path(data_dir).glob("*.fits"):
             tic_id = self.extract_tic_id(file.name)
@@ -25,5 +24,5 @@ class DataStorage:
             return int(match.group(1))
         return None
 
-    def get_path(self, tic_id: int) -> Optional[Path]:
+    def get_path(self, tic_id: int) -> str | None:
         return self.tic_id_to_path.get(tic_id)

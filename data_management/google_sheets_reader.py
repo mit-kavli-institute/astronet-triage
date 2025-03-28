@@ -47,7 +47,7 @@ class GoogleSheetsReader:
             spreadsheet = self.client.open_by_key(sheet_id)
 
             # Select the specific sheet
-            if sheet_name:
+            if sheet_name is not None:
                 worksheet = spreadsheet.worksheet(sheet_name)
             else:
                 worksheet = spreadsheet.get_worksheet(0)  # Default to the first sheet

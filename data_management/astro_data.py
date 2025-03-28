@@ -1,92 +1,86 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-from light_curve_util import tess_io
-from light_curve_util import keplersplinev2
-from light_curve_util import median_filter2
-from light_curve_util import util
-import numpy as np
 
 @dataclass
 class AstroData:
     astro_id: int
     tic_id: int
     fits_path: str
-    report_path: Optional[str]
-    properties: Dict[str, Any]
-    label: Optional[str] = None
+    report_path: str | None
+    properties: dict[str, object]
+    label: str | None = None
 
     @property
-    def id(self) -> Optional[int]:
+    def id(self) -> int | None:
         return self.properties.get('id')
 
     @property
-    def version_id(self) -> Optional[int]:
+    def version_id(self) -> int | None:
         return self.properties.get('version_id')
 
     @property
-    def ra(self) -> Optional[float]:
+    def ra(self) -> float | None:
         return self.properties.get('ra')
 
     @property
-    def dec(self) -> Optional[float]:
+    def dec(self) -> float | None:
         return self.properties.get('dec')
 
     @property
-    def tmag(self) -> Optional[float]:
+    def tmag(self) -> float | None:
         return self.properties.get('tmag')
 
     @property
-    def epoc(self) -> Optional[float]:
+    def epoc(self) -> float | None:
         return self.properties.get('epoc')
 
     @property
-    def period(self) -> Optional[float]:
+    def period(self) -> float | None:
         return self.properties.get('period')
 
     @property
-    def duration(self) -> Optional[float]:
+    def duration(self) -> float | None:
         return self.properties.get('duration')
 
     @property
-    def transit_depth(self) -> Optional[float]:
+    def transit_depth(self) -> float | None:
         return self.properties.get('transit_depth')
 
     @property
-    def sectors(self) -> Optional[Any]:
+    def sectors(self) -> object | None:
         return self.properties.get('sectors')
 
     @property
-    def star_rad(self) -> Optional[float]:
+    def star_rad(self) -> float | None:
         return self.properties.get('star_rad')
 
     @property
-    def star_mass(self) -> Optional[float]:
+    def star_mass(self) -> float | None:
         return self.properties.get('star_mass')
 
     @property
-    def teff(self) -> Optional[float]:
+    def teff(self) -> float | None:
         return self.properties.get('teff')
 
     @property
-    def logg(self) -> Optional[float]:
+    def logg(self) -> float | None:
         return self.properties.get('logg')
 
     @property
-    def sn(self) -> Optional[float]:
+    def sn(self) -> float | None:
         return self.properties.get('sn')
 
     @property
-    def qingress(self) -> Optional[float]:
+    def qingress(self) -> float | None:
         return self.properties.get('qingress')
 
     @property
-    def star_rad_est(self) -> Optional[float]:
+    def star_rad_est(self) -> float | None:
         return self.properties.get('star_rad_est')
 
     @property
-    def filename(self) -> Optional[str]:
+    def filename(self) -> str | None:
         return self.properties.get('filename')
 
     @property
-    def comment(self) -> Optional[str]:
+    def comment(self) -> str | None:
         return self.properties.get('comment')

@@ -1,7 +1,6 @@
+from __future__ import annotations
 import yaml
-from dataclasses import dataclass
 from pathlib import Path
-import os
 
 """
 HOW TO USE THIS API
@@ -15,6 +14,12 @@ Sheets can also be loaded dynamically live from Google to keep the latest
 source of truth.
 
 """
+
+import yaml
+from pathlib import Path
+from pydantic import BaseModel
+from typing import Optional
+
 
 class Constants:
     """String constants used throughout the project."""
@@ -35,19 +40,18 @@ class Constants:
     PROPERTIES_SHEET: str = "properties_sheet"
     DATASET_SPLIT_SHEET: str = "dataset_split_sheet"
 
-@dataclass
-class DatasetConfig:
-    """Dataclass to store dataset configuration."""
+
+class DatasetConfig(BaseModel):
+    """Pydantic model to store dataset configuration."""
     raw_data_source_type: str
     raw_data_dir: Path
     labels_sheet: str
     properties_sheet: str
     dataset_split_sheet: str
 
-    @staticmethod
-    def from_yaml(config_path: str = Constants.CONFIG_FILE) -> "DatasetConfig":
+    @classmethod
+    def from_yaml(cls, config_path: str = Constants.CONFIG_FILE) -> DatasetConfig:
         """Reads YAML configuration and returns a DatasetConfig instance."""
-
         config_file = Path(config_path)
 
         if not config_file.exists():
@@ -60,14 +64,7 @@ class DatasetConfig:
             raise ValueError(f"Invalid config format: Missing '{Constants.DATASET}' section.")
 
         dataset = config[Constants.DATASET]
-
-        return DatasetConfig(
-            raw_data_source_type=dataset.get(Constants.RAW_DATA_SOURCE_TYPE),
-            raw_data_dir=Path(dataset.get(Constants.RAW_DATA_DIR)),
-            labels_sheet=dataset.get(Constants.LABELS_SHEET),
-            properties_sheet=dataset.get(Constants.PROPERTIES_SHEET),
-            dataset_split_sheet=dataset.get(Constants.DATASET_SPLIT_SHEET),
-        )
+        return cls(**dataset)
 
     def __str__(self) -> str:
         return "DatasetConfig(\n\t" \
@@ -76,6 +73,7 @@ class DatasetConfig:
             f"labels_sheet={self.labels_sheet}\n\t" \
             f"properties_sheet={self.properties_sheet}\n\t" \
             f"dataset_split_sheet={self.dataset_split_sheet}\n)"
+
 
 if __name__ == "__main__":
     dataset_config = DatasetConfig.from_yaml("config.yaml")
