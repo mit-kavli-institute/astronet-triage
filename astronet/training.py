@@ -23,7 +23,8 @@ def compile_model(model, config):
 
   n_labels = len(config.inputs.label_columns)
   if n_labels > 1 and config.inputs.get("exclusive_labels", False):
-    loss = tf.keras.losses.CategoricalCrossentropy()
+    loss = tf.keras.losses.CategoricalCrossentropy(
+        label_smoothing=config.hparams.get("label_smoothing", 0.0))
   else:
     loss = tf.keras.losses.BinaryCrossentropy()
   logging.info(f"Using '{loss.name}' loss")
