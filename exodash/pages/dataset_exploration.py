@@ -66,6 +66,9 @@ x_col = st.selectbox("X-axis", df.columns[1:], index=0)
 y_col = st.selectbox("Y-axis", df.columns[1:], index=1)
 color_col = st.selectbox("Color By", ["None"] + categorical_features, index=0)
 
+# drop na for x col and y col
+filtered_df = filtered_df.dropna(subset=[x_col, y_col])
+
 fig_scatter = px.scatter(
     filtered_df,
     x=x_col,
