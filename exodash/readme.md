@@ -18,5 +18,7 @@
 3. Ensure your data management is working properly using the DataManagementExample.ipynb
 
 ## How to run
-1. Ensure your config.yaml is up-to-date
-2. Run the streamlit dashboard locally: python -m streamlit run exodash/app.py (from the main astronet folder)
+1. Ensure your config.yaml is up-to-
+2. ssh connection to PDO (to be able to query for TIC reports from QLP)
+- ssh -L 5001:localhost:5001 pdo6
+3. Run the streamlit dashboard locally: python -m streamlit run exodash/app.py (from the main astronet folder)
