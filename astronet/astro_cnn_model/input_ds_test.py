@@ -343,8 +343,7 @@ class TimeSeriesRandomReverserTest(absltest.TestCase):
 
     labels = np.array([1, 2, 3], dtype=float)
     weight = 0.5
-    inputs = (self.input_features, labels, weight)
-    features, labels, weight = reverser(inputs)
+    features, labels, weight = reverser(self.input_features, labels, weight)
     np.testing.assert_almost_equal(
         features.pop("time_series_1"), np.flip(np.arange(10)))
     np.testing.assert_almost_equal(
