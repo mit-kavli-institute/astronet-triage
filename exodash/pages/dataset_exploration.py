@@ -87,6 +87,7 @@ hist_feature = st.selectbox("Select Feature", df.columns[1:])
 nbins = st.slider("Number of Bins", 5, 100, 50, step=5)
 
 if pd.api.types.is_numeric_dtype(df[hist_feature]):
+    filtered_df = filtered_df.dropna(subset=[hist_feature])
     fig_hist = px.histogram(
         filtered_df,
         x=hist_feature,
@@ -95,6 +96,7 @@ if pd.api.types.is_numeric_dtype(df[hist_feature]):
         title=f"Distribution of {hist_feature}"
     )
 else:
+    filtered_df = filtered_df.dropna(subset=[hist_feature])
     fig_hist = px.histogram(
         filtered_df,
         x=hist_feature,
