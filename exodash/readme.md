@@ -10,6 +10,13 @@
 - Missing data overview
 - Sidebar navigation to additional pages (TIC exploration, model performance, etc.)
 
+## First time configuration
+1. pip install -r requirements.txt
+2. Ensure you have set up the Google Service Account credentials
+- Download the credentials from <link>
+- Set the OS environment variable GOOGLE_APPLICATION_CREDENTIALS to point to the downloaded file.
+3. Ensure your data management is working properly using the DataManagementExample.ipynb
+
 ## How to run
-1. Ensure your data management is working properly using the DataManagementExample.ipynb
+1. Ensure your config.yaml is up-to-date
 2. Run the streamlit dashboard locally: python -m streamlit run exodash/app.py (from the main astronet folder)
