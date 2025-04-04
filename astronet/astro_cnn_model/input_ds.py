@@ -122,13 +122,9 @@ class TimeSeriesRandomReverser:
     self.feature_config = feature_config
     self.prob = prob
 
-  def __call__(self, inputs):
-    if isinstance(inputs, tuple):
-      features = inputs[0]
-      aux_inputs = inputs[1:]
-    else:
-      features = inputs
-      aux_inputs = None
+  def __call__(self, *args):
+    features = args[0]
+    aux_inputs = args[1:]
 
     if tf.random.uniform(shape=[]) < self.prob:
       new_features = {}
@@ -138,10 +134,9 @@ class TimeSeriesRandomReverser:
         new_features[name] = value
       features = new_features
 
-    if aux_inputs is None:
-      return features
-
-    return (features,) + aux_inputs
+    if aux_inputs:
+      return (features,) + aux_inputs
+    return features
 
 
 def build_dataset(file_pattern,
