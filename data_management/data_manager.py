@@ -125,20 +125,23 @@ class DataManager:
         astro_data = []
         astro_data_report = AstroDataReport()
         # Load data based on the test/train/validation sheet
-        for index, row in self.dataset_split_df.iterrows():
+        for index, row in self.properties_df.iterrows():
             try:
                 tic_id = int(row[DataManagerConstants.TIC_ID_COLUMN])
-                split = Split.from_str(row[DataManagerConstants.SPLIT_COLUMN])
+                astro_id = int(row[DataManagerConstants.ASTRO_ID_COLUMN])
+                # join the split from the dataset_split_df
+                split_row = self.dataset_split_df[self.dataset_split_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                split = Split.from_str(split_row[DataManagerConstants.SPLIT_COLUMN])
 
-
-                labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
-                labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
-                if not labels_dict:
+                label = None
+                if DataManagerConstants.LABEL_COLUMN not in self.properties_df.columns: # final contains human label
+                    # load label from labels_df
+                    labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                    label = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
+                else:
+                    label = row[DataManagerConstants.LABEL_COLUMN]
+                if label is None:
                     astro_data_report.num_labels_failed_to_load += 1
-                    continue
-
-                label = labels_dict[DataManagerConstants.LABEL_COLUMN]
-                astro_id = labels_dict[DataManagerConstants.ASTRO_ID_COLUMN]
 
                 properties_row = self.properties_df[self.properties_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
                 properties_dict = (
@@ -146,6 +149,8 @@ class DataManager:
                     if not properties_row.empty else {}
                 )
 
+                labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
                 properties_dict.update(
                     {
                         'distinct': labels_dict.get(DataManagerConstants.DISTINCT_COLUMN),
@@ -156,7 +161,7 @@ class DataManager:
                 fits_path = self.data_storage.get_path(tic_id=tic_id)
                 if not fits_path:
                     astro_data_report.num_fits_failed_to_load += 1
-                    continue
+                    #continue
                 
                 images_path = self.data_storage.get_images_path(tic_id=tic_id)
                 report_paths = self.data_storage.get_reports_path(tic_id=tic_id)

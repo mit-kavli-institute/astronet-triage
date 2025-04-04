@@ -1,0 +1,335 @@
+import ast
+import os
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import matplotlib.pyplot as plt
+from exodash.eval_utils import HUMAN_LABEL_MAP, PREDICTION_MAPPING, EvalUtils, PREDICTION_LABELS
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, precision_recall_curve, auc
+
+
+properties_df = df = st.session_state.df  # Access shared dataset
+
+# Streamlit UI
+st.set_page_config(page_title="ExoDash - Model Performance", layout="wide")
+st.title("📊 Model Performance Overview")
+st.write("Compare individual model performance against ensemble predictions. Upload model inference results to analyze predictions and errors.")
+
+uploaded_file = st.file_uploader("Upload a CSV file with model predictions", type=["csv"])
+
+def _advanced_filter_sidebar(df):
+    filtered_df = df.copy()  # Start with full dataset
+
+    numeric_features = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    categorical_features = df.select_dtypes(include=['object']).columns.tolist()
+    selected_num_filters = st.sidebar.multiselect("Select Numeric Features to Filter", numeric_features)
+    for feature in selected_num_filters:
+        min_val, max_val = st.sidebar.slider(
+            f"Range for {feature}",
+            float(df[feature].min()), float(df[feature].max()),
+            (float(df[feature].min()), float(df[feature].max()))
+        )
+        filtered_df = filtered_df[(filtered_df[feature] >= min_val) & (filtered_df[feature] <= max_val)]
+
+    # Allow users to filter categorical features
+    selected_cat_filters = st.sidebar.multiselect("Select Categorical Features to Filter", categorical_features)
+
+    for feature in selected_cat_filters:
+        unique_values = df[feature].dropna().unique()
+        selected_values = st.sidebar.multiselect(f"Filter by {feature}", unique_values, default=unique_values)
+        filtered_df = filtered_df[filtered_df[feature].isin(selected_values)]
+    
+    return filtered_df
+
+def _show_all_model_performance(performance_df):
+    metric_to_plot = st.selectbox("Select Metric to Compare", ["accuracy", "precision", "recall", "f1_score"])
+    fig = px.bar(performance_df, x="model_no", y=metric_to_plot, text=metric_to_plot, title=f"{metric_to_plot.capitalize()} Across Models")
+    st.plotly_chart(fig)
+
+def _plot_pr_curve(ensemble_results_orig, ensemble_results_filtered):
+    st.subheader("📈 Precision-Recall Curve (All Classes)")
+
+    # Check if filtering is active (i.e., the filtered df is different from the original)
+    filtering_active = not ensemble_results_filtered.equals(ensemble_results_orig)
+
+    # Sidebar option to hide the original PR curve
+    hide_orig = st.sidebar.checkbox("Hide Original PR Curve", value=False) if filtering_active else False
+
+    # Get class sample counts
+    class_counts_orig = ensemble_results_orig["true_label"].value_counts().to_dict()
+    class_counts_filtered = ensemble_results_filtered["true_label"].value_counts().to_dict() if filtering_active else {}
+
+    fig, ax = plt.subplots(figsize=(16, 9))  # Set figure size
+
+    for class_label, prob_column in HUMAN_LABEL_MAP.items():
+        count_orig = class_counts_orig.get(class_label, 0)
+        count_filtered = class_counts_filtered.get(class_label, 0) if filtering_active else 0
+
+        if not hide_orig:
+            # Original dataset
+            y_true_orig = (ensemble_results_orig["true_label"] == class_label).astype(int)
+            y_scores_orig = ensemble_results_orig[prob_column]  
+
+            precision_orig, recall_orig, _ = precision_recall_curve(y_true_orig, y_scores_orig)
+            pr_auc_orig = auc(recall_orig, precision_orig)
+
+            # Plot PR curve for original dataset with sample count
+            ax.plot(
+                recall_orig, precision_orig, marker='.',
+                label=f'{class_label} ({count_orig} samples) - AUC: {pr_auc_orig:.4f}'
+            )
+
+        # Only plot the filtered dataset if filtering is active
+        if filtering_active:
+            y_true_filtered = (ensemble_results_filtered["true_label"] == class_label).astype(int)
+            y_scores_filtered = ensemble_results_filtered[prob_column]
+
+            precision_filtered, recall_filtered, _ = precision_recall_curve(y_true_filtered, y_scores_filtered)
+            pr_auc_filtered = auc(recall_filtered, precision_filtered)
+
+            ax.plot(
+                recall_filtered, precision_filtered, linestyle='dashed', marker='.', 
+                label=f'{class_label} ({count_filtered} samples, Filtered) - AUC: {pr_auc_filtered:.4f}'
+            )
+
+    # Set labels and title
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+    ax.set_title('Precision-Recall Curve for All Classes')
+    ax.legend()
+
+    st.pyplot(fig, use_container_width=False)
+
+def _plot_prediction_score_distribution(ensemble_results):
+    st.subheader("📊 Prediction Score Distribution Analysis")
+
+    # 1️⃣ Select the score distribution to visualize
+    selected_disp_label = st.selectbox("Select Score to Analyze:", list(HUMAN_LABEL_MAP.values()), index=0)
+
+    # 2️⃣ Select the differentiator class (to split the data)
+    selected_differentiator_class = st.selectbox("Select Differentiator Class (True Label):", 
+                                                 list(PREDICTION_MAPPING.values()), index=1)
+
+    # Split data based on the differentiator class
+    df_with_class = ensemble_results[ensemble_results["true_label"] == selected_differentiator_class]
+    df_without_class = ensemble_results[ensemble_results["true_label"] != selected_differentiator_class]
+
+    # Rename columns for consistency
+    df_with_class = df_with_class[["astro_id", selected_disp_label, "true_label"]].copy()
+    df_without_class = df_without_class[["astro_id", selected_disp_label, "true_label"]].copy()
+
+    df_with_class["Category"] = f"True Label = {selected_differentiator_class}"
+    df_without_class["Category"] = f"True Label ≠ {selected_differentiator_class}"
+
+    combined_df = pd.concat([df_with_class, df_without_class], axis=0)
+
+    # Violin Plot for Score Distributions
+    fig_violin = px.violin(
+        combined_df, x="Category", y=selected_disp_label, box=True, points="all",
+        title=f"Distribution of {selected_disp_label} Scores (Grouped by True Label)",
+        labels={selected_disp_label: "Prediction Score", "Category": "True Label Group"},
+        color="Category",
+        hover_data=["astro_id"]
+    )
+
+    # Display the charts side by side
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader(f"🔍 {selected_disp_label} Scores where True Label = {selected_differentiator_class}")
+        fig_with = px.histogram(df_with_class, x=selected_disp_label, nbins=20, opacity=0.7,
+                                title=f"True Label = {selected_differentiator_class}",
+                                labels={selected_disp_label: "Prediction Score"})
+        st.plotly_chart(fig_with, use_container_width=True)
+
+    with col2:
+        st.subheader(f"🔍 {selected_disp_label} Scores where True Label ≠ {selected_differentiator_class}")
+        fig_without = px.histogram(df_without_class, x=selected_disp_label, nbins=20, opacity=0.7,
+                                   title=f"True Label ≠ {selected_differentiator_class}",
+                                   labels={selected_disp_label: "Prediction Score"})
+        st.plotly_chart(fig_without, use_container_width=True)
+
+    # Display violin plot below for overall distribution
+    st.plotly_chart(fig_violin, use_container_width=True)
+
+def _find_interesting_astro_ids(ensemble_results, N=5):
+    """
+    Selects the most interesting Astro IDs based on:
+    1. High-confidence misclassification.
+    2. Low-confidence correct predictions.
+    3. High variance in predictions.
+
+    Returns a list of dictionaries containing:
+    - astro_id
+    - true_label
+    - predicted_label
+    - disp scores
+    - reason for selection
+    """
+
+    # Step 1: Find misclassified samples
+    misclassified = ensemble_results[ensemble_results["true_label"] != ensemble_results["predicted_label"]].copy()
+    probability_columns = list(HUMAN_LABEL_MAP.values())
+    misclassified["max_wrong_confidence"] = misclassified[probability_columns].max(axis=1)
+    misclassified = misclassified.sort_values(by="max_wrong_confidence", ascending=False)
+    misclassified["selection_reason"] = "High-confidence misclassification"
+
+    # Step 2: Find low-confidence correct predictions
+    correct_predictions = ensemble_results[ensemble_results["true_label"] == ensemble_results["predicted_label"]].copy()
+    correct_predictions["max_confidence"] = correct_predictions[probability_columns].max(axis=1)
+    correct_predictions = correct_predictions.sort_values(by="max_confidence", ascending=True)
+    correct_predictions["selection_reason"] = "Low-confidence correct prediction"
+
+    # Step 3: Find high-variance cases (same Astro ID has different model scores)
+    model_variance = ensemble_results.groupby("astro_id")[probability_columns].std().sum(axis=1)
+    high_variance_cases = model_variance.sort_values(ascending=False).head(N).index.tolist()
+    high_variance_df = ensemble_results[ensemble_results["astro_id"].isin(high_variance_cases)].copy()
+    high_variance_df["selection_reason"] = "High variance in predictions"
+
+    # Merge and limit results to N
+    selected_cases = pd.concat([misclassified.head(N), correct_predictions.head(N), high_variance_df.head(N)])
+    selected_cases = selected_cases.drop_duplicates(subset=["astro_id"]).head(N)
+
+    return selected_cases.to_dict(orient="records")  # Convert to list of dictionaries
+
+
+
+def generate_report_for_astro_id(astro_id: int):
+    # Get report paths from dataframe
+    report_paths = properties_df.loc[properties_df["astro_id"] == astro_id, "report_paths"].dropna()
+    tic_id = properties_df.loc[properties_df["astro_id"] == astro_id, "tic_id"]
+    if tic_id.empty:
+        st.warning(f"No TIC ID found for Astro ID: {astro_id}")
+        return
+    tic_id = tic_id.values[0]
+    report_paths = report_paths.apply(ast.literal_eval)
+    all_report_paths = [path for sublist in report_paths for path in sublist]
+    for i, report_path in enumerate(all_report_paths):
+        report_path = report_path.strip()  # Remove spaces
+        if os.path.exists(report_path):  # Ensure file exists
+            st.image(report_path, caption=f"TIC {tic_id} - Report {i+1}", use_container_width=True)
+        else:
+            st.warning(f"Report {i+1} missing for TIC {tic_id}")
+
+if uploaded_file:
+    st.subheader("📂 Processing Uploaded Model Predictions")
+    individual_model_results = pd.read_csv(uploaded_file)
+    eval_utils = EvalUtils(individual_model_results)
+
+    if {"astro_id", "model_no", "disp_p", "disp_e", "disp_n", "disp_j"}.issubset(individual_model_results.columns):
+        performance_df = eval_utils.compute_performance()
+        _show_all_model_performance(performance_df)
+        
+        # Sidebar sliders for setting thresholds dynamically
+        use_thresholds = st.sidebar.checkbox("🔧 Use Custom Thresholds", value=False)
+
+        thresholds = None
+        if use_thresholds:
+            st.sidebar.subheader("🔧 Adjust Classification Thresholds")
+            thresholds = {}
+            for class_col in PREDICTION_LABELS:
+                thresholds[class_col] = st.sidebar.slider(
+                    f"Threshold for {PREDICTION_MAPPING[class_col]}",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.5,  # Default threshold
+                    step=0.01
+                )
+
+        # Compute ensemble results with the selected thresholds
+        ensemble_results = eval_utils.get_ensemble_results(thresholds, include_labels=True, include_properties=True, dropna=True)
+        ensemble_results_orig = ensemble_results.copy()
+        ensemble_results = _advanced_filter_sidebar(ensemble_results)
+
+        _plot_pr_curve(ensemble_results_orig, ensemble_results)
+        _plot_prediction_score_distribution(ensemble_results)
+
+        # Compute ensemble performance metrics
+        ensemble_acc = accuracy_score(ensemble_results["true_label"], ensemble_results["predicted_label"])
+        ensemble_prec = precision_score(ensemble_results["true_label"], ensemble_results["predicted_label"], average="weighted", zero_division=0)
+        ensemble_rec = recall_score(ensemble_results["true_label"], ensemble_results["predicted_label"], average="weighted", zero_division=0)
+        ensemble_f1 = f1_score(ensemble_results["true_label"], ensemble_results["predicted_label"], average="weighted", zero_division=0)
+
+        # Display results
+        if thresholds:
+            st.subheader("Ensemble Model Performance (Custom thresholds)")
+        else:
+            st.subheader("Ensemble Model Performance (Max of average)")
+        st.write(f"**Accuracy:** {ensemble_acc:.4f}")
+        st.write(f"**Precision:** {ensemble_prec:.4f}")
+        st.write(f"**Recall:** {ensemble_rec:.4f}")
+        st.write(f"**F1-score:** {ensemble_f1:.4f}")
+
+        
+        # Confusion Matrix with Query Feature
+        st.subheader("🔍 Confusion Matrix Query")
+        conf_matrix = confusion_matrix(ensemble_results["true_label"], ensemble_results["predicted_label"], labels=list(PREDICTION_MAPPING.values()))
+        conf_matrix_df = pd.DataFrame(conf_matrix, index=list(PREDICTION_MAPPING.values()), columns=list(PREDICTION_MAPPING.values()))
+        st.write("Confusion Matrix:")
+        st.dataframe(conf_matrix_df)
+
+        # Scatter plot filters
+        st.subheader("📊 Scatter Plot with Filters")
+        labels_to_include = st.multiselect("Select Labels to Include:", list(PREDICTION_MAPPING.values()), default=list(PREDICTION_MAPPING.values()))
+        filtered_df = ensemble_results[ensemble_results["true_label"].isin(labels_to_include)]
+        
+        probability_columns = list(HUMAN_LABEL_MAP.values())
+        l1 = st.selectbox("Select First Disp Column:", probability_columns, index=0)
+        l2 = st.selectbox("Select Second Disp Column:", probability_columns, index=1)
+
+        if l1 != l2:
+            fig_scatter = px.scatter(
+                filtered_df, x=l1, y=l2, color="true_label",
+                title=f"{l1} vs. {l2} Scatter Plot",
+                labels={l1: f"{l1} Probability", l2: f"{l2} Probability"},
+                opacity=0.6,
+                hover_data=["astro_id"]  # Show additional data on hover
+            )
+            st.plotly_chart(fig_scatter)
+        else:
+            st.warning("Please select two different probability columns for the scatter plot.")
+
+        # Select category from matrix
+        st.subheader("📌 Query TIC IDs from Confusion Matrix")
+        selected_true_label = st.selectbox("Select True Label:", list(PREDICTION_MAPPING.values()))
+        selected_pred_label = st.selectbox("Select Predicted Label:", list(PREDICTION_MAPPING.values()))
+
+        query_results = ensemble_results[(ensemble_results["true_label"] == selected_true_label) & (ensemble_results["predicted_label"] == selected_pred_label)]
+        st.write(f"Total matching records: {query_results.shape[0]}")
+        st.dataframe(query_results)
+
+
+        # Display Misclassified Samples
+        misclassified = ensemble_results[ensemble_results["true_label"] != ensemble_results["predicted_label"]]
+        st.write(f"Total Misclassified Samples: {misclassified.shape[0]}")
+        st.dataframe(misclassified)
+
+        N_TO_ANALYZE = st.sidebar.slider(
+            f"Number of interesting cases to analyze",
+            1, 10
+        )
+        interesting_cases = _find_interesting_astro_ids(ensemble_results, N_TO_ANALYZE)
+
+        # Display in Streamlit
+        st.subheader(f"🔍 Top {N_TO_ANALYZE} Most Interesting Astro IDs")
+        st.write("These Astro IDs were selected based on key failure modes: misclassification, uncertainty, or high variance.")
+
+        for case in interesting_cases:
+            astro_id = case["astro_id"]
+            true_label = case["true_label"]
+            predicted_label = case["predicted_label"]
+            disp_scores = {label: case[label] for label in HUMAN_LABEL_MAP.values()}  # Extract disp scores
+            selection_reason = case["selection_reason"]
+            astro_props = properties_df[properties_df["astro_id"] == astro_id].to_dict(orient="records")[0]  # Extract single record
+
+            # Display metadata
+            st.subheader(f"📊 Report for Astro ID: {astro_id}")
+            st.write(f"**True Label:** {true_label}")
+            st.write(f"**Predicted Label:** {predicted_label}")
+            st.write(f"**disp Scores:** {disp_scores}")
+            st.write(f"**Reason for Selection:** {selection_reason}")
+
+            # Display report images
+            generate_report_for_astro_id(astro_id)
+else:
+    st.info("📤 Please upload model inference results to proceed.")
