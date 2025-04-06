@@ -4153,7 +4153,7 @@ def final_alpha_1_tuned():
   return config
 
 
-# Same as final_alpha_1, but with the following changes to the names in
+# Compared to final_alpha_1, note the following changes to the names in
 # hparams.aux_inputs, reflecting the names saved in the TFRecord files.
 #   est_star_rad -> star_rad_est
 #   est_star_rad_present -> star_rad_est_present
@@ -4161,14 +4161,16 @@ def final_alpha_1_tuned():
 #   local_scale_present_0.5 -> local_scale_present_5.0
 #   secondary_scale_0.5 -> secondary_scale_5.0
 #   secondary_scale_present_0.5 -> secondary_scale_present_5.0
+# Also the hparams have been re-tuned and the label and weight schemes have been
+# updated.
 def cshallue():
   config = {
-      "train_steps": 20000,
+      "train_steps": 1000,
       "inputs": {
           "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
           "exclusive_labels": False,
-          "label_scheme": "binary",
-          "uncertainty_weight": True,
+          "label_scheme": "maximum",
+          "uncertainty_weight": False,
           "non_primary_downweight_factor": 2.0,
           "primary_class": 0,
           "random_reverse_time_series": False,
@@ -4451,19 +4453,19 @@ def cshallue():
           },
       },
       "hparams": {
-          "batch_size": 83,
-          "learning_rate": 5.203528044134961e-06,
+          "batch_size": 512,
+          "learning_rate": 0.001735,
           "clip_gradient_norm": None,
           "optimizer": "adam",
-          "one_minus_adam_beta_1": 0.16168028483420177,
-          "one_minus_adam_beta_2": 0.022674419033475692,
-          "adam_epsilon": 2.5037055725611666e-07,
-          "weight_decay": None,
+          "one_minus_adam_beta_1": 0.1,
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.4375,
           "label_smoothing": 0.0,
           "use_batch_norm": False,
           "num_pre_logits_hidden_layers": 4,
-          "pre_logits_hidden_layer_size": 482,
-          "pre_logits_dropout_rate": 0.1690298097832756,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.4588,
           "aux_inputs": [
               "Period",
               "Duration",
