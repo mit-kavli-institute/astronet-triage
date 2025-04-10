@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """A model for classifying light curves using a convolutional neural network.
 
 See the base class (in astro_model.py) for a description of the general
@@ -44,101 +43,39 @@ The architecture of this model is:
 
 import tensorflow as tf
 
+from astronet.astro_cnn_model import base
+from astronet.util import config_util
+
 
 class AstroCNNModel(tf.keras.Model):
+  """A convolutional model for classifying light curves."""
 
-    def __init__(self, config, pretrain_model=None, embeds_only=False):
-        super(AstroCNNModel, self).__init__()
+  def __init__(self, config):
+    super().__init__()
+    self.config = config_util.validate(config)
+    self.embeds_only = False
+    self.ts_blocks = base.create_ts_blocks(config.hparams)
+    self.final = base.build_final_fc_layers(config.inputs, config.hparams)
 
-        self.config = config
-        self.embeds_only = embeds_only
-        
-        if pretrain_model is not None:
-            self.ts_blocks = pretrain_model.ts_blocks
-            if self.embeds_only:
-                self.final = pretrain_model.final[:-1]
-            else:
-                self.final = pretrain_model.final
-            
-        else:
-            self.ts_blocks = self._create_ts_blocks(config)
+  def make_embeds_only(self):
+    """Removes the final output layer that generates probabilities.
+    
+    Although this could be implemented in the constructor, we generally only
+    want to do this for a pretrained model, in which case we should load the
+    full model first and then call this function.
+    """
+    if self.embeds_only:
+      raise ValueError("Final embedding layer has already been removed")
+    self.final = self.final[:-1]
+    self.embeds_only = True
 
-            self.final = [
-              tf.keras.layers.Concatenate()
-            ]
+  def call(self, inputs, training=None):
+    ts_inputs, aux_inputs = base.unpack_inputs(inputs, self.config.hparams)
+    y = []
+    for k in sorted(ts_inputs.keys()):
+      v = ts_inputs[k]
+      y.append(base.apply_block(self.ts_blocks[k], v, training))
+    y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
+    y = base.apply_block(self.final, y, training)
 
-            hps = config.hparams
-            for i in range(hps.num_pre_logits_hidden_layers):
-                self.final.append(tf.keras.layers.Dense(units=hps.pre_logits_hidden_layer_size, activation='relu'))
-                if hps.use_batch_norm:
-                    self.final.append(tf.keras.layers.BatchNormalization())
-                self.final.append(tf.keras.layers.Dropout(hps.pre_logits_dropout_rate))
-
-            self.final.append(tf.keras.layers.Dense(units=len(config.inputs.label_columns), activation='sigmoid'))
-
-    def _create_conv_block(self, config, name):
-        block_params = config.hparams.time_series_hidden[name]
-        layers = []
-        for i in range(block_params.cnn_num_blocks):
-            block_name = '{}_block_{}'.format(name, i + 1)
-            num_filters = int(float(block_params.cnn_initial_num_filters) *
-                              block_params.cnn_block_filter_factor ** i)
-            for j in range(block_params.cnn_block_size):
-                if block_params.get('separable'):
-                    layers.append(tf.keras.layers.SeparableConv1D(
-                        filters=num_filters,
-                        kernel_size=block_params.cnn_kernel_size,
-                        padding=block_params.convolution_padding,
-                        activation='relu',
-                        name='{}_conv_{}'.format(block_name, j + 1)))
-                else:
-                    layers.append(tf.keras.layers.Conv1D(
-                        filters=num_filters,
-                        kernel_size=block_params.cnn_kernel_size,
-                        padding=block_params.convolution_padding,
-                        activation='relu',
-                        name='{}_conv_{}'.format(block_name, j + 1)))
-            if block_params.pool_size:
-                layers.append(tf.keras.layers.MaxPool1D(
-                    pool_size=block_params.pool_size,
-                    strides=block_params.pool_strides,
-                    name='{}_pool'.format(block_name)))
-        layers.append(tf.keras.layers.Flatten())
-        return layers
-
-    def _create_ts_blocks(self, config):
-        blocks = {}
-        for key in config.hparams.time_series_hidden:
-            blocks[key] = self._create_conv_block(config, key)
-        return blocks
-
-    def _apply_block(self, block, input_, training):
-        y = input_
-        for layer in block:
-            y = layer(y, training=training)
-        return y
-
-    def call(self, inputs, training=None):
-        ts_inputs = {}
-        aux_inputs = {}
-        for k, v in inputs.items():
-            if k in self.config.hparams.time_series_hidden:
-                c = self.config.hparams.time_series_hidden[k]
-                chans = [v]
-                for extra in getattr(c, 'extra_channels', []):
-                    chans.append(inputs[extra])
-                if getattr(c, 'multichannel', False):
-                    ts_inputs[k] = tf.concat(chans, axis=-1)
-                else:
-                    ts_inputs[k] = tf.stack(chans, axis=-1)
-            elif k in self.config.hparams.aux_inputs:
-                aux_inputs[k] = v
-        y = []
-        for k in sorted(ts_inputs.keys()):
-            v = ts_inputs[k]
-            y_k = self._apply_block(self.ts_blocks[k], v, training)
-            y.append(y_k)
-        y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
-        y = self._apply_block(self.final, y, training)
-
-        return y
+    return y

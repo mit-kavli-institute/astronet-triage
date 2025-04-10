@@ -11,21 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Configuration container for TensorFlow models.
 
 A ConfigDict is simply a dict whose values can be accessed via both dot syntax
 (config.key) and dict syntax (config['key']).
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 
 def _maybe_convert_dict(value):
   if isinstance(value, dict):
     return ConfigDict(value)
+
+  if isinstance(value, (tuple, list)):
+    return [_maybe_convert_dict(item) for item in value]
 
   return value
 
@@ -52,13 +50,13 @@ class ConfigDict(dict):
     try:
       return self[attribute]
     except KeyError as e:
-      raise AttributeError(e)
+      raise AttributeError(e) from e
 
   def __delattr__(self, attribute):
     try:
       del self[attribute]
     except KeyError as e:
-      raise AttributeError(e)
+      raise AttributeError(e) from e
 
   def __setitem__(self, key, value):
     super(ConfigDict, self).__setitem__(key, _maybe_convert_dict(value))

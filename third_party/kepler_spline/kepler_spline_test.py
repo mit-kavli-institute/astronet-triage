@@ -1,11 +1,7 @@
 """Tests for kepler_spline.py."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-from absl.testing import absltest
 import numpy as np
+from absl.testing import absltest
 
 from third_party.kepler_spline import kepler_spline
 
