@@ -270,11 +270,18 @@ def _process_file_shard(
   shard_size = len(tce_table)
 
   existing = {}
-  tfr = tf.data.TFRecordDataset(file_name)
-  for record in tfr:
-    ex_str = record.numpy()
-    ex = tf.train.Example.FromString(ex_str)
-    existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
+  # tfr = tf.data.TFRecordDataset(file_name)
+  # for record in tfr:
+  #   ex_str = record.numpy()
+  #   ex = tf.train.Example.FromString(ex_str)
+  #   existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
+
+  if tf.io.gfile.exists(file_name):
+    tfr = tf.data.TFRecordDataset(file_name)
+    for record in tfr:
+        ex_str = record.numpy()
+        ex = tf.train.Example.FromString(ex_str)
+        existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
 
   with tf.io.TFRecordWriter(file_name) as writer:
     num_processed = 0
