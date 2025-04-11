@@ -646,3 +646,116 @@ def base_new():
   config["tune_params"] = triage_config["tune_params"]
 
   return config
+
+
+def cshallue():
+  triage_config = configurations.cshallue()
+
+  config = {
+      "train_steps": 1000,
+      "inputs": {
+          "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
+          "exclusive_labels": True,
+          "label_scheme": "maximum",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": False,
+          "features": {
+              "local_aperture_s": {
+                  "shape": [61],
+                  "is_time_series": True,
+                  "vetting_only": True,
+              },
+              "local_aperture_m": {
+                  "shape": [61],
+                  "is_time_series": True,
+                  "vetting_only": True,
+              },
+              "local_aperture_l": {
+                  "shape": [61],
+                  "is_time_series": True,
+                  "vetting_only": True,
+              },
+          },
+      },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 0.001,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1,
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.4375,
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.45,
+          "aux_inputs": triage_config["aux_inputs"],
+          "time_series_hidden": {
+              "local_aperture_s": {
+                  "cnn_num_blocks": 1,
+                  "cnn_block_size": 3,
+                  "cnn_initial_num_filters": 16,
+                  "cnn_block_filter_factor": 2,
+                  "cnn_kernel_size": 5,
+                  "convolution_padding": "same",
+                  "pool_size": 5,
+                  "pool_strides": 2,
+                  "separable": False,
+                  "extra_channels": ["local_aperture_m", "local_aperture_l"],
+              },
+              "secondary_view": {
+                  "cnn_num_blocks": 1,
+                  "cnn_block_size": 3,
+                  "cnn_initial_num_filters": 16,
+                  "cnn_block_filter_factor": 2,
+                  "cnn_kernel_size": 5,
+                  "convolution_padding": "same",
+                  "pool_size": 5,
+                  "pool_strides": 2,
+                  "separable": False,
+                  "extra_channels": ["secondary_mask"],
+              },
+              "local_view": {
+                  "cnn_num_blocks":
+                      1,
+                  "cnn_block_size":
+                      3,
+                  "cnn_initial_num_filters":
+                      16,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      5,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      5,
+                  "pool_strides":
+                      2,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "local_view_0.3",
+                      "local_view_5.0",
+                      "local_view_odd",
+                      "local_view_even",
+                      "local_std",
+                      "local_std_odd",
+                      "local_std_even",
+                      "local_view_half_period_std",
+                      "local_mask",
+                  ],
+              },
+          },
+          "use_batch_norm": False,
+      },
+  }
+
+  config_util.merge_configs(config["inputs"]["features"],
+                            triage_config["inputs"]["features"])
+
+  return config
