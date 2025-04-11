@@ -17,6 +17,7 @@ import datetime
 import os
 
 import numpy as np
+import tensorflow as tf
 from absl import app, flags, logging
 
 from astronet import evaluation, models, training
@@ -104,8 +105,7 @@ def main(_):
   # Build the model.
   model_class = models.get_model_class(FLAGS.model)
   if FLAGS.pretrain_model_dir:
-    pretrain_model = models.load_from_weights("AstroCNNModel",
-                                              FLAGS.pretrain_model_dir)
+    pretrain_model = tf.keras.models.load_model(FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
     model = model_class(config, pretrain_model)
   else:
@@ -127,11 +127,10 @@ def main(_):
       train_files=FLAGS.train_files,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
 
-  # Save the model in Keras format and the model weights in h5 format. This
-  # redundancy helps future-proof saved models at the cost of some extra disk
-  # space.
+  # Save the model in Keras format.
   model.save(model_dir)
-  model.save_weights(os.path.join(model_dir, "model.weights.h5"))
+  # Uncomment to save the weights in h5 format.
+  # model.save_weights(os.path.join(model_dir, "model.weights.h5"))
 
   # Construct evaluation datasets.
   # This includes the training set and possibly additional datasets.
