@@ -26,6 +26,7 @@ from typing_extensions import Protocol
 from astronet.preprocess import preprocess
 from astronet.util.example_util import set_float_feature, set_int64_feature
 
+SKIPPED_TICS=[]
 
 class LCGetter(Protocol):
 
@@ -60,6 +61,12 @@ FLAGS = flags.FLAGS
 
 def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
                     aperture_fluxes):
+
+  if time is None or len(time) == 0 or flux is None or len(flux) == 0:
+    logging.warning(f"Skipping TIC {tic}: empty time/flux array.") # <-- Changed line
+    SKIPPED_TICS.append(tic)  # global list
+    return None
+
   if bkspace is None:
     tag = ""
   else:
@@ -112,10 +119,30 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   set_float_feature(ex, f"local_std_even{tag}", std)
   set_float_feature(ex, f"local_mask_even{tag}", mask)
 
-  (_, _, _, sec_scale,
-   _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
-  (view, std, mask, scale, _), t0 = preprocess.secondary_view(
-      tic, time, flux, period, duration, scale=scale, depth=depth)
+  # print("Debugging: tic",tic)
+  # (_, _, _, sec_scale,
+  #  _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+  # (view, std, mask, scale, _), t0 = preprocess.secondary_view(
+  #     tic, time, flux, period, duration, scale=scale, depth=depth)
+
+  try:
+      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+      (view, std, mask, scale, _), t0 = preprocess.secondary_view(
+          tic, time, flux, period, duration, scale=scale, depth=depth)
+  except IndexError as e:
+      logging.warning(f"Skipping TIC {tic}: preprocess.secondary_view failed (IndexError).", exc_info=False) # Set exc_info=True to include traceback
+
+      # Log details at a lower level (e.g., DEBUG) if desired
+      time_info = f"shape {time.shape}" if hasattr(time, 'shape') else f"length {len(time)}"
+      flux_info = f"shape {flux.shape}" if hasattr(flux, 'shape') else f"length {len(flux)}"
+      logging.debug(f"  Details for failed TIC {tic}: Error='{e}', Input time info='{time_info}', Input flux info='{flux_info}'")
+
+      SKIPPED_TICS.append(tic)
+      return None
+
+
+
+
   set_float_feature(ex, f"secondary_view{tag}", view)
   set_float_feature(ex, f"secondary_std{tag}", std)
   set_float_feature(ex, f"secondary_mask{tag}", mask)
@@ -197,6 +224,9 @@ def _process_tce(tce, get_lightcurve: LCGetter, mode: AstronetMode,
   for bkspace in [0.3, 5.0, None]:
     fold_num = _standard_views(ex, tce["TIC ID"], time, flux, tce.Per, tce.Epoc,
                                tce.Dur, bkspace, apertures)
+    if fold_num is None:
+      # We are skipping this TCE entirely
+      return None
 
   set_int64_feature(ex, "astro_id", [tce["Astro ID"]])
 
@@ -304,11 +334,29 @@ def _process_file_shard(
       examples = []
       print(" processing", end="")
       sys.stdout.flush()
-      ex = _process_tce(tce, get_lightcurve, mode, training)
-      examples.append(ex)
 
+      ### OLD version:
+      # ex = _process_tce(tce, get_lightcurve, mode, training)
+      # examples.append(ex)
+
+      # print(" writing                   ", end="")
+      # sys.stdout.flush()
+      # for example in examples:
+      #   writer.write(example.SerializeToString())
+
+      ### New version:
+      ex = _process_tce(tce, get_lightcurve, mode, training)
+
+      # If ex is None, we skip this TCE:
+      if ex is None:
+        num_skipped += 1
+        print(" -> Skipped", end="")
+      else:
+        # Otherwise, we append it to 'examples'
+        examples.append(ex)
       print(" writing                   ", end="")
       sys.stdout.flush()
+      # ### [MODIFIED] We only write out the non-None examples:
       for example in examples:
         writer.write(example.SerializeToString())
 
@@ -411,6 +459,22 @@ def main(_):
     _process_file_shard(tce_table[start:end], file_shard, get_lightcurve,
                         FLAGS.mode, FLAGS.training)
   logging.info("Finished processing %d total file shards", len(file_shards))
+
+  ### [ADDED] At the very end, write the problematic TICs to a file
+  if SKIPPED_TICS:
+    problematic_path = os.path.join(FLAGS.output_dir, "problematic_tics.txt")
+    with open(problematic_path, "a") as f:
+      for tic in SKIPPED_TICS:
+        f.write(f"{tic}\n")
+
+    # Print final summary
+    print("\n=======================================")
+    print("The following TICs had empty time arrays:")
+    print(SKIPPED_TICS)
+    print(f"\nA list of these TICs is also saved to:\n {problematic_path}")
+    print("=======================================\n")
+  else:
+    print("No problematic TICs found.")
 
 
 if __name__ == "__main__":
