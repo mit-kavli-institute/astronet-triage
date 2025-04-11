@@ -22,17 +22,11 @@ class AstroCNNModelVetting(astro_cnn_model.AstroCNNModel):
   def __init__(self, config, triage_model):
     super().__init__(config)
     self.triage_model = triage_model
-    if not config.hparams.use_preds_layer:
-      self.triage_model.make_embeds_only()
 
   def call(self, inputs, training=None):
-    ts_inputs, aux_inputs = base.unpack_inputs(inputs, self.config.hparams)
-    y = []
-    for k in sorted(ts_inputs.keys()):
-      v = ts_inputs[k]
-      y.append(base.apply_block(self.ts_blocks[k], v, training))
+    y = self.triage_model.apply_ts_blocks(inputs, training)
+    y.extend(self.apply_ts_blocks(inputs, training))
+    aux_inputs = base.unpack_aux_features(inputs, self.config.hparams)
     y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
-    y.append(self.triage_model(inputs, training=training))  # Triage embedding.
     y = base.apply_block(self.final, y, training)
-
     return y

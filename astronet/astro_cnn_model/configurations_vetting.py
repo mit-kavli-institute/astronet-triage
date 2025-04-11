@@ -253,8 +253,6 @@ def vrevised():
               1e-07,
           "use_batch_norm":
               False,
-          "use_preds_layer":
-              False,
           "num_pre_logits_hidden_layers":
               3,
           "pre_logits_hidden_layer_size":
@@ -314,13 +312,6 @@ def vrevised():
               "integer_value_spec": {
                   "min_value": 4,
                   "max_value": 256
-              }
-          },
-          {
-              "parameter": "use_preds_layer",
-              "type": "CATEGORICAL",
-              "categorical_value_spec": {
-                  "values": ["True", "False"]
               }
           },
           {
@@ -485,7 +476,6 @@ def vrevised_tuned():
           }
       },
       "use_batch_norm": False,
-      "use_preds_layer": False
   }
   return config
 
@@ -555,7 +545,6 @@ def direct():
           },
       },
       "use_batch_norm": False,
-      "use_preds_layer": False
   }
   return config
 
@@ -648,7 +637,6 @@ def base_new():
               },
           },
           "use_batch_norm": False,
-          "use_preds_layer": False
       },
   }
 

@@ -57,25 +57,16 @@ class AstroCNNModel(tf.keras.Model):
     self.ts_blocks = base.create_ts_blocks(config.hparams)
     self.final = base.build_final_fc_layers(config.inputs, config.hparams)
 
-  def make_embeds_only(self):
-    """Removes the final output layer that generates probabilities.
-    
-    Although this could be implemented in the constructor, we generally only
-    want to do this for a pretrained model, in which case we should load the
-    full model first and then call this function.
-    """
-    if self.embeds_only:
-      raise ValueError("Final embedding layer has already been removed")
-    self.final = self.final[:-1]
-    self.embeds_only = True
-
-  def call(self, inputs, training=None):
-    ts_inputs, aux_inputs = base.unpack_inputs(inputs, self.config.hparams)
+  def apply_ts_blocks(self, inputs, training=None):
+    ts_inputs = base.unpack_ts_inputs(inputs, self.config.hparams)
     y = []
     for k in sorted(ts_inputs.keys()):
-      v = ts_inputs[k]
-      y.append(base.apply_block(self.ts_blocks[k], v, training))
+      y.append(base.apply_block(self.ts_blocks[k], ts_inputs[k], training))
+    return y
+
+  def call(self, inputs, training=None):
+    y = self.apply_ts_blocks(inputs, training)
+    aux_inputs = base.unpack_aux_features(inputs, self.config.hparams)
     y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
     y = base.apply_block(self.final, y, training)
-
     return y
