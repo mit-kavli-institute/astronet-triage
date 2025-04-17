@@ -13,6 +13,70 @@
 # limitations under the License.
 """A convolutional model for classifying light curves for TESS vetting."""
 
+
+
+
+"""
+
+ ┌─────────────────────────────────────────────────────────────────────────────────┐
+ │                               INPUT PIPE                                        │
+ │  • multiple time-series views  →  {ts_feature_1, ts_feature_2, …, ts_feature_K} │
+ │  • auxiliary scalars / vectors →  {aux_feature_1, …, aux_feature_M}             │
+ └─────────────────────────────────────────────────────────────────────────────────┘
+         │                                   │                                   |
+         │ ts                                │ ts + aux                          | aux
+         ▼                                   ▼                                   |
+┌───────────────────────┐            ┌───────────────────────────────────────┐   │
+│  VETTING TS BLOCKS    │            │        TRIAGE SUB-MODEL               │   │
+│  (conv stack per view)│            │                                       │   │
+│  ts_block_1 … K       │            │  ┌──────────────────────────────────┐ │   │
+└───────────────────────┘            │  │  TRIAGE TS BLOCKS (conv per view)│ │   │
+         │                           │  ├──────────────────────────────────┤ │   │
+         │                           │  │  TRIAGE AUX INPUT CONCATENATION  │ │   │
+         |                           │  ├──────────────────────────────────┤ │   │
+         |                           │  │  TRIAGE FINAL FC LAYERS          │ │   │
+         |                           │  └──────────────────────────────────┘ │   │
+         |                           └───────────────────────────────────────┘   │
+         |                                             |                         |
+				 ▼																						 ▼                         |
+ ┌───────────────────────┐					 ┌───────────────────────────────────────┐   │
+ │     VETTING           │					 │         (a) triage logits             │   │
+ │  TS EMBEDDINGS (K)    │           │               **or**                  │   │ aux
+ └───────────────────────┘           │         (b) triage penultimate        │   │
+         |                           │             embeddings                │   │
+         |                           └─────────────────┬─────────────────────┘   │
+         |                                             │                         |
+         ▼                                             ▼                         ▼
+        |__________________________________________________________________________|
+												        |
+         ┌──────────────────────────────────────────────────┐
+         │     CONCATENATE ALL FEATURES (pre_logits)        │
+         │  1) vetting ts embeddings (K)                    │
+         │  2) triage output (logits or embeddings)         │
+         │  3) auxiliary features (M)                       │
+         └─────────────────────────┬────────────────────────┘
+	                                 │
+	                                 ▼
+		                 ┌────────────────────────────────┐
+		                 │  VETTING FINAL FC LAYERS       │
+		                 └─────────────┬──────────────────┘
+		                               │
+		                               ▼
+	                       ┌─────────────────────┐
+	                       │  Vetting logits     │
+	                       └─────────────────────┘
+	                                 │ Softmax / Sigmoid
+	                                 ▼
+	                       ┌─────────────────────┐
+	                       │  Vetting prediction │
+	                       └─────────────────────┘
+
+
+"""
+
+
+
+
 from astronet.astro_cnn_model import astro_cnn_model, base
 
 
