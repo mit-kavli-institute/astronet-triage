@@ -68,6 +68,7 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
+  logging.info('Entered train.py')
   # Keep track of training flags for record-keeping purposes.
   train_flags = {
       "model": FLAGS.model,
@@ -105,9 +106,12 @@ def main(_):
   # Build the model.
   model_class = models.get_model_class(FLAGS.model)
   if FLAGS.pretrain_model_dir:
-    pretrain_model = tf.keras.models.load_model(FLAGS.pretrain_model_dir)
+    pretrain_model = tf.keras.models.load_model(
+      FLAGS.pretrain_model_dir,
+      compile=False) # ← skip deserializing loss/optimizer
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
     model = model_class(config, pretrain_model)
+    logging.info('Loaded triage model from %s (trainable=%s)', FLAGS.pretrain_model_dir, model.triage_model.trainable)
   else:
     model = model_class(config)
 
@@ -120,6 +124,7 @@ def main(_):
   config_util.save_config(train_flags, model_dir, basename="train_flags")
   config_util.save_config(config, model_dir)
 
+  logging.info('Starting training: %d steps shuffle_buffer=%d', config['train_steps'], FLAGS.shuffle_buffer_size)
   # Train and save model.
   training.train(
       model,
