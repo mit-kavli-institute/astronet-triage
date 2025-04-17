@@ -71,10 +71,9 @@ def build_final_fc_layers(input_config, hparams):
   return layers
 
 
-def unpack_inputs(inputs, hparams):
-  """Unpacks inputs into time-series and auxiliary features."""
+def unpack_ts_inputs(inputs, hparams):
+  """Unpacks time-series features from inputs."""
   ts_inputs = {}
-  aux_inputs = {}
   for key, config in hparams.time_series_hidden.items():
     chans = [inputs[key]]
     for extra in config.get('extra_channels', []):
@@ -83,7 +82,10 @@ def unpack_inputs(inputs, hparams):
       ts_inputs[key] = tf.concat(chans, axis=-1)
     else:
       ts_inputs[key] = tf.stack(chans, axis=-1)
-  for key in hparams.aux_inputs:
-    aux_inputs[key] = inputs[key]
 
-  return ts_inputs, aux_inputs
+  return ts_inputs
+
+
+def unpack_aux_features(inputs, hparams):
+  """Unpacks auxiliary features from inputs."""
+  return {key: inputs[key] for key in hparams.aux_inputs}

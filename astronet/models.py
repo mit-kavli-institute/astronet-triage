@@ -74,21 +74,3 @@ def get_model_config(model_name, config_name):
     raise ValueError(
         f"Config name '{config_name}' not found in configuration module: "
         f"{config_module.__name__}") from e
-
-
-def load_from_weights(model_name, model_dir, config_name=None):
-  """Loads a model from a 'model.weights.h5' file.
-  
-  Use tf.keras.models.load_model to load a model saved in Keras format."""
-  model_class = get_model_class(model_name)
-  if config_name:
-    config = get_model_config(model_name, config_name)
-  else:
-    config = config_util.load_config(model_dir)
-
-  model = model_class(config)
-  weights_filename = os.path.join(model_dir, "model.weights.h5")
-  model.load_weights(weights_filename)
-  logging.info(f"Loaded weights from {weights_filename}")
-
-  return model
