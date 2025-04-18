@@ -4525,7 +4525,7 @@ def cshallue():
                   "cnn_block_size":
                       1,
                   "cnn_initial_num_filters":
-                      17,
+                      16,
                   "cnn_block_filter_factor":
                       2,
                   "cnn_kernel_size":
@@ -4549,7 +4549,7 @@ def cshallue():
                   "cnn_block_size":
                       1,
                   "cnn_initial_num_filters":
-                      17,
+                      16,
                   "cnn_block_filter_factor":
                       2,
                   "cnn_kernel_size":
@@ -4580,7 +4580,7 @@ def cshallue():
                   "cnn_block_size":
                       1,
                   "cnn_initial_num_filters":
-                      17,
+                      16,
                   "cnn_block_filter_factor":
                       2,
                   "cnn_kernel_size":
