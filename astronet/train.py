@@ -116,11 +116,11 @@ def main(_):
       pretrain_block = pretrain_model.ts_blocks.get(name)
       if pretrain_block is not None:
         block.set_weights(pretrain_block.get_weights())
-        logging.info("Block '{name}': set params from pretrained model")
+        logging.info(f"Block '{name}': set params from pretrained model")
         if config.freeze_pretrained_params:
           block.trainable = False
       else:
-        logging.info("Block '{name}': no such block in pretrained model")
+        logging.info(f"Block '{name}': no such block in pretrained model")
 
   # Make model directory and save the configs.
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
