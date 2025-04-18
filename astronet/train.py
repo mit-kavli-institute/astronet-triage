@@ -107,7 +107,7 @@ def main(_):
   if FLAGS.pretrain_model_dir:
     pretrain_model = tf.keras.models.load_model(FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-    model = model_class(config, pretrain_model)
+    model = model_class(config, pretrain_model.ts_blocks)
   else:
     model = model_class(config)
 

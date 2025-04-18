@@ -3,89 +3,102 @@
 import tensorflow as tf
 
 
-def create_conv_block(name, block_params):
-  """Creates a convolutional block."""
-  layers = []
-  for i in range(block_params.cnn_num_blocks):
-    block_name = f'{name}_block_{i+1}'
-    num_filters = int(
-        float(block_params.cnn_initial_num_filters) *
-        block_params.cnn_block_filter_factor**i)
-    for j in range(block_params.cnn_block_size):
-      Conv1D = (
-          tf.keras.layers.SeparableConv1D
-          if block_params.get('separable') else tf.keras.layers.Conv1D)
-      layers.append(
-          Conv1D(
-              filters=num_filters,
-              kernel_size=block_params.cnn_kernel_size,
-              padding=block_params.convolution_padding,
-              activation='relu',
-              name=f'{block_name}_conv_{j+1}'))
-    if block_params.pool_size:
-      layers.append(
-          tf.keras.layers.MaxPool1D(
-              pool_size=block_params.pool_size,
-              strides=block_params.pool_strides,
-              name=f'{block_name}_pool'))
-  layers.append(tf.keras.layers.Flatten())
-  return layers
+class Block(tf.keras.layers.Layer):
+
+  def __init__(self, **kwargs):
+    super().__init__(**kwargs)
+    self.layers = []
+
+  def call(self, x, training):
+    y = x
+    for layer in self.layers:
+      y = layer(y, training=training)
+    return y
 
 
-def create_ts_blocks(hparams):
-  """Builds time series convolutional blocks."""
-  blocks = {}
-  for name, block_params in hparams.time_series_hidden.items():
-    blocks[name] = create_conv_block(name, block_params)
-  return blocks
+class ConvBlock(Block):
+
+  def __init__(self, name, block_params, **kwargs):
+    super().__init__(**kwargs)
+    self.key = name  # Can't use name as it's reserved by Keras
+    self.block_params = block_params
+
+    for i in range(block_params.cnn_num_blocks):
+      block_name = f'{name}_block_{i+1}'
+      num_filters = int(
+          float(block_params.cnn_initial_num_filters) *
+          block_params.cnn_block_filter_factor**i)
+      for j in range(block_params.cnn_block_size):
+        Conv1D = (
+            tf.keras.layers.SeparableConv1D
+            if block_params.get('separable') else tf.keras.layers.Conv1D)
+        self.layers.append(
+            Conv1D(
+                filters=num_filters,
+                kernel_size=block_params.cnn_kernel_size,
+                padding=block_params.convolution_padding,
+                activation='relu',
+                name=f'{block_name}_conv_{j+1}'))
+      if block_params.pool_size:
+        self.layers.append(
+            tf.keras.layers.MaxPool1D(
+                pool_size=block_params.pool_size,
+                strides=block_params.pool_strides,
+                name=f'{block_name}_pool'))
+    self.layers.append(tf.keras.layers.Flatten())
 
 
-def apply_block(block, x, training):
-  """Applies a block of layers."""
-  y = x
-  for layer in block:
-    y = layer(y, training=training)
-  return y
+class TimeSeriesConvBlocks(tf.keras.layers.Layer):
+
+  def __init__(self, ts_specs, **kwargs):
+    super().__init__(**kwargs)
+    self.ts_specs = ts_specs
+    self.blocks = [ConvBlock(name, ts_specs[name]) for name in sorted(ts_specs)]
+
+  def unpack_inputs(self, inputs):
+    """Unpacks time-series features from inputs."""
+    ts_inputs = {}
+    for key, block_params in self.ts_specs.items():
+      chans = [inputs[key]]
+      for extra in block_params.get('extra_channels', []):
+        chans.append(inputs[extra])
+      if block_params.get('multichannel'):
+        ts_inputs[key] = tf.concat(chans, axis=-1)
+      else:
+        ts_inputs[key] = tf.stack(chans, axis=-1)
+    return ts_inputs
+
+  def call(self, inputs, training):
+    ts_inputs = self.unpack_inputs(inputs)
+    return [block(ts_inputs[block.key], training) for block in self.blocks]
 
 
-def build_final_fc_layers(input_config, hparams):
-  """Builds the final fully-connected layers."""
-  layers = [tf.keras.layers.Concatenate()]
+class DenseBlock(Block):
 
-  # Hidden layers.
-  for _ in range(hparams.num_pre_logits_hidden_layers):
-    hidden_units = hparams.pre_logits_hidden_layer_size
-    layers.append(tf.keras.layers.Dense(units=hidden_units, activation='relu'))
-    if hparams.use_batch_norm:
-      layers.append(tf.keras.layers.BatchNormalization())
-    layers.append(tf.keras.layers.Dropout(hparams.pre_logits_dropout_rate))
-
-  # Output layer.
-  n_labels = len(input_config.label_columns)
-  if n_labels > 1 and input_config.get('exclusive_labels'):
-    activation = 'softmax'
-  else:
-    activation = 'sigmoid'
-  layers.append(tf.keras.layers.Dense(units=n_labels, activation=activation))
-
-  return layers
+  def __init__(self,
+               num_layers,
+               layer_size,
+               use_batch_norm=False,
+               dropout_rate=None,
+               activation='relu',
+               **kwargs):
+    super().__init__(**kwargs)
+    self.num_layers = num_layers
+    self.layer_size = layer_size
+    self.activation = activation
+    for _ in range(num_layers):
+      self.layers.append(
+          tf.keras.layers.Dense(units=layer_size, activation=activation))
+      if use_batch_norm:
+        self.layers.append(tf.keras.layers.BatchNormalization())
+      self.layers.append(tf.keras.layers.Dropout(dropout_rate))
 
 
-def unpack_ts_inputs(inputs, hparams):
-  """Unpacks time-series features from inputs."""
-  ts_inputs = {}
-  for key, config in hparams.time_series_hidden.items():
-    chans = [inputs[key]]
-    for extra in config.get('extra_channels', []):
-      chans.append(inputs[extra])
-    if config.get('multichannel'):
-      ts_inputs[key] = tf.concat(chans, axis=-1)
-    else:
-      ts_inputs[key] = tf.stack(chans, axis=-1)
+class OutputLayer(Block):
 
-  return ts_inputs
-
-
-def unpack_aux_features(inputs, hparams):
-  """Unpacks auxiliary features from inputs."""
-  return {key: inputs[key] for key in hparams.aux_inputs}
+  def __init__(self, n_labels, exclusive_labels=None, **kwargs):
+    super().__init__(**kwargs)
+    self.n_labels = n_labels
+    self.exclusive_labels = exclusive_labels
+    activation = 'softmax' if (n_labels > 1 and exclusive_labels) else 'sigmoid'
+    self.layers.append(tf.keras.layers.Dense(n_labels, activation=activation))

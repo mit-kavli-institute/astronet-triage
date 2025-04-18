@@ -693,7 +693,7 @@ def cshallue():
           "num_pre_logits_hidden_layers": 4,
           "pre_logits_hidden_layer_size": 512,
           "pre_logits_dropout_rate": 0.45,
-          "aux_inputs": triage_config["aux_inputs"],
+          "aux_inputs": triage_config["hparams"]["aux_inputs"],
           "time_series_hidden": {
               "local_aperture_s": {
                   "cnn_num_blocks": 1,
