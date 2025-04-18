@@ -50,12 +50,13 @@ from astronet.util import config_util
 class AstroCNNModel(tf.keras.Model):
   """A convolutional model for classifying light curves."""
 
-  def __init__(self, config, extra_embedding_layer=None):
+  def __init__(self, config):
     super().__init__()
     self.config = config_util.validate(config)
-    self.extra_embedding_layer = extra_embedding_layer
-    self.ts_blocks = base.TimeSeriesConvBlocks(
-        config.hparams.time_series_hidden)
+    self.ts_blocks = {
+        name: base.ConvBlock(name, spec)
+        for name, spec in config.hparams.time_series_hidden.items()
+    }
     self.dense_block = base.DenseBlock(
         num_layers=config.hparams.num_pre_logits_hidden_layers,
         layer_size=config.hparams.pre_logits_hidden_layer_size,
@@ -74,10 +75,27 @@ class AstroCNNModel(tf.keras.Model):
     self.call(input_layer, training=True)  # Builds all the layers.
     self.built = True
 
+  def unpack_ts_inputs(self, inputs):
+    ts_inputs = {}
+    for key, block_params in self.config.hparams.time_series_hidden.items():
+      chans = [inputs[key]]
+      for extra in block_params.get('extra_channels', []):
+        chans.append(inputs[extra])
+      if block_params.get('multichannel'):
+        ts_inputs[key] = tf.concat(chans, axis=-1)
+      else:
+        ts_inputs[key] = tf.stack(chans, axis=-1)
+    return ts_inputs
+
+  def apply_ts_blocks(self, inputs, training):
+    ts_inputs = self.unpack_ts_inputs(inputs)
+    return [
+        self.ts_blocks[name](ts_inputs[name], training)
+        for name in sorted(self.ts_blocks)
+    ]
+
   def call(self, inputs, training):
-    y = self.ts_blocks(inputs, training)
-    if self.extra_embedding_layer is not None:
-      y.extend(self.extra_embedding_layer(inputs, training))
-    y.extend([inputs[key] for key in sorted(self.config.hparams.aux_inputs)])
+    y = self.apply_ts_blocks(inputs, training)
+    y.extend([inputs[key] for key in self.config.hparams.aux_inputs])
     y = self.dense_block(tf.concat(y, axis=-1), training)
     return self.output_layer(y)

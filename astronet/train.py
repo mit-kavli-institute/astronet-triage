@@ -104,12 +104,23 @@ def main(_):
 
   # Build the model.
   model_class = models.get_model_class(FLAGS.model)
-  if FLAGS.pretrain_model_dir:
+  model = model_class(config)
+  init_from_pretrained_model = config.get("init_from_pretrained_model")
+  if bool(init_from_pretrained_model) != bool(FLAGS.pretrain_model_dir):
+    raise ValueError(
+        f"{init_from_pretrained_model=} but {FLAGS.pretrain_model_dir=}")
+  if init_from_pretrained_model:
     pretrain_model = tf.keras.models.load_model(FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-    model = model_class(config, pretrain_model.ts_blocks)
-  else:
-    model = model_class(config)
+    for name, block in model.ts_blocks.items():
+      pretrain_block = pretrain_model.ts_blocks.get(name)
+      if pretrain_block is not None:
+        block.set_weights(pretrain_block.get_weights())
+        logging.info("Block '{name}': set params from pretrained model")
+        if config.freeze_pretrained_params:
+          block.trainable = False
+      else:
+        logging.info("Block '{name}': no such block in pretrained model")
 
   # Make model directory and save the configs.
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

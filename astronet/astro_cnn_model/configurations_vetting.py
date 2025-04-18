@@ -653,6 +653,8 @@ def cshallue():
 
   config = {
       "train_steps": 1000,
+      "init_from_pretrained_model": True,
+      "freeze_pretrained_params": False,
       "inputs": {
           "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
           "exclusive_labels": True,
@@ -755,7 +757,10 @@ def cshallue():
       },
   }
 
+  # Add time series blocks from the triage model.
   config_util.merge_configs(config["inputs"]["features"],
                             triage_config["inputs"]["features"])
+  config_util.merge_configs(config["hparams"]["time_series_hidden"],
+                            triage_config["hparams"]["time_series_hidden"])
 
   return config
