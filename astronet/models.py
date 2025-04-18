@@ -13,8 +13,8 @@
 # limitations under the License.
 """Library of AstroNet models and configurations."""
 
-from astronet.astro_cnn_model import (astro_cnn_model, astro_cnn_model_vetting,
-                                      configurations, configurations_vetting)
+from astronet.astro_cnn_model import (astro_cnn_model, configurations,
+                                      configurations_vetting)
 from astronet.util import configdict
 
 # Dictionary of model name to (model_class, configuration_module).
