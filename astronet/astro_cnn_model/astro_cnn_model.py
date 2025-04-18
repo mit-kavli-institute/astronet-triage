@@ -50,23 +50,25 @@ from astronet.util import config_util
 class AstroCNNModel(tf.keras.Model):
   """A convolutional model for classifying light curves."""
 
-  def __init__(self, config):
+  def __init__(self, config, extra_embedding_layer=None):
     super().__init__()
     self.config = config_util.validate(config)
-    self.embeds_only = False
-    self.ts_blocks = base.create_ts_blocks(config.hparams)
-    self.final = base.build_final_fc_layers(config.inputs, config.hparams)
+    self.extra_embedding_layer = extra_embedding_layer
+    self.ts_blocks = base.TimeSeriesConvBlocks(
+        config.hparams.time_series_hidden)
+    self.dense_block = base.DenseBlock(
+        num_layers=config.hparams.num_pre_logits_hidden_layers,
+        layer_size=config.hparams.pre_logits_hidden_layer_size,
+        use_batch_norm=config.hparams.use_batch_norm,
+        dropout_rate=config.hparams.pre_logits_dropout_rate)
+    self.output_layer = base.OutputLayer(
+        n_labels=len(config.inputs.label_columns),
+        exclusive_labels=config.inputs.get('exclusive_labels'))
 
-  def apply_ts_blocks(self, inputs, training=None):
-    ts_inputs = base.unpack_ts_inputs(inputs, self.config.hparams)
-    y = []
-    for k in sorted(ts_inputs.keys()):
-      y.append(base.apply_block(self.ts_blocks[k], ts_inputs[k], training))
-    return y
-
-  def call(self, inputs, training=None):
-    y = self.apply_ts_blocks(inputs, training)
-    aux_inputs = base.unpack_aux_features(inputs, self.config.hparams)
-    y.extend([aux_inputs[k] for k in sorted(aux_inputs.keys())])
-    y = base.apply_block(self.final, y, training)
-    return y
+  def call(self, inputs, training):
+    y = self.ts_blocks(inputs, training)
+    if self.extra_embedding_layer is not None:
+      y.extend(self.extra_embedding_layer(inputs, training))
+    y.extend([inputs[key] for key in sorted(self.config.hparams.aux_inputs)])
+    y = self.dense_block(tf.concat(y, axis=-1), training)
+    return self.output_layer(y)

@@ -189,20 +189,7 @@ def main(_):
     pretrain_model=fresh
 
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-    model = model_class(config, pretrain_model)
-
-    logging.info('Loaded triage model from %s (trainable=%s)', FLAGS.pretrain_model_dir, model.triage_model.trainable)
-    # ——— DEBUGGING INFO ———
-    # 1) exact Python class
-    logging.info("Pretrained model class: %s", pretrain_model.__class__)
-
-    # 2) public attributes & methods
-    public_members = [m for m in dir(pretrain_model) if not m.startswith('_')]
-    logging.info(
-        "Pretrained model public members:\n%s",
-        pprint.pformat(public_members, indent=2)
-    )
-
+    model = model_class(config, pretrain_model.ts_blocks)
   else:
     model = model_class(config)
 
