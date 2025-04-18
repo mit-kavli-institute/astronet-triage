@@ -1,4 +1,4 @@
-"""Base functions for AstroCNN models."""
+"""Base layers for AstroCNN models."""
 
 import tensorflow as tf
 
@@ -46,31 +46,6 @@ class ConvBlock(Block):
                 strides=block_params.pool_strides,
                 name=f'{block_name}_pool'))
     self.layers.append(tf.keras.layers.Flatten())
-
-
-class TimeSeriesConvBlocks(tf.keras.layers.Layer):
-
-  def __init__(self, ts_specs, **kwargs):
-    super().__init__(**kwargs)
-    self.ts_specs = ts_specs
-    self.blocks = [ConvBlock(name, ts_specs[name]) for name in sorted(ts_specs)]
-
-  def unpack_inputs(self, inputs):
-    """Unpacks time-series features from inputs."""
-    ts_inputs = {}
-    for key, block_params in self.ts_specs.items():
-      chans = [inputs[key]]
-      for extra in block_params.get('extra_channels', []):
-        chans.append(inputs[extra])
-      if block_params.get('multichannel'):
-        ts_inputs[key] = tf.concat(chans, axis=-1)
-      else:
-        ts_inputs[key] = tf.stack(chans, axis=-1)
-    return ts_inputs
-
-  def call(self, inputs, training):
-    ts_inputs = self.unpack_inputs(inputs)
-    return [block(ts_inputs[block.key], training) for block in self.blocks]
 
 
 class DenseBlock(Block):
