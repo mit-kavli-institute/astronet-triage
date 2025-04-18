@@ -64,6 +64,15 @@ class AstroCNNModel(tf.keras.Model):
     self.output_layer = base.OutputLayer(
         n_labels=len(config.inputs.label_columns),
         exclusive_labels=config.inputs.get('exclusive_labels'))
+    self.build()  # We know the input shapes so we might as well build now.
+
+  def build(self, input_shape=None):
+    del input_shape  # Keras default argument; unused here.
+    input_layer = {}
+    for feature_name, feature_spec in self.config.inputs.features.items():
+      input_layer[feature_name] = tf.keras.Input(shape=feature_spec.shape)
+    self.call(input_layer, training=True)  # Builds all the layers.
+    self.built = True
 
   def call(self, inputs, training):
     y = self.ts_blocks(inputs, training)
