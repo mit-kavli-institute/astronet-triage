@@ -38,6 +38,26 @@ def validate(config):
   return config
 
 
+def validate_pretrain_config(config, pretrain_config):
+  """Ensures that a pretrained model's config is compatible."""
+  # config must build matching CNN blocks in the same order as pretrain_config.
+  # We are using the fact that iteration order of dictionary items is guaranteed
+  # to follow insertion order.
+  blocks = list(config.hparams.time_series_hidden.items())
+  pretrain_blocks = list(pretrain_config.hparams.time_series_hidden.items())
+  if len(blocks) < len(pretrain_blocks):
+    raise ValueError(f"config only has {len(blocks)} CNN blocks but "
+                     f"pretrain_config has {len(pretrain_blocks)}")
+  for i, (pretrain_name, pretrain_block_spec) in enumerate(pretrain_blocks):
+    name, block_spec = blocks[i]
+    if name != pretrain_name:
+      raise ValueError(f"CNN block at index {i} is {name} in config but "
+                       f"{pretrain_name} in pretrain_config")
+    if block_spec != pretrain_block_spec:
+      raise ValueError(
+          f"CNN block {name} does not match in config and pretrain_config")
+
+
 def add_nested_param(config, path, value, overwrite=False):
   """Adds a nested parameter to config.
   

@@ -116,6 +116,8 @@ def main(_):
     raise ValueError(
         f"{init_from_pretrained_model=} but {FLAGS.pretrain_model_dir=}")
   if init_from_pretrained_model:
+    pretrain_config = config_util.load_config(FLAGS.pretrain_model_dir)
+    config_util.validate_pretrain_config(config, pretrain_config)
     pretrain_model = models.load_model("AstroCNNModel",
                                        FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
