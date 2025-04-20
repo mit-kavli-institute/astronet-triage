@@ -658,7 +658,7 @@ def cshallue():
       "inputs": {
           "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
           "exclusive_labels": True,
-          "label_scheme": "maximum",
+          "label_scheme": "binary",
           "uncertainty_weight": False,
           "non_primary_downweight_factor": 2.0,
           "primary_class": 0,
