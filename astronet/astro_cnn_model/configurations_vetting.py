@@ -712,18 +712,6 @@ def cshallue():
           "pool_strides": 2,
           "separable": False,
           "extra_channels": ["local_aperture_m", "local_aperture_l"],
-      },
-      "secondary_view": {
-          "cnn_num_blocks": 1,
-          "cnn_block_size": 3,
-          "cnn_initial_num_filters": 16,
-          "cnn_block_filter_factor": 2,
-          "cnn_kernel_size": 5,
-          "convolution_padding": "same",
-          "pool_size": 5,
-          "pool_strides": 2,
-          "separable": False,
-          "extra_channels": ["secondary_mask"],
       }
   })
 
