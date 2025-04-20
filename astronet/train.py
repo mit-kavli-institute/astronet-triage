@@ -55,6 +55,9 @@ flags.DEFINE_string(
     "Directory for model checkpoints and summaries.",
     required=True)
 
+flags.DEFINE_enum("save_format", "h5", ["keras", "h5"],
+                  "Format for saving the trained model.")
+
 flags.DEFINE_string("pretrain_model_dir", None,
                     "Directory for pretrained model checkpoints.")
 
@@ -110,7 +113,8 @@ def main(_):
     raise ValueError(
         f"{init_from_pretrained_model=} but {FLAGS.pretrain_model_dir=}")
   if init_from_pretrained_model:
-    pretrain_model = tf.keras.models.load_model(FLAGS.pretrain_model_dir)
+    pretrain_model = models.load_model("AstroCNNModel",
+                                       FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
     for name, block in model.ts_blocks.items():
       pretrain_block = pretrain_model.ts_blocks.get(name)
@@ -139,9 +143,7 @@ def main(_):
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
 
   # Save the model in Keras format.
-  model.save(model_dir)
-  # Uncomment to save the weights in h5 format.
-  # model.save_weights(os.path.join(model_dir, "model.weights.h5"))
+  models.save_model(model, model_dir, FLAGS.save_format)
 
   # Construct evaluation datasets.
   # This includes the training set and possibly additional datasets.
