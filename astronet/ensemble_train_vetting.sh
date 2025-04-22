@@ -2,20 +2,30 @@
 
 set -e
 
-NAME=vetting-v02-tois-triageJs-nocentroid
+DATE=20250422
+CONFIG_NAME=cshallue
+ENSEMBLE_NAME=dimond
+NAME=vetting-v01-tois-triageJs-nocentroid-april2025
+PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
 
-for i in {1..10}
+CODE_DIR=/pdo/users/dimond/astronet
+DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet
+TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
+OUTPUT_DIR=/pdo/users/dimond/models/vetting/$DATE/$ENSEMBLE_NAME/
+
+for i in {1..1}
 do
     echo "Training model ${i}"
-    python astronet/train.py \
+    PYTHONPATH=$CODE_DIR python $CODE_DIR/astronet/train.py \
         --model=AstroCNNModelVetting \
-        --config_name=base_new \
-        --train_files="../mnt/tess/astronet/tfrecords-${NAME}-train/*" \
-        --eval_files="../mnt/tess/astronet/tfrecords-${NAME}-notexist-val/*" \
-        --pretrain_model_dir="/pdo/users/dmuth/mnt/tess/fa1t_38_run_1/10" \
-        --train_steps=2500 \
-        --train_epochs=1 \
-        --model_dir="../mnt/tess/astronet/checkpoints/${NAME}_base_new_2500/${i}"
+        --config_name=$CONFIG_NAME \
+        --config_file=$CONFIG_FILE \
+        --config_overrides=$CONFIG_OVERRIDES \
+        --pretrain_model_dir=$PRETRAIN_MODEL_DIR \
+        --model_dir="$OUTPUT_DIR" \
+        --train_files="$DATA_DIR/$TFRECORD_PREFIX-train/*" \
+        --eval_files="val:$DATA_DIR/$TFRECORD_PREFIX-val/*" \
+        --eval_files="test:$DATA_DIR/$TFRECORD_PREFIX-test/*"
 done
 
 # for i in {1..10}

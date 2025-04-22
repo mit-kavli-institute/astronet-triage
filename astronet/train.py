@@ -168,7 +168,7 @@ def main(_):
   all_metrics = {}
   for name, file_pattern in eval_datasets:
     metrics, labels, predictions = evaluation.evaluate_model(
-        model, config.inputs, file_pattern, config.hparams.batch_size)
+        model, config.inputs, file_pattern, config.hparams.batch_size, threshold=0.215)
     all_metrics[name] = metrics
     np.save(os.path.join(eval_dir, f"{name}_label.npy"), labels)
     np.save(os.path.join(eval_dir, f"{name}_pred.npy"), predictions)
