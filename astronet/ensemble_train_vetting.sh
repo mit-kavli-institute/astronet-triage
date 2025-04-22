@@ -2,16 +2,23 @@
 
 set -e
 
-NAME=vetting-v02-tois-triageJs-nocentroid
+# NAME=vetting-v02-tois-triageJs-nocentroid
+# NAME=vetting-v01-tois-triageJs-nocentroid #Pablo Jan 25
+# NAME=vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v2 #Pablo Feb 25
+# NAME=vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle #Pablo Feb 25 run 2
+NAME=vetting-v01-tois-triageJs-nocentroid-april2025 # Pablo April 2025
 
-for i in {1..10}
+# python3 or /pdo/users/dmuth/miniconda3/envs/tf/bin/python
+
+
+for i in {1..2} #Changed down from 10 to 2 for faster iteration
 do
     echo "Training model ${i}"
-    python astronet/train.py \
+    /pdo/users/dmuth/miniconda3/envs/tf/bin/python astronet/train.py \
         --model=AstroCNNModelVetting \
         --config_name=base_new \
         --train_files="../mnt/tess/astronet/tfrecords-${NAME}-train/*" \
-        --eval_files="../mnt/tess/astronet/tfrecords-${NAME}-notexist-val/*" \
+        --eval_files="../mnt/tess/astronet/tfrecords-${NAME}-val/*" \
         --pretrain_model_dir="/pdo/users/dmuth/mnt/tess/fa1t_38_run_1/10" \
         --train_steps=2500 \
         --train_epochs=1 \

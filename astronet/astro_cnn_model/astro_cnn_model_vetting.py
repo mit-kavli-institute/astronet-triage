@@ -14,9 +14,9 @@
 """A convolutional model for classifying light curves for TESS vetting."""
 
 
-
-
 """
+#After Chris' change:
+
 
  ┌─────────────────────────────────────────────────────────────────────────────────┐
  │                               INPUT PIPE                                        │
@@ -24,27 +24,22 @@
  │  • auxiliary scalars / vectors →  {aux_feature_1, …, aux_feature_M}             │
  └─────────────────────────────────────────────────────────────────────────────────┘
          │                                   │                                   |
-         │ ts                                │ ts + aux                          | aux
+         │ ts                                │ ts                                | aux
          ▼                                   ▼                                   |
 ┌───────────────────────┐            ┌───────────────────────────────────────┐   │
 │  VETTING TS BLOCKS    │            │        TRIAGE SUB-MODEL               │   │
 │  (conv stack per view)│            │                                       │   │
 │  ts_block_1 … K       │            │  ┌──────────────────────────────────┐ │   │
 └───────────────────────┘            │  │  TRIAGE TS BLOCKS (conv per view)│ │   │
-         │                           │  ├──────────────────────────────────┤ │   │
-         │                           │  │  TRIAGE AUX INPUT CONCATENATION  │ │   │
-         |                           │  ├──────────────────────────────────┤ │   │
-         |                           │  │  TRIAGE FINAL FC LAYERS          │ │   │
-         |                           │  └──────────────────────────────────┘ │   │
+         │                           │  └──────────────────────────────────┘ │   │
          |                           └───────────────────────────────────────┘   │
          |                                             |                         |
 				 ▼																						 ▼                         |
  ┌───────────────────────┐					 ┌───────────────────────────────────────┐   │
- │     VETTING           │					 │         (a) triage logits             │   │
- │  TS EMBEDDINGS (K)    │           │               **or**                  │   │ aux
- └───────────────────────┘           │         (b) triage penultimate        │   │
-         |                           │             embeddings                │   │
-         |                           └─────────────────┬─────────────────────┘   │
+ │     VETTING           │					 │         Triage Embeddings             │   │
+ │  TS EMBEDDINGS (K)    │           |                                       |   │ aux
+ └───────────────────────┘           └─────────────────┬─────────────────────┘   │
+         |                                             |                         │
          |                                             │                         |
          ▼                                             ▼                         ▼
         |__________________________________________________________________________|
@@ -52,7 +47,7 @@
          ┌──────────────────────────────────────────────────┐
          │     CONCATENATE ALL FEATURES (pre_logits)        │
          │  1) vetting ts embeddings (K)                    │
-         │  2) triage output (logits or embeddings)         │
+         │  2) triage output (embeddings)                   │
          │  3) auxiliary features (M)                       │
          └─────────────────────────┬────────────────────────┘
 	                                 │
@@ -70,11 +65,7 @@
 	                       ┌─────────────────────┐
 	                       │  Vetting prediction │
 	                       └─────────────────────┘
-
-
 """
-
-
 
 
 from astronet.astro_cnn_model import astro_cnn_model, base
