@@ -10,7 +10,9 @@ from astronet.astro_cnn_model import input_ds
 
 def calc_keras_metrics(model, dataset):
   """Calculates a trained model's metrics over a dataset."""
-  results = model.evaluate(dataset)
+  dataset_for_eval = dataset.map(lambda x, y, w: (x, y)) # What do we do with sample weights?
+  results = model.evaluate(dataset_for_eval)
+  # results=model.evaluate(dataset)
   if len(model.metrics_names) == 1:
     results = [results]
   return dict(zip(model.metrics_names, results))
@@ -34,6 +36,7 @@ def calc_auc_scores(y_label, y_pred, primary_class):
   # This makes the code backwards-compatible with environments that don't have
   # sklearn installed.
   import sklearn
+  import sklearn.metrics
 
   if np.ndim(y_label) == 2:
     y_label = y_label[:, primary_class]

@@ -110,7 +110,6 @@ def main(_):
 
   # Build the model.
   model_class = models.get_model_class(FLAGS.model)
-<<<<<<< HEAD
   model = model_class(config)
   init_from_pretrained_model = config.get("init_from_pretrained_model")
   if bool(init_from_pretrained_model) != bool(FLAGS.pretrain_model_dir):
@@ -122,115 +121,10 @@ def main(_):
     pretrain_model = models.load_model("AstroCNNModel",
                                        FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-    for name, block in model.ts_blocks.items():
-      pretrain_block = pretrain_model.ts_blocks.get(name)
-      if pretrain_block is not None:
-        block.set_weights(pretrain_block.get_weights())
-        logging.info(f"Block '{name}': set params from pretrained model")
-        if config.freeze_pretrained_params:
-          block.trainable = False
-      else:
-        logging.info(f"Block '{name}': no such block in pretrained model")
-=======
-
-  # if FLAGS.pretrain_model_dir:
-  #   pretrain_model = tf.keras.models.load_model(
-  #     FLAGS.pretrain_model_dir,
-  #     compile=False) # ← skip deserializing loss/optimizer
-  #     # custom_objects={'AstroCNNModel': AstroCNNModel}) # might not be necessary if I fix the keras version
-
-  #   train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-  #   model = model_class(config, pretrain_model)
-  #   logging.info('Loaded triage model from %s (trainable=%s)', FLAGS.pretrain_model_dir, model.triage_model.trainable)
-  #   # ——— DEBUGGING INFO ———
-  #   # 1) exact Python class
-  #   logging.info("Pretrained model class: %s", pretrain_model.__class__)
-
-  #   # 2) public attributes & methods
-  #   public_members = [m for m in dir(pretrain_model) if not m.startswith('_')]
-  #   logging.info(
-  #       "Pretrained model public members:\n%s",
-  #       pprint.pformat(public_members, indent=2)
-  #   )
-
-  # else:
-  #   model = model_class(config)
-
-
-  # DIRTY FIX - REMOVE IT ONCE THE KERAS VERSION IS FIXED
-  # ----------------------------------------------------------------------
-  # Build a fresh triage model and load its weights
-  # ----------------------------------------------------------------------
-  # if FLAGS.pretrain_model_dir:
-  #   # 1) Load the SavedModel just to pull out weights
-  #   loaded = tf.keras.models.load_model(FLAGS.pretrain_model_dir, compile=False)
-
-  #   # 2) Instantiate your true class
-  #   triage_config = models.get_model_config("AstroCNNModel", "cshallue")
-  #   fresh = AstroCNNModel(triage_config)
-
-  #   # --- build it by calling once on zeros ----
-  #   dummy = {
-  #       name: tf.zeros([1] + spec.shape, spec.dtype)
-  #       for name, spec in config.inputs.items()
-  #   }
-  #   _ = fresh(dummy, training=False)
-
-  #   # 3) Now copy weights
-  #   fresh.set_weights(loaded.get_weights())
-  #   pretrain_model = fresh
-
-  #   train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-  #   model = model_class(config, pretrain_model)
-  #   logging.info('Loaded triage model from %s (trainable=%s)', FLAGS.pretrain_model_dir, model.triage_model.trainable)
-  #   # ——— DEBUGGING INFO ———
-  #   # 1) exact Python class
-  #   logging.info("Pretrained model class: %s", pretrain_model.__class__)
-
-  #   # 2) public attributes & methods
-  #   public_members = [m for m in dir(pretrain_model) if not m.startswith('_')]
-  #   logging.info(
-  #       "Pretrained model public members:\n%s",
-  #       pprint.pformat(public_members, indent=2)
-  #   )
-
-  # else:
-  #   model = model_class(config)
-
-
-  if FLAGS.pretrain_model_dir:
-    # Alternative:re-load from the originla checkpoint
-    # 1) Build a fresh instance
-    triage_config = models.get_model_config("AstroCNNModel", "cshallue")
-    fresh = AstroCNNModel(triage_config)
-
-    # 2) Find the latest TF checkpoint in that folder
-    var_prefix = os.path.join(
-    FLAGS.pretrain_model_dir, "variables", "variables")
-
-    # 3) Load the weights
-    fresh.load_weights(var_prefix).expect_partial()
-
-    pretrain_model=fresh
-
-    train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
     model = model_class(config, pretrain_model)
-
     logging.info('Loaded triage model from %s (trainable=%s)', FLAGS.pretrain_model_dir, model.triage_model.trainable)
-    # ——— DEBUGGING INFO ———
-    # 1) exact Python class
-    logging.info("Pretrained model class: %s", pretrain_model.__class__)
-
-    # 2) public attributes & methods
-    public_members = [m for m in dir(pretrain_model) if not m.startswith('_')]
-    logging.info(
-        "Pretrained model public members:\n%s",
-        pprint.pformat(public_members, indent=2)
-    )
-
   else:
     model = model_class(config)
->>>>>>> Final commit before pulling Chris' fix of the training code
 
 
 
