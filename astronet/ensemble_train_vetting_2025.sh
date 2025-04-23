@@ -16,7 +16,10 @@ CODE_DIR=/pdo/users/cshallue/git/astronet
 # CODE_DIR=/pdo/users/pablomer/Astronet-Triage/
 DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet/
 
-TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
+# TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
+
+TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
+
 
 OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE/$ENSEMBLE_NAME/
 

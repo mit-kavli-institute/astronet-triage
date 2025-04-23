@@ -1,10 +1,61 @@
 """Functions used for training an AstroNet model."""
 
 import tensorflow as tf
+from collections import Counter
 from absl import logging
 
 from astronet.astro_cnn_model import input_ds
 
+
+class ThresholdPrecision(tf.keras.metrics.Metric):
+     def __init__(self, threshold=0.3, name='precision_thresh', **kwargs):
+         super().__init__(name=name, **kwargs)
+         self.threshold = threshold
+         self.precision = tf.keras.metrics.Precision()
+
+     def update_state(self, y_true, y_pred, sample_weight=None):
+         y_pred_thresh = tf.cast(y_pred > self.threshold, tf.float32)
+         self.precision.update_state(y_true, y_pred_thresh, sample_weight)
+
+     def result(self):
+         return self.precision.result()
+
+     def reset_state(self):
+         self.precision.reset_state()
+
+class ThresholdRecall(tf.keras.metrics.Metric):
+    def __init__(self, threshold=0.3, name='recall_thresh', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.threshold = threshold
+        self.recall = tf.keras.metrics.Recall()
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_pred_thresh = tf.cast(y_pred > self.threshold, tf.float32)
+        self.recall.update_state(y_true, y_pred_thresh, sample_weight)
+
+    def result(self):
+        return self.recall.result()
+
+    def reset_state(self):
+        self.recall.reset_state()
+
+def compute_class_weights(dataset, num_classes, sample_size=10000):
+    class_counts = Counter()
+
+    for i, batch in enumerate(dataset.take(sample_size)):
+        # batch[1] is the one-hot encoded labels
+        labels = tf.argmax(batch[1], axis=-1)  # shape: (batch_size,)
+        label_values = labels.numpy()
+
+        class_counts.update(label_values)
+
+    total = sum(class_counts.values())
+    class_weights = {
+        i: total / (num_classes * class_counts.get(i, 1))  # Avoid division by zero
+        for i in range(num_classes)
+    }
+
+    return class_weights
 
 def compile_model(model, config):
   """Compiles a model for training."""
@@ -29,7 +80,13 @@ def compile_model(model, config):
     loss = tf.keras.losses.BinaryCrossentropy()
   logging.info(f"Using '{loss.name}' loss")
 
-  model.compile(optimizer=optimizer, loss=loss)
+  model.compile(optimizer=optimizer, loss=loss, metrics=[
+         tf.keras.metrics.Precision(name='precision'),
+         tf.keras.metrics.Recall(name='recall'),
+         tf.keras.metrics.AUC(curve='PR', name='pr_auc'),
+         ThresholdPrecision(threshold=0.3),
+         ThresholdRecall(threshold=0.3)
+   ])
 
 
 def train(model, config, train_files, shuffle_buffer_size=2500):
@@ -42,5 +99,4 @@ def train(model, config, train_files, shuffle_buffer_size=2500):
 
   compile_model(model, config)
   history = model.fit(ds, steps_per_epoch=config["train_steps"])
-
   return history
