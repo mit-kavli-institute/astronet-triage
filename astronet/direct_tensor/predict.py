@@ -23,7 +23,6 @@ from astronet.direct_tensor.features import (aperture_features,
                                              sample_segments_features,
                                              secondary_features)
 from astronet.preprocess import preprocess
-from astronet.util import files
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +342,7 @@ def build_dataset(
 
 
 def batch_predict(
-    checkpoints_dir: Union[str, Path],
+    models_dir: Union[str, Path],
     tces: pd.DataFrame,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
@@ -359,7 +358,7 @@ def batch_predict(
       A dataframe indexed by Astro ID and model number, whose column names
       are output labels and whose values are model predictions.
   """
-  model_dirs = files.find_checkpoint_paths(Path(checkpoints_dir), nruns)
+  model_dirs = [d for d in Path(models_dir).iterdir() if d.is_dir()]
   first_model_dir = model_dirs[0]
   with (first_model_dir / "config.json").open("r") as config_file:
     config = json.load(config_file)
