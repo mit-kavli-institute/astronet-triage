@@ -326,16 +326,8 @@ def build_dataset(
   return tf.data.Dataset.from_tensor_slices(dataset)
 
 
-def find_checkpoints(base_dir: Path, nruns: Optional[int] = None) -> list[Path]:
-  """Find checkpoint directories, assuming structure of training checkpoints.
-  """
-  if nruns is None:
-    nruns = len(list(base_dir.iterdir()))
-  return [next((base_dir / str(i)).iterdir()) for i in range(1, nruns + 1)]
-
-
 def batch_predict(
-    checkpoints_dir: Path,
+    models_dir: Path,
     tces: pd.DataFrame,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
@@ -353,7 +345,7 @@ def batch_predict(
         Indexed by Astro ID and model number. Column names are output labels and
         values are model predictions.
     """
-  model_dirs = find_checkpoints(checkpoints_dir, nruns)
+  model_dirs = [d for d in models_dir.iterdir() if d.is_dir()]
   first_model_dir = model_dirs[0]
   with (first_model_dir / "config.json").open("r") as config_file:
     config = json.load(config_file)
