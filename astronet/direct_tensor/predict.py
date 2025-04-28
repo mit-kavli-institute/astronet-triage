@@ -3,7 +3,8 @@ Make astronet predictions without creating and serializing tf.training.Examples.
 """
 
 import json
-from itertools import starmap
+import logging
+from functools import partial
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Literal, Optional, Protocol, Union
@@ -12,6 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import tensorflow as tf
+from tqdm import tqdm
 
 from astronet.direct_tensor.features import (aperture_features,
                                              double_period_features,
@@ -20,8 +22,10 @@ from astronet.direct_tensor.features import (aperture_features,
                                              local_features, odd_features,
                                              sample_segments_features,
                                              secondary_features)
-from astronet.models import load_model
 from astronet.preprocess import preprocess
+from astronet.util import files
+
+logger = logging.getLogger(__name__)
 
 
 class LCGetter(Protocol):
@@ -38,7 +42,7 @@ class LCGetter(Protocol):
 BREAKSPACES = [0.3, 5.0, None]
 
 
-def standard_view_features(
+def lightcurve_view_features(
     tic: int,
     time: np.ndarray,
     flux: np.ndarray,
@@ -49,43 +53,34 @@ def standard_view_features(
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> tuple[dict[str, Union[float, np.ndarray]], npt.NDArray[np.int_]]:
   """
-    Process lightcurve and create standard view inputs that depend on time/flux
-    values.
+  Preprocess lightcurve and create standard "view" inputs that depend on
+  time/flux values.
 
-    Params
-    ------
-    tic: int
-        TIC ID of target. Note: pretty sure this is not used by any of the
-        methods where it's used.
-    time: array[float]
-        Array of time values in lightcurve.
-    flux: array[float]
-        Array of flux values in lightcurve.
-    period: float
-        Period of transit signal; used for lightcurve folding.
-    epoch: float
-        Reference transit time for signal; used for lightcurve folding.
-    duration: float
-        Duration of transits.
-    breakspace: float | None
-        Breakspace to use in spline detrending. None indicates that various
-        breakspaces should be tried and the best selected.
-    aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]]
-        For triage model: empty dict.
-        For vetting model: {aperture_name: (lightcurve_time, lightcurve_flux)}
-        for all apertures to be considered ("s", "m", "l").
+  Views are shown in figure 8 of https://doi.org/10.3847/1538-3881/acad85
+
+  Args:
+      tic: TIC ID of target. Note: doesn't seem to be used by any of the
+          methods it's passed to.
+      time: Array of time values in lightcurve.
+      flux: Array of flux values in lightcurve.
+      period: Period of transit signal; used for lightcurve folding.
+      epoch: Reference transit time for signal; used for lightcurve folding.
+      duration: Duration of transits.
+      breakspace: Breakspace to use in spline detrending. None indicates that
+          various breakspaces should be tried and the best selected.
+      aperture_fluxes: For the triage model, an empty dict; for the vetting
+          model, a dict mapping aperture names to a flux array for that
+          aperture. Aperture names are "s", "m", and "l".
 
 
-    Returns
-    -------
-    features: dict[str, float | array[float]]
-        Dict of {feature_name: feature_value} for features that are or depend on
-        views of the lightcurve.
-    fold_num: array[float]
-        Array containing the fold number of each point in the lightcurve. Used
-        to calculate the total number of folds in the lightcurve for the
-        "n_folds" feature.
-    """
+  Returns:
+      A tuple `(features, fold_num)` where:
+      - `features` is a dict mapping feature names to their values, including
+        all features that are or depend on views of the light curve.
+      - `fold_num` is an array containing the fold number of each point in the
+        light curve. This is used to calculate the total number of folds in
+        the light curve for the "n_folds" feature.
+  """
   all_features = {}
 
   det_time, det_flux, transit_mask = preprocess.detrend_and_filter(
@@ -106,115 +101,85 @@ def standard_view_features(
 
   for aperture, (ap_time, ap_flux) in aperture_fluxes.items():
     ap_det_time, ap_det_flux, ap_transit_mask = preprocess.detrend_and_filter(
-        tic, ap_time, ap_flux)
+        tic, ap_time, ap_flux, period, epoch, duration, breakspace)
     ap_folded_time, ap_folded_flux, _, _ = (
         preprocess.phase_fold_and_sort_light_curve(ap_det_time, ap_det_flux,
                                                    ap_transit_mask, period,
                                                    epoch))
     all_features.update(
-        aperture_features(
-            aperture,
-            tic,
-            ap_folded_time,
-            ap_folded_flux,
-            period,
-            duration,
-            local_scale,
-            local_depth,
-        ))
+        aperture_features(aperture, tic, ap_folded_time, ap_folded_flux, period,
+                          duration, local_scale, local_depth))
 
   all_features.update(
-      odd_features(
-          odd_mask,
-          tic,
-          folded_time,
-          folded_flux,
-          period,
-          duration,
-          local_scale,
-          local_depth,
-      ))
+      odd_features(odd_mask, tic, folded_time, folded_flux, period, duration,
+                   local_scale, local_depth))
   all_features.update(
-      even_features(
-          even_mask,
-          tic,
-          folded_time,
-          folded_flux,
-          period,
-          duration,
-          local_scale,
-          local_depth,
-      ))
+      even_features(even_mask, tic, folded_time, folded_flux, period, duration,
+                    local_scale, local_depth))
 
   sec_features, _ = secondary_features(tic, folded_time, folded_flux, period,
                                        duration, local_scale, local_depth)
   all_features.update(sec_features)
 
   all_features.update(
-      sample_segments_features(
-          tic,
-          folded_time,
-          folded_flux,
-          fold_num,
-          odd_mask,
-          even_mask,
-          period,
-          duration,
-      ))
+      sample_segments_features(tic, folded_time, folded_flux, fold_num,
+                               odd_mask, even_mask, period, duration))
 
-  res = preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
-                                                   transit_mask, period * 2,
-                                                   epoch - period / 2)
-  double_fold_time, double_fold_flux, _, _ = res
+  # For double period, t0 = epoch - period / 2
+  # The view contains two transits, and this shift puts the center of the view
+  # between them, rather than centering one and splitting the other.
+  # See figure 8 of https://doi.org/10.3847/1538-3881/acad85
+  double_fold_time, double_fold_flux, _, _ = (
+      preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
+                                                 transit_mask, period * 2,
+                                                 epoch - period / 2))
   all_features.update(
       double_period_features(tic, double_fold_time, double_fold_flux, period))
 
-  res = preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
-                                                   transit_mask, period / 2,
-                                                   epoch)
-  half_fold_time, half_fold_flux = res
+  half_fold_time, half_fold_flux, _, _ = (
+      preprocess.phase_fold_and_sort_light_curve(det_time, det_flux,
+                                                 transit_mask, period / 2,
+                                                 epoch))
   all_features.update(
       half_period_features(tic, half_fold_time, half_fold_flux, period,
                            duration))
 
-  tag = "" if breakspace is None else f"_{breakspace}".replace(".", "_")
+  tag = "" if breakspace is None else f"_{breakspace}"
   return {k + tag: v for k, v in all_features.items()}, fold_num
 
 
-def prediction_features(
+def assemble_astronet_inputs(
     tce: pd.Series,
     time: np.ndarray,
     flux: np.ndarray,
     aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]],
-):
+) -> dict[str, Union[float, np.ndarray]]:
   """
-    Assemble all input features for a lightcurve.
+  Assemble all astronet input features for a TCE/lightcurve.
 
-    Params
-    ------
-    tce: pd.Series
-        Row of dataframe containing relevant TCE parameters. Should include
-        "Astro ID", "Per", "Epoc", "Dur", "Depth", "Tmag", "SMass", "SRad",
-        "SRadEst".
-    time: array[float]
-        Array of time values in lightcurve.
-    flux: array[float]
-        Array of flux values in lightcurve.
-    aperture_fluxes: dict[str, tuple[np.ndarray, np.ndarray]]
-        For triage model: empty dict.
-        For vetting model: {aperture_name: (lightcurve_time, lightcurve_flux)}
-            for all apertures to be considered ("s", "m", "l").
+  See section 3 of https://doi.org/10.3847/1538-3881/acad85 for a full account
+  of the model input representation.
 
-    Returns
-    -------
-    features: dict[str, float | array[float]]
-        Dict of {feature_name: feature_value} for all inputs for the lightcurve.
-    """
+  Args:
+      tce: Dataframe row containing relevant TCE parameters. Should include
+          "Astro ID", "Per", "Epoc", "Dur", "Depth", "Tmag", "SMass", "SRad",
+          "SRadEst".
+      time: Array of time values in lightcurve.
+      flux: Array of flux values in lightcurve.
+      aperture_fluxes: For the triage model, an emptry dict; for the vetting
+          model, a dict mapping aperture names to a flux array for that
+          aperture. Aperture names are "s", "m", and "l".
+
+  Returns:
+      A dict mapping feature names to their values, including all input
+      features. The dict is empty if the features could not be assembled
+      correctly.
+  """
   all_features = {}
 
   fold_nums = []
   for breakspace in BREAKSPACES:
-    breakspace_features, fold_num = standard_view_features(
+    breakspace_features, fold_num = lightcurve_view_features(
         tce["Astro ID"],
         time,
         flux,
@@ -225,14 +190,16 @@ def prediction_features(
         aperture_fluxes,
     )
     all_features.update(breakspace_features)
-    fold_nums.append(fold_num)
+    if len(fold_num) > 0:
+      fold_nums.append(fold_num)
 
-  folds_array = np.array(fold_nums)
-  if not np.all(folds_array == folds_array[0, :], axis=0):
-    astro_id = tce["Astro ID"]
-    raise RuntimeError(
-        f"Lightcurve for Astro ID={astro_id} folded differently during"
-        " detrending runs")
+  folds_array = np.array([f for f in fold_nums if len(f) > 0])
+  if len(fold_nums) == 0 or not np.all(
+      np.all(folds_array == folds_array[0, :], axis=0)):
+    logger.warning(
+        f"Detrending lightcurve for Astro ID={tce['Astro ID']} failed, "
+        "omitting.")
+    return {}
   fold_num = folds_array[-1]
 
   scalar_features = {
@@ -254,8 +221,10 @@ def prediction_features(
     nan_feature_name = next(
         feature for feature, value in scalar_features.items()
         if np.isnan(value))
-    raise ValueError(
-        f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}.")
+    logger.warning(
+        f"Bad nan feature for Astro ID {tce['Astro ID']}: {nan_feature_name}. "
+        "Omitting.")
+    return {}
 
   all_features.update({
       feature: np.array([value]) for feature, value in scalar_features.items()
@@ -269,25 +238,39 @@ def prepare_input(
     tce: pd.Series,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
-) -> dict:
-  """Assemble input features for TCE and normalize values where necessary."""
+) -> dict[str, tf.Tensor]:
+  """
+  Assemble input features for TCE and normalize values where necessary.
+  
+  If feature creation goes wrong, returns empty dictionary.
+  """
   time, flux = get_lc(tce["Astro ID"])
+  if len(time) == 0 or len(flux) == 0:
+    logger.warning(f"Empty lightcurve for Astro ID {tce['Astro ID']}, omitting")
+    return {}
   aperture_fluxes = {}
   if mode == "vetting":
     aperture_fluxes = {
         aperture: get_lc(tce["Astro ID"], aperture)
-        for aperture in ["s", "m", "l"]
+        for aperture in ("s", "m", "l")
     }
-  tce_features = prediction_features(tce, time, flux, aperture_fluxes)
+    if any(len(t) == 0 or len(f) == 0 for t, f in aperture_fluxes.values()):
+      logger.warning(
+          f"Empty lightcurve for Astro ID {tce['Astro ID']}, omitting")
+      return {}
+  tce_features = assemble_astronet_inputs(tce, time, flux, aperture_fluxes)
+  if len(tce_features) == 0:
+    # Warning should be logged already in assemble_astronet_inputs
+    return {}
   tce_features = {
       name: value for name, value in tce_features.items() if name in feature_cfg
   }
+  if any((feature not in tce_features) for feature in feature_cfg.keys()):
+    raise ValueError("Missing feature(s) in input data: " +
+                     ",".join(feature for feature in feature_cfg.keys()
+                              if feature not in tce_features))
 
   features = {}
-  if any((feature not in tce_features) for feature in feature_cfg.keys()):
-    features = ",".join(feature for feature in feature_cfg.keys()
-                        if feature not in tce_features)
-    raise ValueError(f"Missing feature(s) in input data: {features}")
   for name, value in tce_features.items():
     cfg = feature_cfg[name]
     if not cfg["is_time_series"]:
@@ -311,41 +294,72 @@ def build_dataset(
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
     nprocs: int = 1,
-) -> tf.data.Dataset:
-  """Create Dataset object containing input tensors for all tces."""
-  tasks = [
-      (feature_cfg, tce.to_dict(), get_lc, mode) for _, tce in tces.iterrows()
-  ]
+) -> tuple[list[int], tf.data.Dataset]:
+  """
+  Create Dataset object containing input tensors for all TCEs.
+
+  Returns:
+      A tuple `(good_tces, dataset)` where:
+      - `good_tces` is a list of Astro IDs of TCEs included in the dataset.
+        Some TCEs may be excluded when light curve fetching or detrending
+        fails.
+      - `dataset` is a tensorflow dataset containing astronet model inputs.
+  """
+  prep_input_wrapper = partial(
+      prepare_input, feature_cfg, get_lc=get_lc, mode=mode)
+  all_tces_features: list[dict[str, tf.Tensor]]
   if nprocs == 1:
-    all_tces_features = starmap(prepare_input, tasks)
+    all_tces_features = list(
+        tqdm(
+            map(
+                prep_input_wrapper,
+                (tce.to_dict() for _, tce in tces.iterrows()),
+            ),
+            desc="Preparing input tensors",
+            unit="target",
+            total=len(tces),
+        ))
   else:
     with Pool(nprocs) as pool:
-      all_tces_features = pool.starmap(prepare_input, tasks)
-  feature_table = pd.DataFrame(all_tces_features)
+      all_tces_features = list(
+          tqdm(
+              pool.imap(
+                  prep_input_wrapper,
+                  (tce.to_dict() for _, tce in tces.iterrows()),
+              ),
+              desc="Preparing input tensors",
+              unit="target",
+              total=len(tces),
+          ))
+  good_astro_ids = [
+      int(row["Astro ID"])
+      for i, row in tces.iterrows()
+      if len(all_tces_features[i]) > 0
+  ]
+  feature_table = pd.DataFrame(
+      feat for feat in all_tces_features if len(feat) > 0)
   dataset = feature_table.to_dict(orient="list")
-  return tf.data.Dataset.from_tensor_slices(dataset)
+  return good_astro_ids, tf.data.Dataset.from_tensor_slices(dataset)
 
 
 def batch_predict(
-    models_dir: Path,
+    checkpoints_dir: Union[str, Path],
     tces: pd.DataFrame,
     get_lc: LCGetter,
     mode: Literal["triage", "vetting"],
     nruns: Optional[int] = None,
     nprocs: int = 1,
-):
+) -> pd.DataFrame:
   """
-    Run predictions from multiple model checkpoints for all TCEs.
+  Run predictions from multiple model checkpoints for all TCEs.
 
-    Assembles dataset in parallel, then runs model predictions in serial.
+  Assembles dataset in parallel, then runs model predictions in serial.
 
-    Returns
-    -------
-    predictions: pd.DataFrame
-        Indexed by Astro ID and model number. Column names are output labels and
-        values are model predictions.
-    """
-  model_dirs = [d for d in models_dir.iterdir() if d.is_dir()]
+  Returns:
+      A dataframe indexed by Astro ID and model number, whose column names
+      are output labels and whose values are model predictions.
+  """
+  model_dirs = files.find_checkpoint_paths(Path(checkpoints_dir), nruns)
   first_model_dir = model_dirs[0]
   with (first_model_dir / "config.json").open("r") as config_file:
     config = json.load(config_file)
@@ -367,16 +381,16 @@ def batch_predict(
           f"\nFirst checkpoint:\n{output_labels}"
           f"\n{model_dir}:\n{model_cfg['inputs']['label_columns']}")
 
-  dataset = build_dataset(input_features_cfg, tces, get_lc, mode, nprocs)
-  model_name = "AstroCNNModelVetting" if mode == "vetting" else "AstroCNNModel"
+  good_tces, dataset = build_dataset(input_features_cfg, tces, get_lc, mode,
+                                     nprocs)
   predictions = [
-      load_model(model_name, model_dir).predict(dataset)
+      tf.keras.models.load_model(model_dir).predict(dataset)
       for model_dir in model_dirs
   ]
   prediction_dfs = [
       pd.DataFrame(
           pred,
-          index=pd.MultiIndex.from_product([tces["Astro ID"], [i]],
+          index=pd.MultiIndex.from_product([good_tces, [i]],
                                            names=["Astro ID", "model_no"]),
           columns=output_labels,
       ) for i, pred in enumerate(predictions)
