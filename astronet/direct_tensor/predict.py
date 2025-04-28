@@ -20,6 +20,7 @@ from astronet.direct_tensor.features import (aperture_features,
                                              local_features, odd_features,
                                              sample_segments_features,
                                              secondary_features)
+from astronet.models import load_model
 from astronet.preprocess import preprocess
 
 
@@ -375,8 +376,9 @@ def batch_predict(
           f"\n{model_dir}:\n{model_cfg['inputs']['label_columns']}")
 
   dataset = build_dataset(input_features_cfg, tces, get_lc, mode, nprocs)
+  model_name = "AstroCNNModelVetting" if mode == "vetting" else "AstroCNNModel"
   predictions = [
-      tf.keras.models.load_model(model_dir).predict(dataset)
+      load_model(model_name, model_dir).predict(dataset)
       for model_dir in model_dirs
   ]
   prediction_dfs = [
