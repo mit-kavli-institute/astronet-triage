@@ -22,6 +22,7 @@ from astronet.direct_tensor.features import (aperture_features,
                                              local_features, odd_features,
                                              sample_segments_features,
                                              secondary_features)
+from astronet.models import load_model
 from astronet.preprocess import preprocess
 
 logger = logging.getLogger(__name__)
@@ -383,8 +384,7 @@ def batch_predict(
   good_tces, dataset = build_dataset(input_features_cfg, tces, get_lc, mode,
                                      nprocs)
   predictions = [
-      tf.keras.models.load_model(model_dir).predict(dataset)
-      for model_dir in model_dirs
+      load_model(model_dir).predict(dataset) for model_dir in model_dirs
   ]
   prediction_dfs = [
       pd.DataFrame(
