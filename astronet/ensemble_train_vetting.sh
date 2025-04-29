@@ -2,7 +2,7 @@
 
 set -e
 
-DATE=20250422
+DATE=20250428
 CONFIG_NAME=cshallue
 ENSEMBLE_NAME=dimond
 NAME=vetting-v01-tois-triageJs-nocentroid-april2025
@@ -11,7 +11,7 @@ PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-
 CODE_DIR=/pdo/users/dimond/astronet
 DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
-OUTPUT_DIR=/pdo/users/dimond/models/vetting/$DATE/$ENSEMBLE_NAME/
+OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/dimond/$DATE/$ENSEMBLE_NAME
 
 for i in {1..1}
 do

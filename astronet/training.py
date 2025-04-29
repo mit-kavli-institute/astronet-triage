@@ -38,23 +38,43 @@ class ThresholdRecall(tf.keras.metrics.Metric):
     def reset_states(self):
         self.recall.reset_states()
 
-def compute_class_weights(dataset, num_classes, sample_size=10000):
+def compute_class_weights(dataset, num_classes, sample_size=10000, primary_class=0, primary_boost=1.0):
+    """
+    Weight classes by inverse of frequency and apply an optional boost to primary class
+    """
+
     class_counts = Counter()
 
     for i, batch in enumerate(dataset.take(sample_size)):
-        # batch[1] is the one-hot encoded labels
-        labels = tf.argmax(batch[1], axis=-1)  # shape: (batch_size,)
-        label_values = labels.numpy()
-
-        class_counts.update(label_values)
+        labels = tf.argmax(batch[1], axis=-1).numpy()
+        class_counts.update(labels)
 
     total = sum(class_counts.values())
+
     class_weights = {
-        i: total / (num_classes * class_counts.get(i, 1))  # Avoid division by zero
+        i: total / (num_classes * class_counts.get(i, 1))
         for i in range(num_classes)
     }
 
+    avg_weight = sum(class_weights.values()) / num_classes
+    class_weights = {k: v / avg_weight for k, v in class_weights.items()}
+
+    class_weights[primary_class] *= primary_boost
+
     return class_weights
+
+
+def focal_loss(gamma=2., alpha=0.25):
+    def loss_fn(y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        epsilon = tf.keras.backend.epsilon()
+        y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
+        p_t = y_true * y_pred + (1 - y_true) * (1 - y_pred)
+        alpha_factor = y_true * alpha + (1 - y_true) * (1 - alpha)
+        focal_weight = alpha_factor * tf.pow((1 - p_t), gamma)
+        return tf.reduce_mean(-tf.math.log(p_t) * focal_weight)
+    return loss_fn
+
 
 def compile_model(model, config):
   """Compiles a model for training."""
@@ -76,7 +96,10 @@ def compile_model(model, config):
     loss = tf.keras.losses.CategoricalCrossentropy(
         label_smoothing=config.hparams.get("label_smoothing", 0.0))
   else:
-    loss = tf.keras.losses.BinaryCrossentropy()
+    if config.use_focal_loss:
+       loss = focal_loss(gamma=config.focal_loss_gamma, alpha=config.focal_loss_alpha)
+    else:
+        loss = tf.keras.losses.BinaryCrossentropy()
   logging.info(f"Using '{loss.name}' loss")
 
   model.compile(optimizer=optimizer, loss=loss, metrics=[
@@ -86,7 +109,6 @@ def compile_model(model, config):
         ThresholdPrecision(threshold=0.3),
         ThresholdRecall(threshold=0.3)
   ])
-
 
 def train(model, config, train_files, shuffle_buffer_size=2500):
   """Trains a model."""
@@ -98,8 +120,11 @@ def train(model, config, train_files, shuffle_buffer_size=2500):
 
   compile_model(model, config)
   class_weights = None
+  class_weights = {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0}
   if config.hparams.use_class_weights:
     class_weights = compute_class_weights(ds, num_classes=4)
+    print("Class weights:", class_weights)
+
   history = model.fit(ds, steps_per_epoch=config["train_steps"], class_weight=class_weights)
 
   return history
