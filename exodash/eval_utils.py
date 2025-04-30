@@ -17,7 +17,7 @@ TRUE_MAPPING = {
     "eb": "Eclipsing Binary", "ebs": "Eclipsing Binary", "et": "Eclipsing Binary", "eu": "Eclipsing Binary",
     "ets": "Eclipsing Binary", "eus": "Eclipsing Binary", "pt": "Planet", "pb": "Planet", "pu": "Planet",
     "pts": "Planet", "pus": "Planet", "nt": "Noise", "nb": "Noise", "nu": "Noise", "jj": "Junk",
-    "ub": "Unknown Binary", "i": "Indeterminate"
+    "ub": "Unknown Binary", "i": "Indeterminate", "p": "Planet", "e": "Eclipsing Binary", "n": "Noise", "j": "Junk"
 }
 
 class EvalUtils:
@@ -70,7 +70,7 @@ class EvalUtils:
             # print unique true label values
             df.dropna(subset=["true_label"], inplace=True)
         
-        desired_start = ["astro_id", "tic_id", "predicted_label", "true_label"]
+        desired_start = ["astro_id", "predicted_label", "true_label"]
         remaining_columns = [col for col in df.columns if col not in desired_start]
         df = df.reindex(columns=desired_start + remaining_columns)
         return df
@@ -90,7 +90,7 @@ class EvalUtils:
             print(self.properties.shape)
             df.dropna(subset=["true_label"], inplace=True)
         
-        desired_start = ["astro_id", "tic_id", "predicted_label", "true_label"]
+        desired_start = ["astro_id", "predicted_label", "true_label"]
         remaining_columns = [col for col in df.columns if col not in desired_start]
         df = df.reindex(columns=desired_start + remaining_columns)
 
@@ -101,7 +101,7 @@ class EvalUtils:
         return df
 
     def aggregate_results(self):
-        required_columns = {"astro_id", "tic_id", "disp_p", "disp_e", "disp_n", "disp_j"}
+        required_columns = {"astro_id", "disp_p", "disp_e", "disp_n", "disp_j"}
         if not required_columns.issubset(self.model_results.columns):
             raise ValueError(f"Missing required columns: {required_columns - set(self.model_results.columns)}")
 
@@ -110,7 +110,7 @@ class EvalUtils:
             mean_pred = argmax_labels.mode()[0]  
             return PREDICTION_MAPPING[mean_pred]  
 
-        result_df = self.model_results.groupby(["astro_id", "tic_id", "true_label"]).apply(lambda x: pd.Series({
+        result_df = self.model_results.groupby(["astro_id", "true_label"]).apply(lambda x: pd.Series({
             "pred_label": get_mean_pred_label(x)
         })).reset_index()
         

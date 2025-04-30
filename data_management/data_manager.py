@@ -102,17 +102,22 @@ class DataManager:
         self.data_storage = DataStorage(data_dir=self.data_dir, images_dir=dataset_config.images_dir, reports_dir=dataset_config.reports_dir)
 
         # Read sheets
-        labels_sheet = dataset_config.labels_sheet
         sheets_reader = GoogleSheetsReader()
         self.sheets_reader = sheets_reader
-        self.labels_df = sheets_reader.from_url(labels_sheet)
-        self.labels_df = self.convert_columns_to_snake_case(self.labels_df)
         properties_sheet = dataset_config.properties_sheet
         self.properties_df = sheets_reader.from_url(properties_sheet)
         self.properties_df = self.convert_columns_to_snake_case(self.properties_df)
-        dataset_split_sheet = dataset_config.dataset_split_sheet
-        self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
-        self.dataset_split_df = self.convert_columns_to_snake_case(self.dataset_split_df)
+
+        self.labels_df = pd.DataFrame()
+        if dataset_config.labels_sheet:
+            labels_sheet = dataset_config.labels_sheet
+            self.labels_df = sheets_reader.from_url(labels_sheet)
+            self.labels_df = self.convert_columns_to_snake_case(self.labels_df)
+        self.dataset_split_df = pd.DataFrame()
+        if dataset_config.dataset_split_sheet:
+            dataset_split_sheet = dataset_config.dataset_split_sheet
+            self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
+            self.dataset_split_df = self.convert_columns_to_snake_case(self.dataset_split_df)
 
         # Init data
         (self.astro_data, report) = self._init_astro_data()
@@ -129,9 +134,14 @@ class DataManager:
             try:
                 tic_id = int(row[DataManagerConstants.TIC_ID_COLUMN])
                 astro_id = int(row[DataManagerConstants.ASTRO_ID_COLUMN])
-                # join the split from the dataset_split_df
-                split_row = self.dataset_split_df[self.dataset_split_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
-                split = Split.from_str(split_row[DataManagerConstants.SPLIT_COLUMN])
+
+                split = Split.UNALLOCATED
+                try:
+                    # join the split from the dataset_split_df
+                    split_row = self.dataset_split_df[self.dataset_split_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                    split = Split.from_str(split_row[DataManagerConstants.SPLIT_COLUMN])
+                except Exception:
+                    pass
 
                 label = None
                 if DataManagerConstants.LABEL_COLUMN not in self.properties_df.columns: # final contains human label
@@ -149,14 +159,17 @@ class DataManager:
                     if not properties_row.empty else {}
                 )
 
-                labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
-                labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
-                properties_dict.update(
-                    {
-                        'distinct': labels_dict.get(DataManagerConstants.DISTINCT_COLUMN),
-                        'astronet_note': labels_dict.get(DataManagerConstants.ASTRONET_NOTE_COLUMN)
-                    }
-                )
+                try:
+                    labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                    labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
+                    properties_dict.update(
+                        {
+                            'distinct': labels_dict.get(DataManagerConstants.DISTINCT_COLUMN),
+                            'astronet_note': labels_dict.get(DataManagerConstants.ASTRONET_NOTE_COLUMN)
+                        }
+                    )
+                except Exception:
+                    pass
 
                 fits_path = self.data_storage.get_path(tic_id=tic_id)
                 if not fits_path:
@@ -180,7 +193,7 @@ class DataManager:
                 ))
                 astro_data_report.num_successful_loads += 1
             except Exception as e:
-                print(f'Failed to load tic_id={tic_id} with exception ' + str(e) + ', skipping...')
+                print(f'Failed to load index={index} with exception ' + str(e) + ', skipping...')
                 traceback.print_exc()
 
         report = AstroDataReport(

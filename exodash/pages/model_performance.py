@@ -5,7 +5,9 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import matplotlib.pyplot as plt
+from data_management.light_curve_server import PAGE_NUMBER_TO_TYPE, LightCurveServer
 from exodash.eval_utils import HUMAN_LABEL_MAP, PREDICTION_MAPPING, EvalUtils, PREDICTION_LABELS
+from PIL import Image
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, precision_recall_curve, auc
 
 
@@ -202,14 +204,33 @@ def generate_report_for_astro_id(astro_id: int):
         st.warning(f"No TIC ID found for Astro ID: {astro_id}")
         return
     tic_id = tic_id.values[0]
-    report_paths = report_paths.apply(ast.literal_eval)
-    all_report_paths = [path for sublist in report_paths for path in sublist]
-    for i, report_path in enumerate(all_report_paths):
-        report_path = report_path.strip()  # Remove spaces
-        if os.path.exists(report_path):  # Ensure file exists
-            st.image(report_path, caption=f"TIC {tic_id} - Report {i+1}", use_container_width=True)
-        else:
-            st.warning(f"Report {i+1} missing for TIC {tic_id}")
+    server = LightCurveServer()
+    all_page_types = set()
+    tic_pages = {}
+
+    pages = server.get_report_pages(tic_id)
+    page_types = [PAGE_NUMBER_TO_TYPE.get(p) for p in pages if p in PAGE_NUMBER_TO_TYPE]
+    page_types = [ptype for ptype in page_types if ptype is not None]
+    all_page_types.update(page_types)
+    tic_pages[tic_id] = pages
+
+    pages = tic_pages.get(tic_id, [])
+    selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(all_page_types), default=sorted(all_page_types))
+    type_to_page = {PAGE_NUMBER_TO_TYPE.get(p): p for p in pages if PAGE_NUMBER_TO_TYPE.get(p) in selected_types}
+
+    tic_info = df.loc[df["tic_id"] == tic_id, ["label"]].dropna().head(1)
+    label = tic_info["label"].values[0] if not tic_info.empty else "Unknown"
+
+    st.markdown(f"### TIC {tic_id} (Label: `{label}`)")
+
+    cols = st.columns(3)
+    for i, (ptype, page_num) in enumerate(type_to_page.items()):
+        with cols[i % 3]:
+            image = server.get_page_image(tic_id, page_num)
+            if isinstance(image, Image.Image):
+                st.image(image, caption=f"{ptype} (Page {page_num})", use_container_width=True)
+            else:
+                st.warning(f"Image for {ptype} not available.")
 
 if uploaded_file:
     st.subheader("📂 Processing Uploaded Model Predictions")

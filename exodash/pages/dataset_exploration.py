@@ -29,6 +29,7 @@ categorical_features = df.select_dtypes(include=["object"]).columns.tolist()
 
 # Initialize filtered_df
 filtered_df = df.copy()
+st.write(filtered_df)
 
 # --- Numeric Filters ---
 selected_num_filters = st.sidebar.multiselect(
@@ -62,8 +63,8 @@ for feature in selected_cat_filters:
 # ---------------------------------------
 st.subheader("Scatter Plot")
 
-x_col = st.selectbox("X-axis", df.columns[1:], index=0)
-y_col = st.selectbox("Y-axis", df.columns[1:], index=1)
+x_col = st.selectbox("X-axis", filtered_df.columns[1:], index=0)
+y_col = st.selectbox("Y-axis", filtered_df.columns[1:], index=1)
 color_col = st.selectbox("Color By", ["None"] + categorical_features, index=0)
 
 # drop na for x col and y col
