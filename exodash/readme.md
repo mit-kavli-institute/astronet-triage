@@ -21,4 +21,6 @@
 1. Ensure your config.yaml is up-to-
 2. ssh connection to PDO (to be able to query for TIC reports from QLP)
 - ssh -L 5001:localhost:5001 pdo6
-3. Run the streamlit dashboard locally: python -m streamlit run exodash/app.py (from the main astronet folder)
+3. Run the streamlit dashboard on PDO: python -m streamlit run exodash/app.py --server.fileWatcherType none (from the main astronet folder)
+4. Connect from your primary computer
+- ssh -L 8501:localhost:8501 pdo6

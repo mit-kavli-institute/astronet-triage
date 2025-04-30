@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 import yaml
 from pathlib import Path
 
@@ -44,13 +45,13 @@ class Constants:
 
 class DatasetConfig(BaseModel):
     """Pydantic model to store dataset configuration."""
-    raw_data_source_type: str
-    raw_data_dir: Path
-    images_dir: Path
-    reports_dir: Path
-    labels_sheet: str
     properties_sheet: str
-    dataset_split_sheet: str
+    raw_data_source_type: Optional[str] = None
+    raw_data_dir: Optional[Path]= None
+    images_dir: Optional[Path] = None
+    reports_dir: Optional[Path] = None
+    labels_sheet: Optional[str] = None
+    dataset_split_sheet: Optional[str] = None
 
     @classmethod
     def from_yaml(cls, config_path: str = Constants.CONFIG_FILE) -> DatasetConfig:
