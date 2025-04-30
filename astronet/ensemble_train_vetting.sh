@@ -2,7 +2,7 @@
 
 set -e
 
-DATE=20250428
+DATE=20250430
 CONFIG_NAME=cshallue
 ENSEMBLE_NAME=dimond
 NAME=vetting-v01-tois-triageJs-nocentroid-april2025

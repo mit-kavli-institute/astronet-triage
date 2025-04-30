@@ -173,12 +173,12 @@ def main(_):
     labels_path = os.path.join(eval_dir, f"{name}_label.npy")
     pred_path = os.path.join(eval_dir, f"{name}_pred.npy")
     astro_ids_path = os.path.join(eval_dir, f"{name}_astro_ids.npy")
-    results_path = os.path.join(eval_dir, f"{name}_results.csv")
+    results_path = os.path.join(eval_dir, f"{name}_exodash_results.csv")
     np.save(labels_path, labels)
     np.save(pred_path, predictions)
     np.save(astro_ids_path, astro_ids)
+    evaluation.export_dash_file(labels=labels, predictions=predictions, astro_ids=astro_ids, results_path=results_path)
   evaluation.save_metrics(all_metrics, eval_dir)
-  evaluation.export_dash_file(labels=labels, predictions=predictions, astro_ids=astro_ids, results_path=results_path)
 
 
 if __name__ == "__main__":
