@@ -18,7 +18,21 @@ st.set_page_config(page_title="ExoDash - Model Performance", layout="wide")
 st.title("📊 Model Performance Overview")
 st.write("Compare individual model performance against ensemble predictions. Upload model inference results to analyze predictions and errors.")
 
-uploaded_file = st.file_uploader("Upload a CSV file with model predictions", type=["csv"])
+# Root directory (change this to your desired base path on the server)
+ROOT_DIR = "/pdo/users/dimond"
+
+# Initialize session state to track current directory
+if "current_dir" not in st.session_state:
+    st.session_state.current_dir = ROOT_DIR
+
+def list_subdirs_and_files(path):
+    """List subdirectories and files at given path."""
+    items = os.listdir(path)
+    dirs = [d for d in items if os.path.isdir(os.path.join(path, d))]
+    files = [f for f in items if os.path.isfile(os.path.join(path, f))]
+    return dirs, files
+
+
 
 def _advanced_filter_sidebar(df):
     filtered_df = df.copy()  # Start with full dataset
@@ -232,9 +246,46 @@ def generate_report_for_astro_id(astro_id: int):
             else:
                 st.warning(f"Image for {ptype} not available.")
 
-if uploaded_file:
-    st.subheader("📂 Processing Uploaded Model Predictions")
-    individual_model_results = pd.read_csv(uploaded_file)
+
+
+col1, col2 = st.columns(2)
+individual_model_results = None
+
+with col1:
+    # Navigation: go up one directory
+    if st.button("⬆️ Go up one level"):
+        parent_dir = os.path.dirname(st.session_state.current_dir)
+        # Prevent going above ROOT_DIR
+        if os.path.commonpath([ROOT_DIR, parent_dir]) == ROOT_DIR:
+            st.session_state.current_dir = parent_dir
+            st.rerun()
+    # List subdirectories and files
+    dirs, files = list_subdirs_and_files(st.session_state.current_dir)
+
+    # Folder navigation
+    selected_dir = st.selectbox(f"📁 Folders (selected: {st.session_state.current_dir})", ["<Select a folder>"] + sorted(dirs))
+    if selected_dir != "<Select a folder>":
+        new_path = os.path.join(st.session_state.current_dir, selected_dir)
+        st.session_state.current_dir = new_path
+        st.rerun()
+
+    # File selection
+    selected_file = st.selectbox("📄 Files", ["<Select a file>"] + files)
+    if selected_file != "<Select a file>":
+        file_path = os.path.join(st.session_state.current_dir, selected_file)
+        st.success(f"Selected file: {file_path}")
+        # You can now load the file
+        individual_model_results = pd.read_csv(file_path)
+with col2:
+    st.header("📤 Upload File")
+
+    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    if uploaded_file is not None:
+        individual_model_results = pd.read_csv(uploaded_file)
+        st.success("Uploaded file successfully")
+
+if individual_model_results is not None:
+    st.subheader("Processing Uploaded Model Predictions")
     eval_utils = EvalUtils(individual_model_results)
 
     if {"astro_id", "model_no", "disp_p", "disp_e", "disp_n", "disp_j"}.issubset(individual_model_results.columns):
