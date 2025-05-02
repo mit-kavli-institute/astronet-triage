@@ -108,7 +108,7 @@ def main(_):
     raise ValueError(
         "train_steps must be set in the config or via --train_steps")
 
-  # Build the model.
+# Build the model.
   model_class = models.get_model_class(FLAGS.model)
   model = model_class(config)
   init_from_pretrained_model = config.get("init_from_pretrained_model")
@@ -121,18 +121,16 @@ def main(_):
     pretrain_model = models.load_model("AstroCNNModel",
                                        FLAGS.pretrain_model_dir)
     train_flags["pretrain_model_dir"] = FLAGS.pretrain_model_dir
-    model = model_class(config, pretrain_model)
-    logging.info('Loaded triage model from %s (trainable=%s)', FLAGS.pretrain_model_dir, model.triage_model.trainable)
-  else:
-    model = model_class(config)
-
-
-
-
-
-
-
-
+    for name, block in model.ts_blocks.items():
+      pretrain_block = pretrain_model.ts_blocks.get(name)
+      if pretrain_block is not None:
+        block.set_weights(pretrain_block.get_weights())
+        logging.info(f"Block '{name}': set params from pretrained model")
+        if config.freeze_pretrained_params:
+          block.trainable = False
+        logging.info(f"Block '{name}': set trainable={block.trainable}")
+      else:
+        logging.info(f"Block '{name}': no such block in pretrained model")
 
   # Make model directory and save the configs.
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
