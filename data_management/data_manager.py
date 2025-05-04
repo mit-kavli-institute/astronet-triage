@@ -8,6 +8,8 @@ from data_management.data_storage import DataStorage
 import pandas as pd
 import traceback
 
+from data_management.type_mapping import HUMAN_LABEL_MAP, TRUE_MAPPING
+
 dataset_config = DatasetConfig.from_yaml()
 
 dtype_dict = {
@@ -87,6 +89,15 @@ class DataManagerConstants:
 def to_camel_case(s: str):
     return s.lower().replace(' ', '_')
 
+def is_url(string):
+    url_pattern = re.compile(
+        r'^(https?://)?'              # optional http:// or https://
+        r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'  # domain
+        r'(:\d+)?'                    # optional port
+        r'(/[^\s]*)?$'                # optional path
+    )
+    return bool(url_pattern.match(string))
+
 class DataManager:
     """
     Links all data sources together into AstroData objects.
@@ -105,8 +116,14 @@ class DataManager:
         sheets_reader = GoogleSheetsReader()
         self.sheets_reader = sheets_reader
         properties_sheet = dataset_config.properties_sheet
-        self.properties_df = sheets_reader.from_url(properties_sheet)
+        if is_url(properties_sheet):
+            self.properties_df = sheets_reader.from_url(properties_sheet)
+        else:
+            self.properties_df = pd.read_csv(properties_sheet)
         self.properties_df = self.convert_columns_to_snake_case(self.properties_df)
+
+        if 'label' not in self.properties_df.columns:
+            self.properties_df['label'] = self.properties_df['final'].str.lower().map(TRUE_MAPPING).map(HUMAN_LABEL_MAP)
 
         self.labels_df = pd.DataFrame()
         if dataset_config.labels_sheet:

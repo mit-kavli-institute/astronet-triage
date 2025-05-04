@@ -1,12 +1,14 @@
 import ast
 import os
+from typing import List
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import matplotlib.pyplot as plt
 from data_management.light_curve_server import PAGE_NUMBER_TO_TYPE, LightCurveServer
-from exodash.eval_utils import HUMAN_LABEL_MAP, PREDICTION_MAPPING, EvalUtils, PREDICTION_LABELS
+from data_management.type_mapping import HUMAN_LABEL_MAP, PREDICTION_MAPPING, PREDICTION_LABELS
+from exodash.eval_utils import EvalUtils
 from PIL import Image
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, precision_recall_curve, auc
 
@@ -19,7 +21,7 @@ st.title("📊 Model Performance Overview")
 st.write("Compare individual model performance against ensemble predictions. Upload model inference results to analyze predictions and errors.")
 
 # Root directory (change this to your desired base path on the server)
-ROOT_DIR = "/pdo/users/dimond"
+ROOT_DIR = "/pdo/users/"
 
 # Initialize session state to track current directory
 if "current_dir" not in st.session_state:
@@ -210,7 +212,7 @@ def _find_interesting_astro_ids(ensemble_results, N=5):
 
 
 
-def generate_report_for_astro_id(astro_id: int):
+def generate_report_for_astro_id(astro_id: int, selected_types: List[str]):
     # Get report paths from dataframe
     report_paths = properties_df.loc[properties_df["astro_id"] == astro_id, "report_paths"].dropna()
     tic_id = properties_df.loc[properties_df["astro_id"] == astro_id, "tic_id"]
@@ -229,7 +231,6 @@ def generate_report_for_astro_id(astro_id: int):
     tic_pages[tic_id] = pages
 
     pages = tic_pages.get(tic_id, [])
-    selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(all_page_types), default=sorted(all_page_types))
     type_to_page = {PAGE_NUMBER_TO_TYPE.get(p): p for p in pages if PAGE_NUMBER_TO_TYPE.get(p) in selected_types}
 
     tic_info = df.loc[df["tic_id"] == tic_id, ["label"]].dropna().head(1)
@@ -385,6 +386,8 @@ if individual_model_results is not None:
         # Display in Streamlit
         st.subheader(f"🔍 Top {N_TO_ANALYZE} Most Interesting Astro IDs")
         st.write("These Astro IDs were selected based on key failure modes: misclassification, uncertainty, or high variance.")
+        all_page_types = ["Summary", "BLS Spectrum", "Depth-aperture Correlation", "Difference Images", "Full Detrended LC", "Full Raw LC + Folded Detrended LC", "MCMC Fit", "Matches to Known Signals"]
+        selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(all_page_types), default=sorted(all_page_types))
 
         for case in interesting_cases:
             astro_id = case["astro_id"]
@@ -402,6 +405,6 @@ if individual_model_results is not None:
             st.write(f"**Reason for Selection:** {selection_reason}")
 
             # Display report images
-            generate_report_for_astro_id(astro_id)
+            generate_report_for_astro_id(astro_id=astro_id, selected_types=selected_types)
 else:
     st.info("📤 Please upload model inference results to proceed.")
