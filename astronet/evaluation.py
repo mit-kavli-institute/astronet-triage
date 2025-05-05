@@ -4,6 +4,7 @@ import json
 import os
 
 import numpy as np
+import pandas as pd
 
 from astronet.astro_cnn_model import input_ds
 
@@ -16,6 +17,34 @@ def calc_keras_metrics(model, dataset):
   if len(model.metrics_names) == 1:
     results = [results]
   return dict(zip(model.metrics_names, results))
+
+def export_dash_file(labels, predictions, astro_ids, results_path):
+   model_no = 1
+
+   # Step 1: Verify one-hot encoding
+   print(labels)
+
+   # Step 2: Map label indices to class names
+   class_names = np.array(['p', 'e', 'n', 'j'])
+
+   # Get the index of the true label for each row
+   true_label_indices = labels.argmax(axis=1)
+   true_labels = class_names[true_label_indices]
+
+   # Step 3: Build DataFrame
+   df = pd.DataFrame({
+       'astro_id': astro_ids,
+       'model_no': model_no,
+       'disp_p': predictions[:, 0],
+       'disp_e': predictions[:, 1],
+       'disp_n': predictions[:, 2],
+       'disp_j': predictions[:, 3],
+       'true_label': true_labels
+   })
+
+   # Step 4: Export to CSV
+   df.to_csv(results_path, index=False)
+   print(f"✅ Exported to {results_path}")
 
 
 def generate_labels_and_predictions(model, dataset, threshold=None):
@@ -78,7 +107,9 @@ def evaluate_model(model, input_config, file_pattern, batch_size, threshold=None
   dataset = input_ds.build_eval_dataset(
       file_pattern=file_pattern,
       input_config=input_config,
-      batch_size=batch_size)
+      batch_size=batch_size,
+      include_identifiers=False,
+      include_labels=True)
   if threshold is not None:
      y_label, y_pred, y_pred_binary = generate_labels_and_predictions(model, dataset, threshold=threshold)
   else:
@@ -92,7 +123,19 @@ def evaluate_model(model, input_config, file_pattern, batch_size, threshold=None
      threshold_metrics = calc_precision_recall_f1(y_label, y_pred_binary, input_config.primary_class)
      metrics.update(threshold_metrics)
 
-  return metrics, y_label, y_pred
+  dataset_with_astro_ids = input_ds.build_eval_dataset(
+     file_pattern=file_pattern,
+     input_config=input_config,
+     batch_size=batch_size,
+     include_identifiers=True,
+     include_labels=False)
+
+  astro_ids = []
+  for _, astro_id in dataset_with_astro_ids:
+    astro_ids.append(astro_id)
+  astro_ids = np.concatenate(astro_ids).astype(np.int32)
+
+  return metrics, y_label, y_pred, astro_ids
 
 
 def save_metrics(metrics, eval_dir):

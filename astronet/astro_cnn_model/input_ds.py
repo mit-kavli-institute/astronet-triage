@@ -22,8 +22,7 @@ class ExampleParser:
 
   def __init__(self, config, include_labels=False, include_identifiers=False):
     if include_labels and include_identifiers:
-      raise ValueError("Cannot set both include_labels and include_identifiers")
-
+      logging.warning("Both 'include_labels' and 'include_identifiers' are set. This is discouraged and may cause unexpected behavior.")
     self.config = config
     self.include_labels = include_labels
     self.include_identifiers = include_identifiers
@@ -105,16 +104,18 @@ class ExampleParser:
 
     features = self._extract_features(parsed_features)
 
-    if self.include_labels:
-      labels, weight = self._extract_labels(parsed_features)
-      return features, labels, weight
-
-    if self.include_identifiers:
-      identifiers = parsed_features.pop("astro_id")
-      return features, identifiers
-
-    return features
-
+    if self.include_labels and self.include_identifiers:
+       labels, weight = self._extract_labels(parsed_features)
+       identifiers = parsed_features.pop("astro_id")
+       return features, labels, weight, identifiers
+    elif self.include_labels:
+        labels, weight = self._extract_labels(parsed_features)
+        return features, labels, weight
+    elif self.include_identifiers:
+        identifiers = parsed_features.pop("astro_id")
+        return features, identifiers
+    else:
+        return features
 
 class TimeSeriesRandomReverser:
 
@@ -197,6 +198,6 @@ def build_train_dataset(file_pattern,
       apply_data_augmentation=True)
 
 
-def build_eval_dataset(file_pattern, input_config, batch_size):
+def build_eval_dataset(file_pattern, input_config, batch_size,include_identifiers=False,include_labels=True):
   """Builds a dataset for evaluation."""
-  return build_dataset(file_pattern, input_config, batch_size, use_cache=False)
+  return build_dataset(file_pattern, input_config, batch_size, use_cache=False,include_identifiers=include_identifiers,include_labels=include_labels)

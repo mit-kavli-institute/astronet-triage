@@ -114,7 +114,7 @@ def main(_):
   init_from_pretrained_model = config.get("init_from_pretrained_model")
   if bool(init_from_pretrained_model) != bool(FLAGS.pretrain_model_dir):
     raise ValueError(
-        f"{init_from_pretrained_model=} but {FLAGS.pretrain_model_dir=}")
+        f"{init_from_pretrained_model=} but {FLAGS.pretrain_model_dir=}") # Need to fix this so that it only raises an error if init_from_pretrained_model is True but FLAGS.pretrain_model_dir is not set. The other way around is fine, maybe warn the user.
   if init_from_pretrained_model:
     pretrain_config = config_util.load_config(FLAGS.pretrain_model_dir)
     config_util.validate_pretrain_config(config, pretrain_config)
@@ -172,13 +172,23 @@ def main(_):
     os.makedirs(eval_dir)
   all_metrics = {}
   for name, file_pattern in eval_datasets:
-    metrics, labels, predictions = evaluation.evaluate_model(
+    metrics, labels, predictions, astro_ids = evaluation.evaluate_model(
         model, config.inputs, file_pattern, config.hparams.batch_size, threshold=0.215)
     all_metrics[name] = metrics
-    np.save(os.path.join(eval_dir, f"{name}_label.npy"), labels)
-    np.save(os.path.join(eval_dir, f"{name}_pred.npy"), predictions)
+    labels_path = os.path.join(eval_dir, f"{name}_label.npy")
+    pred_path = os.path.join(eval_dir, f"{name}_pred.npy")
+    astro_ids_path = os.path.join(eval_dir, f"{name}_astro_ids.npy")
+    results_path = os.path.join(eval_dir, f"{name}_exodash_results.csv")
+    np.save(labels_path, labels)
+    np.save(pred_path, predictions)
+    np.save(astro_ids_path, astro_ids)
+    evaluation.export_dash_file(labels=labels, predictions=predictions, astro_ids=astro_ids, results_path=results_path)
+    logging.info(f"Saved labels to {labels_path}")
+    logging.info(f"Saved predictions to {pred_path}")
+    logging.info(f"Saved astro_ids to {astro_ids_path}")
+    logging.info(f"Saved results to {results_path}")
   evaluation.save_metrics(all_metrics, eval_dir)
-
+  logging.info(f"Saved metrics to {eval_dir}")
 
 if __name__ == "__main__":
   logging.set_verbosity(logging.INFO)
