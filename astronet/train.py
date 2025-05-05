@@ -24,6 +24,7 @@ import pprint
 
 from astronet import evaluation, models, training
 from astronet.util import config_util
+import numpy as np
 
 flags.DEFINE_string("model", None, "Name of the model class.", required=True)
 
@@ -69,7 +70,33 @@ flags.DEFINE_integer("train_steps", None,
 flags.DEFINE_integer("shuffle_buffer_size", 25000,
                      "Size of the shuffle buffer for the training dataset.")
 
+flags.DEFINE_bool(
+    "dump_block_weights",
+    False,
+    "If True, log and save ts_blocks weights at start and end of training.",
+)
+
 FLAGS = flags.FLAGS
+
+def dump_block_weights(model, filepath):
+    """
+    Optional: Logs each block’s weights and saves them into a .npz archive for later inspection.
+    """
+    weights_dict = {}
+    for name, block in model.ts_blocks.items():
+        block_weights = block.get_weights()
+        if not block_weights:
+            continue
+        for idx, w in enumerate(block_weights):
+            key = f"{name}_{idx}"
+            weights_dict[key] = w
+            # logging.info(f"[{filepath}] Block '{name}' weight[{idx}] shape={w.shape}")
+            # logging.info(w)   # log the full array; remove if it’s too big
+    # make sure parent dir of filepath exists
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    np.savez(filepath, **weights_dict)
+    logging.info(f"Saved block weights archive to {filepath}")
+
 
 
 def main(_):
@@ -108,13 +135,30 @@ def main(_):
     raise ValueError(
         "train_steps must be set in the config or via --train_steps")
 
+  # preloaded_blocks=[]
+  # trainable_preloaded_blocks=[]
+  # blocks_not_in_pretrained_model=[]
+
 # Build the model.
   model_class = models.get_model_class(FLAGS.model)
   model = model_class(config)
   init_from_pretrained_model = config.get("init_from_pretrained_model")
-  if bool(init_from_pretrained_model) != bool(FLAGS.pretrain_model_dir):
-    raise ValueError(
-        f"{init_from_pretrained_model=} but {FLAGS.pretrain_model_dir=}") # Need to fix this so that it only raises an error if init_from_pretrained_model is True but FLAGS.pretrain_model_dir is not set. The other way around is fine, maybe warn the user.
+  # 1) Hard error: asked to init but no dir supplied
+  if init_from_pretrained_model and not bool(FLAGS.pretrain_model_dir):
+      logging.error(
+          "init_from_pretrained_model=%r but --pretrain_model_dir=%r is not set",
+          init_from_pretrained_model, FLAGS.pretrain_model_dir
+      )
+      raise ValueError(
+          "init_from_pretrained_model=True requires --pretrain_model_dir to be set"
+      )
+
+  # 2) Gentle warning: dir supplied but not using it
+  if not init_from_pretrained_model and bool(FLAGS.pretrain_model_dir):
+      logging.warning(
+          "Got --pretrain_model_dir=%r but init_from_pretrained_model=False; ignoring it.",
+          FLAGS.pretrain_model_dir
+      )
   if init_from_pretrained_model:
     pretrain_config = config_util.load_config(FLAGS.pretrain_model_dir)
     config_util.validate_pretrain_config(config, pretrain_config)
@@ -124,13 +168,17 @@ def main(_):
     for name, block in model.ts_blocks.items():
       pretrain_block = pretrain_model.ts_blocks.get(name)
       if pretrain_block is not None:
+        # preloaded_blocks.append(name)
         block.set_weights(pretrain_block.get_weights())
         logging.info(f"Block '{name}': set params from pretrained model")
         if config.freeze_pretrained_params:
           block.trainable = False
         logging.info(f"Block '{name}': set trainable={block.trainable}")
+        # if block.trainable:
+        #   trainable_preloaded_blocks.append(name)
       else:
         logging.info(f"Block '{name}': no such block in pretrained model")
+        # blocks_not_in_pretrained_model.append(name)
 
   # Make model directory and save the configs.
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -142,6 +190,24 @@ def main(_):
   config_util.save_config(config, model_dir)
 
   logging.info('Starting training: %d steps shuffle_buffer=%d', config['train_steps'], FLAGS.shuffle_buffer_size)
+
+  if FLAGS.dump_block_weights:
+    init_dump_path = os.path.join(model_dir, "initial_block_weights.npz")
+    dump_block_weights(model, init_dump_path)
+    logging.info(f"Saved initial block weights to {init_dump_path}")
+
+  # # dump the list of preloaded & trainable blocks
+  # blocks_txt = os.path.join(model_dir, "preloaded_trainable_blocks.txt")
+  # with open(blocks_txt, "w") as f:
+  #   for blk in trainable_preloaded_blocks:
+  #     f.write(blk + "\n")
+  # logging.info(f"Saved trainable-preloaded block list to {blocks_txt}")
+  # blocks_txt = os.path.join(model_dir, "blocks_not_in_pretrained_model.txt")
+  # with open(blocks_txt, "w") as f:
+  #   for blk in blocks_not_in_pretrained_model:
+  #     f.write(blk + "\n")
+  # logging.info(f"Saved blocks not in pretrained model to {blocks_txt}")
+
   # Train and save model.
   training.train(
       model,
@@ -151,6 +217,11 @@ def main(_):
 
   # Save the model in Keras format.
   models.save_model(model, model_dir, FLAGS.save_format)
+
+  if FLAGS.dump_block_weights:
+    final_dump_path = os.path.join(model_dir, "final_block_weights.npz")
+    dump_block_weights(model, final_dump_path)
+    logging.info(f"Saved final block weights to {final_dump_path}")
 
   # Construct evaluation datasets.
   # This includes the training set and possibly additional datasets.
