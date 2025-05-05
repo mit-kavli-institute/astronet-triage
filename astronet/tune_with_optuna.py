@@ -58,7 +58,7 @@ def sample_phase1(trial, config):
         "pre_logits_hidden_layer_size", [128, 256, 512, 1024]
     )
 
-    # warm‐start switches
+    # # warm‐start switches
     # config["init_from_pretrained_model"] = trial.suggest_categorical(
     #     "init_from_pretrained_model", [True, False]
     # )

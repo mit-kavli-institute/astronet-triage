@@ -10,19 +10,19 @@ ENSEMBLE_NAME=$CONFIG_NAME
 N_TRIALS=300
 N_RUNS=2 # Runs per trial (ensemble size)
 
-PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804_run2
+PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
 
 #–– Paths ––#
 CODE_DIR=/pdo/users/pablomer/Astronet-Triage/
 DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet
-OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_optuna_${DATE}_round2
+OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_optuna_${DATE}
 
 #–– Python & Env ––#
 # PYTHON_BIN=/pdo/users/dmuth/miniconda3/envs/tf/bin/python
 PYTHON_BIN=/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python
 
 
-CONFIG_OVERRIDES="train_steps=100"
+# CONFIG_OVERRIDES="train_steps=10"
 
 #–– Launch Optuna tuning ––#
 echo "Starting Optuna tuning for ${ENSEMBLE_NAME} (n_trials=${N_TRIALS})"
