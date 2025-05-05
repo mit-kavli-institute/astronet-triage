@@ -40,8 +40,8 @@ class ThresholdRecall(tf.keras.metrics.Metric):
         self.recall.reset_state()
 
 def compute_class_weights(dataset, num_classes, sample_size=10000):
+    logging.warning("WARNING: This is an old version of compute_class_weights() and behavior might not be as expected. See David's development branch if you want to use class weighting.")
     class_counts = Counter()
-
     for i, batch in enumerate(dataset.take(sample_size)):
         # batch[1] is the one-hot encoded labels
         labels = tf.argmax(batch[1], axis=-1)  # shape: (batch_size,)
