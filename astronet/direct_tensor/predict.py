@@ -177,9 +177,9 @@ def assemble_astronet_inputs(
   """
   all_features = {}
 
-  fold_nums = []
+  fold_num = np.array([])
   for breakspace in BREAKSPACES:
-    breakspace_features, fold_num = lightcurve_view_features(
+    breakspace_features, breakspace_fold_num = lightcurve_view_features(
         tce["Astro ID"],
         time,
         flux,
@@ -190,17 +190,15 @@ def assemble_astronet_inputs(
         aperture_fluxes,
     )
     all_features.update(breakspace_features)
-    if len(fold_num) > 0:
-      fold_nums.append(fold_num)
-
-  folds_array = np.array([f for f in fold_nums if len(f) > 0])
-  if len(fold_nums) == 0 or not np.all(
-      np.all(folds_array == folds_array[0, :], axis=0)):
+    if len(breakspace_fold_num) >= len(fold_num):
+      # Some points get filtered out, so we want to take the fold_num array
+      # where the most points were kept (and break ties by taking the last).
+      fold_num = breakspace_fold_num
+  if len(fold_num) == 0:
     logger.warning(
-        f"Detrending lightcurve for Astro ID={tce['Astro ID']} failed, "
-        "omitting.")
+      f"Detrending lightcurve for Astro ID={tce['Astro ID']} failed, "
+      "omitting.")
     return {}
-  fold_num = folds_array[-1]
 
   scalar_features = {
       "astro_id": tce["Astro ID"],
@@ -214,7 +212,7 @@ def assemble_astronet_inputs(
       "star_rad_present": float(np.isnan(tce["SRad"])),
       "star_rad_est": tce["SRadEst"] if not np.isnan(tce["SRadEst"]) else 0.0,
       "star_rad_est_present": float(np.isnan(tce["SRadEst"])),
-      "n_folds": len(set(fold_num)),
+      "n_folds": len(np.unique(fold_num)),
       "n_points": len(fold_num),
   }
   if any(map(np.isnan, scalar_features.values())):
@@ -283,7 +281,7 @@ def prepare_input(
         value = tf.cast(value, tf.float32)
       elif cfg.get("scale", None) == "norm":
         value = (value - cfg["mean"]) / cfg["std"]
-    features[name.lower()] = value
+    features[name] = value
 
   return {k: [v] for k, v in features.items()}
 
@@ -359,7 +357,7 @@ def batch_predict(
       A dataframe indexed by Astro ID and model number, whose column names
       are output labels and whose values are model predictions.
   """
-  model_dirs = [d for d in Path(models_dir).iterdir() if d.is_dir()]
+  model_dirs = [p for p in models_dir.iterdir() if p.is_dir() and p.stem.startswith("AstroCNNModel")]
   first_model_dir = model_dirs[0]
   with (first_model_dir / "config.json").open("r") as config_file:
     config = json.load(config_file)
@@ -383,8 +381,9 @@ def batch_predict(
 
   good_tces, dataset = build_dataset(input_features_cfg, tces, get_lc, mode,
                                      nprocs)
+  model_name = "AstroCNNModelVetting" if mode == "vetting" else "AstroCNNModel"
   predictions = [
-      load_model(model_dir).predict(dataset) for model_dir in model_dirs
+      load_model(model_name, model_dir).predict(dataset) for model_dir in model_dirs
   ]
   prediction_dfs = [
       pd.DataFrame(
