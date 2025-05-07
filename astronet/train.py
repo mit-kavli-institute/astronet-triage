@@ -80,23 +80,21 @@ FLAGS = flags.FLAGS
 
 def dump_block_weights(model, filepath):
     """
-    Optional: Logs each block’s weights and saves them into a .npz archive for later inspection.
+    Logs each block’s weights (with their Keras names) and saves them into a .npz archive.
     """
     weights_dict = {}
-    for name, block in model.ts_blocks.items():
-        block_weights = block.get_weights()
-        if not block_weights:
-            continue
-        for idx, w in enumerate(block_weights):
-            key = f"{name}_{idx}"
-            weights_dict[key] = w
-            # logging.info(f"[{filepath}] Block '{name}' weight[{idx}] shape={w.shape}")
-            # logging.info(w)   # log the full array; remove if it’s too big
+    for block_name, block in model.ts_blocks.items():
+        # block.weights is a list of tf.Variable, each has a .name and a .numpy() value
+        for var in block.weights:
+            # e.g. var.name == "local_aperture_s_block_1_conv_1/kernel:0"
+            clean_name = var.name.replace(":", "_").replace("/", "_")
+            weights_dict[clean_name] = var.numpy()
+
     # make sure parent dir of filepath exists
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
     np.savez(filepath, **weights_dict)
     logging.info(f"Saved block weights archive to {filepath}")
-
 
 
 def main(_):
