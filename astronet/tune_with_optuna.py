@@ -1,6 +1,7 @@
 import optuna
 import optuna.visualization as vis
 from optuna.integration import TFKerasPruningCallback
+from optuna.samplers import TPESampler, RandomSampler, QMCSampler
 import datetime
 import os
 
@@ -31,6 +32,15 @@ flags.DEFINE_string("model_dir", "./optuna_tuning", "Directory to save tuning re
 flags.DEFINE_integer("n_trials", 20, "Number of Optuna trials to run.")
 flags.DEFINE_integer("n_runs",   1,  "Number of independent runs per trial to average.")
 flags.DEFINE_string("pretrain_model_dir", None, "Directory of pretrained model to initialize from.")
+flags.DEFINE_enum(
+    "sampler",
+    "tpe",
+    ["tpe", "random", "qmc"],
+    "Which Optuna sampler to use:\n"
+    "`tpe` (default Tree-structured Parzen Estimator),\n"
+    "`random` (uniform random search),\n"
+    "`qmc` (Sobol quasi-random via QMCSampler)."
+)
 FLAGS = flags.FLAGS
 
 
@@ -238,8 +248,20 @@ def objective(trial):
 
 def main(_):
     logging.info("Starting Optuna tuning with %d trials", FLAGS.n_trials)
+
+    # Select sampler based on flag
+    if FLAGS.sampler == "random":
+        sampler = RandomSampler(seed=42)
+    elif FLAGS.sampler == "qmc":
+        sampler = QMCSampler(seed=42)  # uses Sobol by default
+    else:  # "tpe"
+        sampler = TPESampler()
+    logging.info("Using sampler: %s", sampler.__class__.__name__)
+
+
     study = optuna.create_study(
         direction="maximize",
+        sampler=sampler,
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=5)
     )
     study.optimize(objective, n_trials=FLAGS.n_trials)
