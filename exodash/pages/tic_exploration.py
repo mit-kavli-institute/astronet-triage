@@ -7,11 +7,12 @@ if "df" not in st.session_state:
     st.stop()
 
 df = st.session_state.df
-st.title("🔍 TIC Explorer")
+st.title("TIC Explorer")
 
 st.sidebar.header("🔎 Select TIC IDs")
 tic_ids = st.sidebar.text_area("Enter TIC IDs (comma-separated)", "").strip()
 tic_ids = [int(tic.strip()) for tic in tic_ids.split(",") if tic.strip().isdigit()]
+astro_ids = st.sidebar.text_area("Enter Astro IDs [tic_id + planet_no] (comma-separated)", "").strip()
 
 # Instantiate your LightCurveServer
 server = LightCurveServer()

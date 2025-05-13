@@ -17,7 +17,7 @@ properties_df = df = st.session_state.df  # Access shared dataset
 
 # Streamlit UI
 st.set_page_config(page_title="ExoDash - Model Performance", layout="wide")
-st.title("📊 Model Performance Overview")
+st.title("Model Performance Overview")
 st.write("Compare individual model performance against ensemble predictions. Upload model inference results to analyze predictions and errors.")
 
 # Root directory (change this to your desired base path on the server)
@@ -66,7 +66,7 @@ def _show_all_model_performance(performance_df):
     st.plotly_chart(fig)
 
 def _plot_pr_curve(ensemble_results_orig, ensemble_results_filtered):
-    st.subheader("📈 Precision-Recall Curve (All Classes)")
+    st.subheader("Precision-Recall Curve (All Classes)")
 
     # Check if filtering is active (i.e., the filtered df is different from the original)
     filtering_active = not ensemble_results_filtered.equals(ensemble_results_orig)
@@ -120,7 +120,7 @@ def _plot_pr_curve(ensemble_results_orig, ensemble_results_filtered):
     st.pyplot(fig, use_container_width=False)
 
 def _plot_prediction_score_distribution(ensemble_results):
-    st.subheader("📊 Prediction Score Distribution Analysis")
+    st.subheader("Prediction Score Distribution Analysis")
 
     # 1️⃣ Select the score distribution to visualize
     selected_disp_label = st.selectbox("Select Score to Analyze:", list(HUMAN_LABEL_MAP.values()), index=0)
@@ -154,14 +154,14 @@ def _plot_prediction_score_distribution(ensemble_results):
     # Display the charts side by side
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader(f"🔍 {selected_disp_label} Scores where True Label = {selected_differentiator_class}")
+        st.subheader(f"{selected_disp_label} Scores where True Label = {selected_differentiator_class}")
         fig_with = px.histogram(df_with_class, x=selected_disp_label, nbins=20, opacity=0.7,
                                 title=f"True Label = {selected_differentiator_class}",
                                 labels={selected_disp_label: "Prediction Score"})
         st.plotly_chart(fig_with, use_container_width=True)
 
     with col2:
-        st.subheader(f"🔍 {selected_disp_label} Scores where True Label ≠ {selected_differentiator_class}")
+        st.subheader(f"{selected_disp_label} Scores where True Label ≠ {selected_differentiator_class}")
         fig_without = px.histogram(df_without_class, x=selected_disp_label, nbins=20, opacity=0.7,
                                    title=f"True Label ≠ {selected_differentiator_class}",
                                    labels={selected_disp_label: "Prediction Score"})
@@ -169,6 +169,135 @@ def _plot_prediction_score_distribution(ensemble_results):
 
     # Display violin plot below for overall distribution
     st.plotly_chart(fig_violin, use_container_width=True)
+
+def _analyze_features(ensemble_results):
+    # Identify numeric and categorical features
+    numeric_features = ensemble_results.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    all_features = numeric_features
+
+    st.subheader("Feature-wise Performance Analysis")
+
+    # Use Streamlit columns to align dropdowns side by side
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_feature = st.selectbox("Select Feature", all_features)
+    with col2:
+        selected_metric = st.selectbox(
+            "Select Metric",
+            ["Accuracy", "F1-score", "Precision", "Recall"]
+        )
+
+    # Define a function to compute the selected metric
+    def compute_metric(y_true, y_pred, metric_type):
+        if metric_type == "Accuracy":
+            return accuracy_score(y_true, y_pred)
+        elif metric_type == "F1-score":
+            return f1_score(y_true, y_pred, average="weighted", zero_division=0)
+        elif metric_type == "Precision":
+            return precision_score(y_true, y_pred, average="weighted", zero_division=0)
+        elif metric_type == "Recall":
+            return recall_score(y_true, y_pred, average="weighted", zero_division=0)
+        else:
+            return 0.0
+
+    # Bin if numeric; otherwise, use categories directly
+    if selected_feature in numeric_features:
+        bin_count = st.slider("Number of Bins", min_value=2, max_value=20, value=10)
+        ensemble_results["feature_bin"] = pd.cut(ensemble_results[selected_feature], bins=bin_count)
+    else:
+        ensemble_results["feature_bin"] = ensemble_results[selected_feature]
+
+    # Group and compute metrics
+    grouped = ensemble_results.groupby("feature_bin").agg({
+        "true_label": lambda x: list(x),
+        "predicted_label": lambda x: list(x),
+        selected_feature: "count"
+    }).rename(columns={selected_feature: "count"})
+
+    performance_by_bin = []
+    for idx, row in grouped.iterrows():
+        metric_value = compute_metric(row["true_label"], row["predicted_label"], selected_metric)
+        performance_by_bin.append({
+            "bin": str(idx),
+            "metric_value": metric_value,
+            "count": row["count"]
+        })
+
+    perf_df = pd.DataFrame(performance_by_bin)
+
+    # Plot with metric and sample count
+    fig = px.bar(perf_df, x="bin", y="metric_value", title=f"{selected_metric} vs. {selected_feature}")
+    fig.add_scatter(x=perf_df["bin"], y=perf_df["count"], mode="lines+markers", yaxis="y2", name="Sample Count")
+    fig.update_layout(
+        yaxis=dict(title=selected_metric),
+        yaxis2=dict(title="Sample Count", overlaying="y", side="right", showgrid=False),
+        legend=dict(x=0.75, y=1.1)
+    )
+    st.plotly_chart(fig)
+
+
+def _feature_confidence(ensemble_results):
+    st.subheader("Prediction Confidence by Feature Bin")
+    
+    numeric_features = ensemble_results.select_dtypes(include=['int64', 'float64']).columns.tolist()
+
+
+    selected_feature = st.selectbox("Select Feature for Binning (Boxplot)", numeric_features)
+    conf_column = st.selectbox("Select Confidence Score Column", HUMAN_LABEL_MAP.values(), index=0)
+    bin_count = st.slider("Number of Bins (Boxplot)", min_value=2, max_value=20, value=10)
+
+    if selected_feature in ensemble_results.columns and conf_column in ensemble_results.columns:
+        ensemble_results["feature_bin"] = pd.cut(ensemble_results[selected_feature], bins=bin_count)
+
+        fig_box = px.box(
+            ensemble_results,
+            x="feature_bin",
+            y=conf_column,
+            color="true_label",
+            title=f"{conf_column} vs. {selected_feature} Bins",
+            labels={conf_column: "Prediction Confidence"},
+        )
+        st.plotly_chart(fig_box)
+
+def _feature_performance_heatmap(ensemble_results):
+    st.subheader("Heatmap of Accuracy vs. Two Features")
+    
+    numeric_features = ensemble_results.select_dtypes(include=['int64', 'float64']).columns.tolist()
+
+    feature_x = st.selectbox("Select Feature for X-Axis", numeric_features, index=0)
+    feature_y = st.selectbox("Select Feature for Y-Axis", numeric_features, index=1)
+    bin_count_x = st.slider("Bins for X Feature", min_value=2, max_value=20, value=6, key="bins_x")
+    bin_count_y = st.slider("Bins for Y Feature", min_value=2, max_value=20, value=6, key="bins_y")
+
+    # Bin both features
+    ensemble_results["x_bin"] = pd.cut(ensemble_results[feature_x], bins=bin_count_x)
+    ensemble_results["y_bin"] = pd.cut(ensemble_results[feature_y], bins=bin_count_y)
+
+    # Group and compute accuracy
+    heatmap_data = []
+    grouped = ensemble_results.groupby(["x_bin", "y_bin"])
+    for (x_bin, y_bin), group in grouped:
+        if len(group) > 0:
+            acc = accuracy_score(group["true_label"], group["predicted_label"])
+            heatmap_data.append({
+                feature_x: str(x_bin),
+                feature_y: str(y_bin),
+                "accuracy": acc,
+                "count": len(group)
+            })
+
+    heatmap_df = pd.DataFrame(heatmap_data)
+
+    fig_heat = px.density_heatmap(
+        heatmap_df,
+        x=feature_x,
+        y=feature_y,
+        z="accuracy",
+        text_auto=True,
+        color_continuous_scale="Viridis",
+        title=f"Accuracy Heatmap: {feature_x} vs. {feature_y}"
+    )
+    st.plotly_chart(fig_heat)
 
 def _find_interesting_astro_ids(ensemble_results, N=5):
     """
@@ -210,33 +339,25 @@ def _find_interesting_astro_ids(ensemble_results, N=5):
 
     return selected_cases.to_dict(orient="records")  # Convert to list of dictionaries
 
+def _has_report_pages(server, astro_id) -> bool:
+    tic_id = properties_df.loc[properties_df["astro_id"] == astro_id, "tic_id"]
+    if tic_id.empty:
+        st.warning(f"No TIC ID found for Astro ID: {astro_id}")
+        return False
+    else:
+        tic_id = tic_id.iloc[0]
+    pages = server.get_report_pages(tic_id)
+    return pages
 
 
-def generate_report_for_astro_id(astro_id: int, selected_types: List[str]):
+def generate_report_for_astro_id(server, astro_id: int, pages, selected_types: List[str]):
     # Get report paths from dataframe
-    report_paths = properties_df.loc[properties_df["astro_id"] == astro_id, "report_paths"].dropna()
     tic_id = properties_df.loc[properties_df["astro_id"] == astro_id, "tic_id"]
     if tic_id.empty:
         st.warning(f"No TIC ID found for Astro ID: {astro_id}")
         return
     tic_id = tic_id.values[0]
-    server = LightCurveServer()
-    all_page_types = set()
-    tic_pages = {}
-
-    pages = server.get_report_pages(tic_id)
-    page_types = [PAGE_NUMBER_TO_TYPE.get(p) for p in pages if p in PAGE_NUMBER_TO_TYPE]
-    page_types = [ptype for ptype in page_types if ptype is not None]
-    all_page_types.update(page_types)
-    tic_pages[tic_id] = pages
-
-    pages = tic_pages.get(tic_id, [])
     type_to_page = {PAGE_NUMBER_TO_TYPE.get(p): p for p in pages if PAGE_NUMBER_TO_TYPE.get(p) in selected_types}
-
-    tic_info = df.loc[df["tic_id"] == tic_id, ["label"]].dropna().head(1)
-    label = tic_info["label"].values[0] if not tic_info.empty else "Unknown"
-
-    st.markdown(f"### TIC {tic_id} (Label: `{label}`)")
 
     cols = st.columns(3)
     for i, (ptype, page_num) in enumerate(type_to_page.items()):
@@ -246,6 +367,7 @@ def generate_report_for_astro_id(astro_id: int, selected_types: List[str]):
                 st.image(image, caption=f"{ptype} (Page {page_num})", use_container_width=True)
             else:
                 st.warning(f"Image for {ptype} not available.")
+    return True
 
 
 
@@ -264,21 +386,21 @@ with col1:
     dirs, files = list_subdirs_and_files(st.session_state.current_dir)
 
     # Folder navigation
-    selected_dir = st.selectbox(f"📁 Folders (selected: {st.session_state.current_dir})", ["<Select a folder>"] + sorted(dirs))
+    selected_dir = st.selectbox(f"Folders (selected: {st.session_state.current_dir})", ["<Select a folder>"] + sorted(dirs))
     if selected_dir != "<Select a folder>":
         new_path = os.path.join(st.session_state.current_dir, selected_dir)
         st.session_state.current_dir = new_path
         st.rerun()
 
     # File selection
-    selected_file = st.selectbox("📄 Files", ["<Select a file>"] + files)
+    selected_file = st.selectbox("Files", ["<Select a file>"] + files)
     if selected_file != "<Select a file>":
         file_path = os.path.join(st.session_state.current_dir, selected_file)
         st.success(f"Selected file: {file_path}")
         # You can now load the file
         individual_model_results = pd.read_csv(file_path)
 with col2:
-    st.header("📤 Upload File")
+    st.header("Upload File")
 
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file is not None:
@@ -288,6 +410,8 @@ with col2:
 if individual_model_results is not None:
     st.subheader("Processing Uploaded Model Predictions")
     eval_utils = EvalUtils(individual_model_results)
+    eclipsing_binary_as_junk = st.checkbox("Show eclipsing binaries as junk?", value=True)
+
 
     if {"astro_id", "model_no", "disp_p", "disp_e", "disp_n", "disp_j"}.issubset(individual_model_results.columns):
         performance_df = eval_utils.compute_performance()
@@ -298,7 +422,7 @@ if individual_model_results is not None:
 
         thresholds = None
         if use_thresholds:
-            st.sidebar.subheader("🔧 Adjust Classification Thresholds")
+            st.sidebar.subheader("Adjust Classification Thresholds")
             thresholds = {}
             for class_col in PREDICTION_LABELS:
                 thresholds[class_col] = st.sidebar.slider(
@@ -310,9 +434,16 @@ if individual_model_results is not None:
                 )
 
         # Compute ensemble results with the selected thresholds
-        ensemble_results = eval_utils.get_ensemble_results(thresholds, include_labels=True, include_properties=True, dropna=True)
+        ensemble_results = eval_utils.get_ensemble_results(thresholds, include_labels=False, include_properties=True, dropna=True)
+        if eclipsing_binary_as_junk:
+            ensemble_results.loc[ensemble_results["predicted_label"] == "Eclipsing Binary", "predicted_label"] = "Junk"
+
         ensemble_results_orig = ensemble_results.copy()
         ensemble_results = _advanced_filter_sidebar(ensemble_results)
+
+        _analyze_features(ensemble_results)
+        #_feature_confidence(ensemble_results)
+        # _feature_performance_heatmap(ensemble_results)
 
         _plot_pr_curve(ensemble_results_orig, ensemble_results)
         _plot_prediction_score_distribution(ensemble_results)
@@ -335,14 +466,14 @@ if individual_model_results is not None:
 
         
         # Confusion Matrix with Query Feature
-        st.subheader("🔍 Confusion Matrix Query")
+        st.subheader("Confusion Matrix Query")
         conf_matrix = confusion_matrix(ensemble_results["true_label"], ensemble_results["predicted_label"], labels=list(PREDICTION_MAPPING.values()))
         conf_matrix_df = pd.DataFrame(conf_matrix, index=list(PREDICTION_MAPPING.values()), columns=list(PREDICTION_MAPPING.values()))
         st.write("Confusion Matrix:")
         st.dataframe(conf_matrix_df)
 
         # Scatter plot filters
-        st.subheader("📊 Scatter Plot with Filters")
+        st.subheader("Scatter Plot with Filters")
         labels_to_include = st.multiselect("Select Labels to Include:", list(PREDICTION_MAPPING.values()), default=list(PREDICTION_MAPPING.values()))
         filtered_df = ensemble_results[ensemble_results["true_label"].isin(labels_to_include)]
         
@@ -363,7 +494,7 @@ if individual_model_results is not None:
             st.warning("Please select two different probability columns for the scatter plot.")
 
         # Select category from matrix
-        st.subheader("📌 Query TIC IDs from Confusion Matrix")
+        st.subheader("Query TIC IDs from Confusion Matrix")
         selected_true_label = st.selectbox("Select True Label:", list(PREDICTION_MAPPING.values()))
         selected_pred_label = st.selectbox("Select Predicted Label:", list(PREDICTION_MAPPING.values()))
 
@@ -381,30 +512,38 @@ if individual_model_results is not None:
             f"Number of interesting cases to analyze",
             1, 10
         )
-        interesting_cases = _find_interesting_astro_ids(ensemble_results, N_TO_ANALYZE)
-
-        # Display in Streamlit
-        st.subheader(f"🔍 Top {N_TO_ANALYZE} Most Interesting Astro IDs")
+        num_analyzed = 0
+        interesting_cases = _find_interesting_astro_ids(ensemble_results, 1000)
+        cur_case = 0
+        st.subheader(f"Top {N_TO_ANALYZE} Most Interesting Astro IDs")
         st.write("These Astro IDs were selected based on key failure modes: misclassification, uncertainty, or high variance.")
         all_page_types = ["Summary", "BLS Spectrum", "Depth-aperture Correlation", "Difference Images", "Full Detrended LC", "Full Raw LC + Folded Detrended LC", "MCMC Fit", "Matches to Known Signals"]
         selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(all_page_types), default=sorted(all_page_types))
+        server = LightCurveServer()
 
-        for case in interesting_cases:
+        while num_analyzed < N_TO_ANALYZE:
+            cur_case += 1
+            case = interesting_cases[cur_case]
             astro_id = case["astro_id"]
             true_label = case["true_label"]
             predicted_label = case["predicted_label"]
             disp_scores = {label: case[label] for label in HUMAN_LABEL_MAP.values()}  # Extract disp scores
             selection_reason = case["selection_reason"]
-            astro_props = properties_df[properties_df["astro_id"] == astro_id].to_dict(orient="records")[0]  # Extract single record
+            try:
+                astro_props = properties_df[properties_df["astro_id"] == astro_id].to_dict(orient="records")[0]  # Extract single record
+            except Exception as e:
+                continue
 
-            # Display metadata
-            st.subheader(f"📊 Report for Astro ID: {astro_id}")
-            st.write(f"**True Label:** {true_label}")
-            st.write(f"**Predicted Label:** {predicted_label}")
-            st.write(f"**disp Scores:** {disp_scores}")
-            st.write(f"**Reason for Selection:** {selection_reason}")
-
-            # Display report images
-            generate_report_for_astro_id(astro_id=astro_id, selected_types=selected_types)
+            pages = _has_report_pages(server, astro_id)
+            if not pages:
+                st.write(f"No report for astro ID {astro_id}, skipping...")
+            else:
+                # Display metadata
+                st.subheader(f"Report for Astro ID: {astro_id}")
+                st.write(f"**True Label:** {true_label}, **Predicted Label:** {predicted_label}")
+                st.write(f"**disp Scores:** {disp_scores}")
+                st.write(f"**Reason for Selection:** {selection_reason}")
+                generate_report_for_astro_id(server, astro_id=astro_id, pages=pages, selected_types=selected_types)
+                num_analyzed += 1
 else:
-    st.info("📤 Please upload model inference results to proceed.")
+    st.info("Please upload model inference results to proceed.")

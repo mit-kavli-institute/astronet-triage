@@ -27,7 +27,7 @@ class EvalUtils:
         - DataFrame with `astro_id`, averaged probabilities, and predicted labels.
         """
         probability_cols = ["disp_p", "disp_e", "disp_n", "disp_j"]
-        ensemble = self.model_results.groupby("astro_id")[probability_cols].mean().reset_index()
+        ensemble = self.model_results.groupby(["astro_id", "true_label"])[probability_cols].mean().reset_index()
         if thresholds:
             # Apply thresholds: Assign the first class that meets its threshold
             def apply_thresholds(row):
@@ -63,7 +63,8 @@ class EvalUtils:
         """Returns ensemble results with optional true labels and properties."""
         self.ensemble_results = self._compute_ensemble_results(thresholds)
         df = self.ensemble_results.copy()
-        if include_labels:
+        print(df)
+        if include_labels and 'true_label' not in df.columns:
             df = df.merge(self.properties[['astro_id', 'label']], on="astro_id", how="left", suffixes=("", "_true"))
             df.rename(columns={"label": "true_label"}, inplace=True)
         if include_properties:
@@ -77,7 +78,7 @@ class EvalUtils:
 
         if human_readable_names:
             df["predicted_label"] = df["predicted_label"].map(PREDICTION_MAPPING)
-            df['true_label'] = df['true_label'].map(PREDICTION_MAPPING)
+            df['true_label'] = df['true_label'].map({"p": "Planet", "j": "Junk"})
         return df
 
     def aggregate_results(self):
@@ -102,11 +103,12 @@ class EvalUtils:
 
         :return: DataFrame with model performance metrics.
         """
-        self.model_results["predicted_label"] = self.model_results[PREDICTION_LABELS].idxmax(axis=1)
-        self.model_results["predicted_label"] = self.model_results["predicted_label"].map(PREDICTION_MAPPING)
-        self.model_results['true_label'] = self.model_results['true_label'].map(TRUE_MAPPING)
+        model_results = self.model_results.copy()
+        model_results["predicted_label"] = model_results[PREDICTION_LABELS].idxmax(axis=1)
+        model_results["predicted_label"] = model_results["predicted_label"].map(PREDICTION_MAPPING)
+        model_results['true_label'] = model_results['true_label'].map(TRUE_MAPPING)
         
-        filtered_model_results = self.model_results.dropna(subset=["true_label", "predicted_label"], how="all")
+        filtered_model_results = model_results.dropna(subset=["true_label", "predicted_label"], how="all")
         
         model_performance = []
         for model_no in filtered_model_results["model_no"].unique():
