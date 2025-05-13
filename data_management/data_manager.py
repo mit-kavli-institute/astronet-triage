@@ -122,7 +122,7 @@ class DataManager:
             self.properties_df = pd.read_csv(properties_sheet)
         self.properties_df = self.convert_columns_to_snake_case(self.properties_df)
 
-        if 'label' not in self.properties_df.columns:
+        if 'label' not in self.properties_df.columns and 'final' in self.properties_df.columns:
             self.properties_df['label'] = self.properties_df['final'].str.lower().map(TRUE_MAPPING).map(HUMAN_LABEL_MAP)
 
         self.labels_df = pd.DataFrame()
@@ -161,12 +161,14 @@ class DataManager:
                     pass
 
                 label = None
-                if DataManagerConstants.LABEL_COLUMN not in self.properties_df.columns: # final contains human label
+                if DataManagerConstants.LABEL_COLUMN not in self.properties_df.columns and not self.labels_df.empty: # final contains human label
                     # load label from labels_df
                     labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
                     label = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
-                else:
+                elif DataManagerConstants.LABEL_COLUMN in row:
                     label = row[DataManagerConstants.LABEL_COLUMN]
+                else:
+                    label = None
                 if label is None:
                     astro_data_report.num_labels_failed_to_load += 1
 

@@ -16,6 +16,7 @@ import os
 import sys
 from typing import Literal, Optional
 
+import inspect
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -183,6 +184,10 @@ def _process_tce(
     mode: AstronetMode,
     training: bool
 ):
+  print(dir(get_lightcurve))
+  print(get_lightcurve.__name__)
+  print(type(get_lightcurve))
+  print(inspect.getsource(get_lightcurve))
   time, flux = get_lightcurve(tce['Astro ID'])
   if mode == 'vetting':
     apertures = {
@@ -388,6 +393,7 @@ def main(_):
             tce["MinT"] = -np.inf
         if "MaxT" not in tce:
             tce["MaxT"] = np.inf
+        print(tce)
         return preprocess.read_and_process_light_curve(
            FLAGS.tess_data_dir,
            aperture_key_map[aperture],
@@ -414,7 +420,7 @@ def main(_):
 
     logging.info("Processing %d total file shards", len(file_shards))
     for start, end, file_shard in file_shards:
-        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, not FLAGS.not_training)
+        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
