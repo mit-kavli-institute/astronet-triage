@@ -22,6 +22,7 @@ import pandas as pd
 import tensorflow as tf
 from absl import app, logging
 from typing_extensions import Protocol
+import traceback
 
 from astronet.preprocess import preprocess
 
@@ -184,11 +185,11 @@ def _process_tce(
     mode: AstronetMode,
     training: bool
 ):
-  print(dir(get_lightcurve))
-  print(get_lightcurve.__name__)
-  print(type(get_lightcurve))
-  print(inspect.getsource(get_lightcurve))
-  time, flux = get_lightcurve(tce['Astro ID'])
+  import time
+  start_time = time.time()
+  astro_id = tce['Astro ID']
+  print(f'Starting to process {astro_id}')
+  tme, flux = get_lightcurve(tce['Astro ID'])
   if mode == 'vetting':
     apertures = {
       's': get_lightcurve(tce['Astro ID'], aperture='s'),
@@ -201,7 +202,7 @@ def _process_tce(
   ex = tf.train.Example()
 
   for bkspace in [0.3, 5.0, None]:
-    fold_num = _standard_views(ex, tce['TIC ID'], time, flux, tce.Per, tce.Epoc, tce.Dur, bkspace, apertures)
+    fold_num = _standard_views(ex, tce['TIC ID'], tme, flux, tce.Per, tce.Epoc, tce.Dur, bkspace, apertures)
 
   _set_int64_feature(ex, 'astro_id', [tce['Astro ID']])
 
@@ -261,68 +262,117 @@ def _process_tce(
   _set_float_feature(ex, 'n_folds', [len(set(fold_num))])
   _set_float_feature(ex, 'n_points', [len(fold_num)])
 
+  end_time = time.time()
+  print(f'Finished processing {astro_id} in {end_time - start_time} seconds')
   return ex
 
+tce_table = None
 
-def _process_file_shard(
-  tce_table: pd.DataFrame,
-  file_name: str,
-  get_lightcurve: LCGetter,
-  mode: AstronetMode,
-  training: bool,
+
+def get_lightcurve(astro_id: int, aperture: Optional[str] = None) -> tuple[np.ndarray, np.ndarray]:
+    aperture_key_map = {
+        "s": "SAP_FLUX_SML",
+        "m": "SAP_FLUX_MID",
+        "l": "SAP_FLUX_LAG",
+        None: "SAP_FLUX",
+    }
+    global tce_table
+    matching_tces = tce_table[tce_table["Astro ID"] == astro_id] # tce_table.where(tce_table["Astro ID"] == astro_id)
+    try:
+        _, tce = next(matching_tces.iterrows())
+    except StopIteration as e:
+        raise ValueError(f"Astro ID not found: {astro_id}") from e
+    if "MinT" not in tce:
+        tce["MinT"] = -np.inf
+    if "MaxT" not in tce:
+        tce["MaxT"] = np.inf
+    return preprocess.read_and_process_light_curve(
+        FLAGS.tess_data_dir,
+        aperture_key_map[aperture],
+        tce.File,
+        tce.MinT,
+        tce.MaxT,
+    )
+
+class ProcessRecordWorker:
+    def __init__(self, existing, get_lightcurve, mode, training, _process_tce, tce_table):
+        self.existing = existing
+        self.get_lightcurve = get_lightcurve
+        self.mode = mode
+        self.training = training
+        self._process_tce = _process_tce
+        self.tce_table = tce_table
+
+    def __call__(self, tce_row_dict):
+        tce = pd.Series(tce_row_dict)
+        recid = -1
+        try:
+          recid = int(tce['Astro ID'])
+        except Exception as e:
+           pass
+        try:
+            if recid in self.existing:
+                return (self.existing[recid], 'reused', recid)
+
+            ex = self._process_tce(tce, self.get_lightcurve, self.mode, self.training)
+            return (ex.SerializeToString(), 'new', recid)
+        except Exception as e:
+            print(traceback.print_exc())
+            return (None, 'skipped', recid)
+
+
+def _process_file_shard_parallel_mp(
+    tce_table: pd.DataFrame,
+    file_name: str,
+    get_lightcurve,
+    mode,
+    training: bool,
+    num_processes: int = None,
 ):
-  process_name = multiprocessing.current_process().name
-  shard_name = os.path.basename(file_name)
-  shard_size = len(tce_table)
-    
-  existing = {}
-  try:
-    tfr = tf.data.TFRecordDataset(file_name)
-    for record in tfr:
-      ex_str = record.numpy()
-      ex = tf.train.Example.FromString(ex_str)
-      existing[ex.features.feature['astro_id'].int64_list.value[0]] = ex_str
-  except:
-    pass
+    shard_name = os.path.basename(file_name)
+    shard_size = len(tce_table)
+    num_processes = num_processes or 1
 
-  with tf.io.TFRecordWriter(file_name) as writer:
-    num_processed = 0
-    num_skipped = 0
-    num_existing = 0
-    print("", end='')
-    for _, tce in tce_table.iterrows():
-      num_processed += 1
-      recid = int(tce['Astro ID'])
-      print("\r                                      ", end="")
-      print(f"\r[{num_processed}/{shard_size}] {recid}", end="")
+    # Read existing TFRecords
+    existing = {}
+    try:
+        tfr = tf.data.TFRecordDataset(file_name)
+        for record in tfr:
+            ex_str = record.numpy()
+            ex = tf.train.Example.FromString(ex_str)
+            astro_id = ex.features.feature['astro_id'].int64_list.value[0]
+            existing[astro_id] = ex_str
+    except Exception as e:
+        print(f"Warning: could not read existing records from {file_name}: {e}")
+    tce_dicts = tce_table.to_dict(orient='records')
+    print(f"[{shard_name}] Starting processing with {num_processes} processes on {len(tce_dicts)} TCEs")
+    print(tce_dicts[0].keys())
 
-      if recid in existing:
-        print(" exists", end="")
-        sys.stdout.flush()
-        writer.write(existing[recid])
-        num_existing += 1
-        continue
+    worker = ProcessRecordWorker(existing, get_lightcurve, mode, training, _process_tce, tce_table)
 
-      examples = []
-      try:
-        print(" processing", end="")
-        sys.stdout.flush()
-        ex = _process_tce(tce, get_lightcurve, mode, training)
-        examples.append(ex)
-      except Exception as e:
-        raise
-        print(f" *** error: {e}")
-        num_skipped += 1
-        continue
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        results = pool.map(worker, tce_dicts)
 
-      print(" writing                   ", end="")
-      sys.stdout.flush()
-      for example in examples:
-        writer.write(example.SerializeToString())
-        
+    serialized = []
+    reused = skipped = new = 0
 
-  num_new = num_processed - num_skipped - num_existing
-  print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new {num_skipped} bad            ")
+    for ex_bytes, status, recid in results:
+        print(f"[{shard_name}] Processed Astro ID {recid} -> {status}")
+        if status == 'reused':
+            reused += 1
+            serialized.append(ex_bytes)
+        elif status == 'new':
+            new += 1
+            serialized.append(ex_bytes)
+        else:
+            skipped += 1
+
+    with tf.io.TFRecordWriter(file_name) as writer:
+        for ex in serialized:
+            if ex:
+                writer.write(ex)
+
+    print(f"[{shard_name}] Done. Total: {shard_size}, New: {new}, Reused: {reused}, Skipped: {skipped}")
 
 def create(
     tce_table: pd.DataFrame,
@@ -375,32 +425,8 @@ def create(
 def main(_):
     tf.io.gfile.makedirs(FLAGS.output_dir)
 
+    global tce_table
     tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
-
-    def get_lightcurve(astro_id: int, aperture: Optional[str] = None) -> tuple[np.ndarray, np.ndarray]:
-        aperture_key_map = {
-            "s": "SAP_FLUX_SML",
-            "m": "SAP_FLUX_MID",
-            "l": "SAP_FLUX_LAG",
-            None: "SAP_FLUX",
-        }
-        matching_tces = tce_table[tce_table["Astro ID"] == astro_id] # tce_table.where(tce_table["Astro ID"] == astro_id)
-        try:
-            _, tce = next(matching_tces.iterrows())
-        except StopIteration as e:
-            raise ValueError(f"Astro ID not found: {astro_id}") from e
-        if "MinT" not in tce:
-            tce["MinT"] = -np.inf
-        if "MaxT" not in tce:
-            tce["MaxT"] = np.inf
-        print(tce)
-        return preprocess.read_and_process_light_curve(
-           FLAGS.tess_data_dir,
-           aperture_key_map[aperture],
-           tce.File,
-           tce.MinT,
-           tce.MaxT,
-        )
 
     num_tces = len(tce_table)
     logging.info("Read %d TCEs", num_tces)
@@ -420,7 +446,7 @@ def main(_):
 
     logging.info("Processing %d total file shards", len(file_shards))
     for start, end, file_shard in file_shards:
-        _process_file_shard(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False)
+        _process_file_shard_parallel_mp(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, num_processes=35)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
