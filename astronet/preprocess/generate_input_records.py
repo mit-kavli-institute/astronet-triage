@@ -25,6 +25,7 @@ import pandas as pd
 import tensorflow as tf
 from absl import app, flags, logging
 from typing_extensions import Protocol
+import traceback
 
 from astronet.preprocess import preprocess
 from astronet.util.example_util import set_float_feature, set_int64_feature
@@ -263,6 +264,7 @@ def _process_tce(tce, get_lightcurve: LCGetter, mode: AstronetMode,
       f'Finished processing {astro_id} in {end_time - start_time} seconds')
   return ex
 
+tce_table = None
 
 tce_table = None
 
