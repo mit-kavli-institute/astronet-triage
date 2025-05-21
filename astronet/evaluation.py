@@ -50,9 +50,11 @@ def generate_labels_and_predictions(model, dataset, threshold=None):
   """
   y_pred = model.predict(dataset)
   y_label = []
-  for features, labels, weights in dataset:
-    y_label.append(labels)
-  y_label = np.concatenate(y_label).astype(np.int32)
+  # for features, labels, weights in dataset:
+  #   y_label.append(labels)
+  #y_label = np.concatenate(y_label).astype(np.int32)
+  print(y_pred)
+  1/0
 
   if threshold is not None: # <-- this should use argmax
     y_pred_binary = (y_pred > threshold).astype(np.int32)
@@ -100,7 +102,7 @@ def evaluate_model(model, input_config, file_pattern, batch_size, threshold=None
       input_config=input_config,
       batch_size=batch_size,
       include_identifiers=False,
-      include_labels=True)
+      include_labels=False)
 
   if threshold is not None:
     y_label, y_pred, y_pred_binary = generate_labels_and_predictions(model, dataset, threshold=threshold)
