@@ -9,7 +9,7 @@ NAME=vetting-sector86-all
 
 #python preprocess/generate_input_records.py --input_tce_csv_file=../mnt/tess/astronet/tces-${NAME}-val.csv --tess_data_dir=${LCDIR} --output_dir=../mnt/tess/astronet/tfrecords-${NAME}-val --mode=vetting --num_shards=5
 
-python astronet/preprocess/generate_input_records.py --input_tce_csv_file=/pdo/users/dimond/mnt/tess/astronet/tces-sector86-all2.csv --tess_data_dir=${LCDIR} --output_dir=/pdo/users/dimond/mnt/tess/astronet/tfrecords-${NAME}-test --mode=vetting --num_shards=25
+python astronet/preprocess/generate_input_records.py --input_tce_csv_file=/pdo/users/dimond/mnt/tess/astronet/tces-sector86-all2.csv --tess_data_dir=${LCDIR} --output_dir=/pdo/users/dimond/mnt/tess/astronet/tfrecords-${NAME}-test --mode=vetting
 
 
 
