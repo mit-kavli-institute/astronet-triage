@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import List, Tuple
 from config_parser import DatasetConfig
 from dataclasses import dataclass
 from data_management.astro_data import AstroData, Split
@@ -107,15 +108,17 @@ class DataManager:
     is not needed.
     """
 
-    def __init__(self):
-        print(f'Loading dataset from dataset_config:\n{dataset_config}\n')
-        self.data_dir = dataset_config.raw_data_dir
-        self.data_storage = DataStorage(data_dir=self.data_dir, images_dir=dataset_config.images_dir, reports_dir=dataset_config.reports_dir)
+    def __init__(self, config: DatasetConfig = dataset_config):
+        print(f'Loading dataset from config:\n{config}\n')
+        if not config:
+            return
+        self.data_dir = config.raw_data_dir
+        self.data_storage = DataStorage(data_dir=self.data_dir, images_dir=config.images_dir, reports_dir=config.reports_dir)
 
         # Read sheets
         sheets_reader = GoogleSheetsReader()
         self.sheets_reader = sheets_reader
-        properties_sheet = dataset_config.properties_sheet
+        properties_sheet = config.properties_sheet
         if is_url(properties_sheet):
             self.properties_df = sheets_reader.from_url(properties_sheet)
         else:
@@ -126,13 +129,13 @@ class DataManager:
             self.properties_df['label'] = self.properties_df['final'].str.lower().map(TRUE_MAPPING).map(HUMAN_LABEL_MAP)
 
         self.labels_df = pd.DataFrame()
-        if dataset_config.labels_sheet:
-            labels_sheet = dataset_config.labels_sheet
+        if config.labels_sheet:
+            labels_sheet = config.labels_sheet
             self.labels_df = sheets_reader.from_url(labels_sheet)
             self.labels_df = self.convert_columns_to_snake_case(self.labels_df)
         self.dataset_split_df = pd.DataFrame()
-        if dataset_config.dataset_split_sheet:
-            dataset_split_sheet = dataset_config.dataset_split_sheet
+        if config.dataset_split_sheet:
+            dataset_split_sheet = config.dataset_split_sheet
             self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
             self.dataset_split_df = self.convert_columns_to_snake_case(self.dataset_split_df)
 
@@ -143,7 +146,7 @@ class DataManager:
             self.tic_id_to_data[data.tic_id] = data
         print(str(report) + '\n')
 
-    def _init_astro_data(self) -> tuple[list[AstroData], AstroDataReport]:
+    def _init_astro_data(self) -> Tuple[List[AstroData], AstroDataReport]:
         astro_data = []
         astro_data_report = AstroDataReport()
         # Load data based on the test/train/validation sheet
@@ -267,9 +270,10 @@ class DataManager:
         df = pd.DataFrame(data_list)
         filtered_dtype_dict = {col: dtype for col, dtype in dtype_dict.items() if col in df.columns}
         df = df.astype(filtered_dtype_dict)
+        df = df.drop_duplicates(subset="astro_id")
         return df
 
-data_manager = DataManager() # singleton
+data_manager = DataManager(config=None) # singleton
 
 # Example usage:
 if __name__ == "__main__":

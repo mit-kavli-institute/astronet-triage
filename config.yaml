@@ -6,6 +6,6 @@ dataset:
   # labels_sheet: 'https://docs.google.com/spreadsheets/d/17-ByYBQ1uPweKH2P_4MWGWsuTKkEKrNFS4uGBsm-bGI/edit?gid=0#gid=0'
   # properties_sheet: 'https://docs.google.com/spreadsheets/d/1zWFZ0GQ09aBfoT-G1GzgtMDlqiJpI2KXrnTK-7-Lp1E/edit?gid=680688174#gid=680688174'
   # properties_sheet: 'https://docs.google.com/spreadsheets/d/1hRVFAegDeTRTFq2ZV4H02On3Hvn4Xu4y3C8ayGk4Uzo/edit?gid=0#gid=0'
-  properties_sheet: '/pdo/astronet-data/data/labels/sector_86_qlp_properties.csv' #'/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv'
+  properties_sheet: '/pdo/astronet-data/data/labels/sector_86_qlp_properties_with_centroid.csv' #'/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv'
   # dataset_split_sheet: 'https://docs.google.com/spreadsheets/d/1w_YvlGCQpdlPPC7JJgAUDANU2JU0cC9P-gwMeoYvMw8/edit?gid=0#gid=0'
   # eval_sheet: 'https://docs.google.com/spreadsheets/d/1x7MqQK6mEedUrsKO8Z7T0x_APT-6S1ik6UMvAYx4ZFg/edit?gid=302748837#gid=302748837'

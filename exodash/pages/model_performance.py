@@ -517,8 +517,7 @@ if individual_model_results is not None:
         cur_case = 0
         st.subheader(f"Top {N_TO_ANALYZE} Most Interesting Astro IDs")
         st.write("These Astro IDs were selected based on key failure modes: misclassification, uncertainty, or high variance.")
-        all_page_types = ["Summary", "BLS Spectrum", "Depth-aperture Correlation", "Difference Images", "Full Detrended LC", "Full Raw LC + Folded Detrended LC", "MCMC Fit", "Matches to Known Signals"]
-        selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(all_page_types), default=sorted(all_page_types))
+        selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=sorted(ALL_PAGE_TYPES))
         server = LightCurveServer()
 
         while num_analyzed < N_TO_ANALYZE:
