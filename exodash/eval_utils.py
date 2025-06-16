@@ -1,8 +1,12 @@
-from data_management.data_manager import data_manager
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, precision_recall_curve, auc
+import streamlit as st
+
 
 from data_management.type_mapping import PREDICTION_LABELS, PREDICTION_MAPPING, TRUE_MAPPING
+REQUIRED_MODEL_COLUMNS = {"astro_id", "model_no", "disp_p", "disp_e", "disp_n", "disp_j"}
+
+data_manager = st.session_state.data_manager
 
 class EvalUtils:
     def __init__(self, model_results: pd.DataFrame):
@@ -63,7 +67,6 @@ class EvalUtils:
         """Returns ensemble results with optional true labels and properties."""
         self.ensemble_results = self._compute_ensemble_results(thresholds)
         df = self.ensemble_results.copy()
-        print(df)
         if include_labels and 'true_label' not in df.columns:
             df = df.merge(self.properties[['astro_id', 'label']], on="astro_id", how="left", suffixes=("", "_true"))
             df.rename(columns={"label": "true_label"}, inplace=True)

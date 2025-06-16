@@ -12,17 +12,21 @@ PAGE_NUMBER_TO_TYPE: dict = {
     8: "Matches to Known Signals",
     9: "Full Detrended LC",
 }
+ALL_PAGE_TYPES = ["Summary", "BLS Spectrum", "Depth-aperture Correlation", "Difference Images", "Full Detrended LC", "Full Raw LC + Folded Detrended LC", "MCMC Fit", "Matches to Known Signals"]
 
 class LightCurveServer:
     def __init__(self, server_url: str = f"http://localhost:5001"):
         self.server_url = server_url
 
-    def get_report_pages(self, tic_id: int) -> list:
+    def get_report_pages(self, tic_id: int, planet_number: int) -> list:
         """
         Returns a list of report paths for a given TIC ID.
         """
         url = f"{self.server_url}/api/report-pages/{tic_id}"
-        response = requests.get(url)
+        params = {
+            "planet_number": planet_number
+        }
+        response = requests.get(url, params=params)
         if response.ok:
             data = response.json()
             if isinstance(data, list):
