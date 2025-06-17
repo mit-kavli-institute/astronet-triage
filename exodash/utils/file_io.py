@@ -26,7 +26,7 @@ def dataset_selector() -> str:
     Allows the user to select a dataset from a list of supported datasets.
     """
     _, files = list_subdirs_and_files(EXODASH_DATASET_DIR)
-    st.header("Select Dataset")
+    st.subheader("Select Dataset")
     selected_dataset = st.selectbox("Dataset", ["<Select a config>"] + files)
     if selected_dataset != "<Select a config>":
         file_path = os.path.join(EXODASH_DATASET_DIR, selected_dataset)
@@ -101,12 +101,12 @@ def model_result_selector(
 
     loaders = []
 
-    if allow_local_navigation:
-        loaders.append(local_navigation_handler)
-    if allow_upload:
-        loaders.append(upload_handler)
     if allow_cached_models:
         loaders.append(cached_model_handler)
+    if allow_upload:
+        loaders.append(upload_handler)
+    if allow_local_navigation:
+        loaders.append(local_navigation_handler)
 
     cols = st.columns(len(loaders))
     for col, loader in zip(cols, loaders):
