@@ -4,6 +4,10 @@ import streamlit as st
 from PIL import Image
 from data_management.light_curve_server import PAGE_NUMBER_TO_TYPE
 
+if "df" not in st.session_state or "light_curve_server" not in st.session_state:
+    st.error("Dataset not found. Please use the landing page first.")
+    st.stop()
+
 server = st.session_state.light_curve_server
 
 def infer_planet_number(astro_id: int, tic_id: int):

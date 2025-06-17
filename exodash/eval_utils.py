@@ -6,6 +6,10 @@ import streamlit as st
 from data_management.type_mapping import PREDICTION_LABELS, PREDICTION_MAPPING, TRUE_MAPPING
 REQUIRED_MODEL_COLUMNS = {"astro_id", "model_no", "disp_p", "disp_e", "disp_n", "disp_j"}
 
+if "df" not in st.session_state or "light_curve_server" not in st.session_state:
+    st.error("Dataset not found. Please use the landing page first.")
+    st.stop()
+
 data_manager = st.session_state.data_manager
 
 class EvalUtils:
@@ -53,6 +57,8 @@ class EvalUtils:
             df = df.merge(self.properties[['astro_id', 'label']], on="astro_id", how="left", suffixes=("", "_true"))
             df.rename(columns={"label": "true_label"}, inplace=True)
         if include_properties:
+            if 'true_label' in df.columns and 'true_label' in self.properties.columns:
+                self.properties = self.properties.drop(columns=['true_label'])
             df = df.merge(self.properties, on="astro_id", how="left", suffixes=("", "_true"))
         if dropna:
             # print unique true label values
@@ -71,6 +77,8 @@ class EvalUtils:
             df = df.merge(self.properties[['astro_id', 'label']], on="astro_id", how="left", suffixes=("", "_true"))
             df.rename(columns={"label": "true_label"}, inplace=True)
         if include_properties:
+            if 'true_label' in df.columns and 'true_label' in self.properties.columns:
+                self.properties = self.properties.drop(columns=['true_label'])
             df = df.merge(self.properties, on="astro_id", how="left", suffixes=("", "_true"))
         if dropna:
             df.dropna(subset=["true_label"], inplace=True)

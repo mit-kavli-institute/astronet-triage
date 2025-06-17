@@ -20,7 +20,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
 
     for feature in selected_num_filters:
         if feature in direct_input_fields:
-            value = st.sidebar.number_input(f"Enter value for {feature}", value=float(df[feature].min()))
+            value = st.sidebar.number_input(f"Enter value for {feature}", value=int(df[feature].min()))
             filtered_df = filtered_df[filtered_df[feature] == value]
         else:
             min_val, max_val = float(df[feature].min()), float(df[feature].max())
