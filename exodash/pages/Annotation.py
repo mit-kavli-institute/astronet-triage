@@ -100,12 +100,18 @@ if 'astro_row' in st.session_state:
     astro_id = row['astro_id']
     true_label = row['true_label']
     predicted_label = row['predicted_label']
-    disp_scores = {label: row[label] for label in HUMAN_LABEL_MAP.values() if label in row}
+    disp_scores = {"True Label": true_label, "Predicated Label": predicted_label}
+    disp_scores.update({label: row[label] for label in HUMAN_LABEL_MAP.values() if label in row})
     pages = st.session_state.pages
 
     st.subheader(f"Annotate Astro ID: {astro_id} [{st.session_state.idx}/{len(ensemble_results)}]")
-    st.write(f"**True Label:** {true_label}, **Predicted Label:** {predicted_label}")
-    st.write(f"**disp Scores:** {disp_scores}")
+
+    st.write("**Labels and Scores**")
+    st.dataframe([disp_scores])
+    tce_scalars = ['smass', 'srad', 'tmag', 'planetno', 'epoc', 'per', 'depth', 'dur', 'srad_est', 'centroid_distance_arc_sec']
+    tce_props = row[tce_scalars]
+    st.write("**TCE Properties**")
+    st.dataframe([tce_props])
 
     tic_id = row['tic_id']
     planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
