@@ -1,3 +1,4 @@
+#!/bin/bash
 
 TFRECORD_DIR_A=/pdo/users/dimond/mnt/tess/astronet/tfrecords-vetting-sector86-all-test
 MODEL_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812

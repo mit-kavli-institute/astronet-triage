@@ -1,4 +1,4 @@
-"""Script for evaluating a trained AstroNet model."""
+"""Script for comparing TFRecords."""
 
 import os
 import numpy as np
