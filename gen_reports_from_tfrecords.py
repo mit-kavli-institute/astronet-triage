@@ -110,7 +110,10 @@ def run_parallel_report_generation(examples, output_dir, num_processes=None):
         pool.starmap(generate_split_report, args)
 
 def main(_):
-    tfrecord_files = glob(f"{FLAGS.tfrecord_dir}/*")
+    tfrecord_files = [
+        f for f in glob(f"{FLAGS.tfrecord_dir}/*")
+        if os.path.splitext(f)[1] == ''
+    ] # TFRecord files have no suffix
     print(f'\nStarting to generate reports from {FLAGS.tfrecord_dir} with {len(tfrecord_files)} files...\n')
     dataset = tf.data.TFRecordDataset(tfrecord_files)
     examples = []
