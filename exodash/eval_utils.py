@@ -78,7 +78,7 @@ class EvalUtils:
             df.rename(columns={"label": "true_label"}, inplace=True)
         if include_properties:
             if 'true_label' in df.columns and 'true_label' in self.properties.columns:
-                self.properties = self.properties.drop(columns=['true_label'])
+                df = df.drop(columns=['true_label'])
             df = df.merge(self.properties, on="astro_id", how="left", suffixes=("", "_true"))
         if dropna:
             df.dropna(subset=["true_label"], inplace=True)
@@ -89,7 +89,7 @@ class EvalUtils:
 
         if human_readable_names:
             df["predicted_label"] = df["predicted_label"].map(PREDICTION_MAPPING)
-            df['true_label'] = df['true_label'].map({"p": "Planet", "j": "Junk"})
+            df['true_label'] = df['true_label'].map({"p": "Planet", "j": "Junk", "e": "Eclipsing Binary"})
         return df
 
     def aggregate_results(self):
