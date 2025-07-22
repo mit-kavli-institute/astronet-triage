@@ -46,7 +46,7 @@ if tic_ids:
         pages = tic_pages.get(tic_id, [])
         type_to_page = {PAGE_NUMBER_TO_TYPE.get(p): p for p in pages if PAGE_NUMBER_TO_TYPE.get(p) in selected_types}
 
-        tic_info = df.loc[df["tic_id"] == tic_id, ["true_label"]].dropna().head(1)
+        tic_info = df.loc[df["tic_id"] == tic_id].dropna().head(1)
         label = tic_info["true_label"].values[0] if not tic_info.empty else "Unknown"
 
         st.markdown(f"### TIC {tic_id} (Label: `{label}`)")
