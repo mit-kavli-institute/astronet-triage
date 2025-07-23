@@ -132,10 +132,6 @@ def main(_):
     raise ValueError(
         "train_steps must be set in the config or via --train_steps")
 
-  # preloaded_blocks=[]
-  # trainable_preloaded_blocks=[]
-  # blocks_not_in_pretrained_model=[]
-
 # Build the model.
   model_class = models.get_model_class(FLAGS.model)
   model = model_class(config)
@@ -193,17 +189,9 @@ def main(_):
     dump_block_weights(model, init_dump_path)
     logging.info(f"Saved initial block weights to {init_dump_path}")
 
-  # # dump the list of preloaded & trainable blocks
-  # blocks_txt = os.path.join(model_dir, "preloaded_trainable_blocks.txt")
-  # with open(blocks_txt, "w") as f:
-  #   for blk in trainable_preloaded_blocks:
-  #     f.write(blk + "\n")
-  # logging.info(f"Saved trainable-preloaded block list to {blocks_txt}")
-  # blocks_txt = os.path.join(model_dir, "blocks_not_in_pretrained_model.txt")
-  # with open(blocks_txt, "w") as f:
-  #   for blk in blocks_not_in_pretrained_model:
-  #     f.write(blk + "\n")
-  # logging.info(f"Saved blocks not in pretrained model to {blocks_txt}")
+  # Before training, print the model summary.
+  logging.info("Model summary:")
+  model.summary()
 
   # Train and save model.
   training.train(
@@ -212,7 +200,7 @@ def main(_):
       train_files=FLAGS.train_files,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size)
 
-  # Save the model in Keras format.
+  # Save the model in the specified format.
   models.save_model(model, model_dir, FLAGS.save_format)
 
   if FLAGS.dump_block_weights:
