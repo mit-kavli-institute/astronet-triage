@@ -149,7 +149,8 @@ def build_dataset(file_pattern,
                   repeat=1,
                   include_identifiers=False,
                   use_cache=False,
-                  apply_data_augmentation=False):
+                  apply_data_augmentation=False,
+                  exclude_astro_ids=None):
   """Builds a Tensorflow Dataset from TFrecord files."""
   filenames = tf.io.gfile.glob(file_pattern)
   if not filenames:
@@ -158,9 +159,35 @@ def build_dataset(file_pattern,
   if shuffle_filenames:
     ds = ds.shuffle(ds.cardinality())
   ds = ds.flat_map(tf.data.TFRecordDataset)
-  example_parser = ExampleParser(input_config, include_labels,
-                                 include_identifiers)
+
+  # If we need to filter, always parse identifiers
+  parse_identifiers = include_identifiers or (exclude_astro_ids is not None)
+  example_parser = ExampleParser(input_config, include_labels, parse_identifiers)
   ds = ds.map(example_parser)
+
+  # Filtering step
+  if exclude_astro_ids is not None:
+      exclude_astro_ids_tf = tf.constant(list(exclude_astro_ids), dtype=tf.int64)
+
+      def filter_fn(*args):
+          astro_id = args[-1]
+          is_excluded = tf.reduce_any(tf.equal(astro_id, exclude_astro_ids_tf))
+          tf.cond(
+              is_excluded,
+              lambda: tf.print("Excluding astro_id:", astro_id),
+              lambda: tf.no_op()
+          )
+          return ~is_excluded
+
+      ds = ds.filter(filter_fn)
+      logging.info(f"Filtered out {len(exclude_astro_ids)} astro_ids")
+
+      # If identifiers were not originally requested, remove them
+      if not include_identifiers:
+          def strip_identifiers(*args):
+              return args[:-1]  # drop the last element (astro_id)
+          ds = ds.map(strip_identifiers)
+
   if use_cache:
     # Cache the dataset in memory to avoid re-reading it over the network.
     ds = ds.cache()
@@ -186,7 +213,8 @@ def build_dataset(file_pattern,
 def build_train_dataset(file_pattern,
                         input_config,
                         batch_size,
-                        shuffle_values_buffer=2500):
+                        shuffle_values_buffer=2500,
+                        exclude_astro_ids=None):
   """Builds a dataset for training."""
   return build_dataset(
       file_pattern,
@@ -195,7 +223,8 @@ def build_train_dataset(file_pattern,
       shuffle_values_buffer=shuffle_values_buffer,
       repeat=None,
       use_cache=True,
-      apply_data_augmentation=True)
+      apply_data_augmentation=True,
+      exclude_astro_ids=exclude_astro_ids)
 
 
 def build_eval_dataset(file_pattern, input_config, batch_size,include_identifiers=False,include_labels=True):

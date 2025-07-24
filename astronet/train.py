@@ -20,10 +20,12 @@ import tensorflow as tf
 from absl import app, flags, logging
 from astronet.astro_cnn_model.astro_cnn_model import AstroCNNModel
 import pprint
-
+import pandas as pd
 from astronet import evaluation, models, training
 from astronet.util import config_util
 import numpy as np
+
+flags.DEFINE_string("astro_ids_file", None, "File containing the Astro IDs to exclude from training.")
 
 flags.DEFINE_string("model", None, "Name of the model class.", required=True)
 
@@ -104,6 +106,7 @@ def main(_):
       "train_files": FLAGS.train_files,
       "eval_files": FLAGS.eval_files,
       "shuffle_buffer_size": FLAGS.shuffle_buffer_size,
+      "astro_ids_file": FLAGS.astro_ids_file,
   }
 
   # Load the config.
@@ -131,6 +134,12 @@ def main(_):
   if not config["train_steps"]:
     raise ValueError(
         "train_steps must be set in the config or via --train_steps")
+
+  # Set the astro ids to exclude from training
+  exclude_astro_ids = set()
+  if FLAGS.astro_ids_file:
+      exclude_astro_ids = set(pd.read_csv(FLAGS.astro_ids_file, header=None).iloc[:,0].tolist())
+      logging.info(f"Loaded {len(exclude_astro_ids)} Astro IDs to exclude from training.")
 
 # Build the model.
   model_class = models.get_model_class(FLAGS.model)
@@ -198,7 +207,9 @@ def main(_):
       model,
       config,
       train_files=FLAGS.train_files,
-      shuffle_buffer_size=FLAGS.shuffle_buffer_size)
+      shuffle_buffer_size=FLAGS.shuffle_buffer_size,
+      exclude_astro_ids=exclude_astro_ids  # pass it here
+  )
 
   # Save the model in the specified format.
   models.save_model(model, model_dir, FLAGS.save_format)

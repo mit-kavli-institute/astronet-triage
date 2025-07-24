@@ -3,6 +3,7 @@
 import tensorflow as tf
 from collections import Counter
 from absl import logging
+import pandas as pd
 
 from astronet.astro_cnn_model import input_ds
 
@@ -89,13 +90,15 @@ def compile_model(model, config):
    ])
 
 
-def train(model, config, train_files, shuffle_buffer_size=2500):
+def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None):
   """Trains a model."""
   ds = input_ds.build_train_dataset(
       file_pattern=train_files,
       input_config=config.inputs,
       batch_size=config.hparams.batch_size,
-      shuffle_values_buffer=shuffle_buffer_size)
+      shuffle_values_buffer=shuffle_buffer_size,
+      exclude_astro_ids=exclude_astro_ids  # <-- pass the actual set here
+  )
 
   compile_model(model, config)
   history = model.fit(ds, steps_per_epoch=config["train_steps"])
