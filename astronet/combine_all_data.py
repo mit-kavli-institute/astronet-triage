@@ -10,11 +10,11 @@ from tqdm.notebook import tqdm
 
 #model_predictions = "/pdo/users/dimond/astronet/astronet/20250429_181612_predictions_sector86.csv"
 #model_predictions = "/pdo/users/dimond/astronet/astronet/20250723_modelwithtoisremoved_predictions_sector86.csv"
-model_predictions = "" # combined sectors 85, 86, and 87
+model_predictions = "/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87/test_predictions.csv" # combined sectors 85, 86, and 87
 tce_catalog = "/pdo/users/dimond/sectors_85_to_87_properties.csv"
 #tce_catalog = "/pdo/users/dimond/astronet/astronet/astronet-vetting-tce-catalog-with-offsets-CORRECTED.csv"
 #qlp_labels = "/pdo/users/dimond/astronet/astronet/pcs.ls"
-vetter_labels = ""
+vetter_labels = "/pdo/users/dimond/sectors_85_to_87_candidates.ls"
 toi_info = "/pdo/users/dimond/astronet/astronet/toi-plus-2025-07-16.csv"
 toi_notes = "/pdo/users/dimond/astronet/astronet/Astronet Testing TOIs - s86.csv"
 
@@ -37,15 +37,15 @@ astronet_results = pd.read_csv(
 ).drop(columns="model_no")
 astronet_data = pd.read_csv(
     tce_catalog,
-    names=["tic_id", "smass", "srad", "tmag", "planetno", "epoch", "period", "depth", "duration", "sradest", "astro_id", "centroid_distance_arcsec"],
-    index_col=0,
-    header=1,
-)[["astro_id", "tic_id", "planetno", "tmag", "period", "epoch", "depth", "duration", "centroid_distance_arcsec"]]
+)[["astro_id", "tic_id", "planetno", "tmag", "period", "epoch", "depth", "duration", "centroid_distance_arcsec", "sector"]]
 astronet_data["astro_id"] = astronet_data["astro_id"].astype(int)
 astronet_data = astronet_data.drop_duplicates(subset=['tic_id', 'planetno'])
 
 astronet_data = astronet_data.merge(astronet_results, on=["astro_id", "tic_id", "planetno"])
 astronet_data = Table.from_pandas(astronet_data)
+
+print(len(astronet_results))
+print(len(astronet_data))
 
 toi_data = (
     pd.read_csv(toi_info, comment="#")[[
@@ -134,7 +134,7 @@ tce_data = tce_data.merge(
 ).drop(columns=['tic_id_astronet', 'planetno_astronet'])
 
 # now add operator_passed
-operator_signals = Table.read(qlp_labels, names=["tic_id", "planetno"], format="ascii").to_pandas()
+operator_signals = Table.read(vetter_labels, names=["tic_id", "planetno"], format="ascii").to_pandas()
 operator_pairs = set(operator_signals.apply(tuple, axis=1))
 
 tce_data['operator_passed'] = tce_data.apply(
@@ -153,7 +153,7 @@ tce_data['operator_passed'] = tce_data.apply(
 tce_data['vetter_passed'] = False
 print(len(tce_data[tce_data['has_toi']]))
 
-tce_data.to_csv('/pdo/astronet-data/data/labels/sector_86_multi_data_source.csv', index=False)
+tce_data.to_csv('/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv', index=False)
 
 
 # toi_data['tic_id_astronet'] = toi_data['tic_id_astronet'].astype(tce_data['tic_id'].dtype)
