@@ -270,7 +270,7 @@ class DataManager:
         df = pd.DataFrame(data_list)
         filtered_dtype_dict = {col: dtype for col, dtype in dtype_dict.items() if col in df.columns}
         df = df.astype(filtered_dtype_dict)
-        df = df.drop_duplicates(subset="astro_id")
+        #df = df.drop_duplicates(subset="astro_id")
         return df
 
 data_manager = DataManager(config=None) # singleton
