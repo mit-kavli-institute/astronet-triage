@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import List, Tuple
 from config_parser import DatasetConfig
 from dataclasses import dataclass
 from data_management.astro_data import AstroData, Split
@@ -7,6 +8,8 @@ from data_management.google_sheets_reader import GoogleSheetsReader
 from data_management.data_storage import DataStorage
 import pandas as pd
 import traceback
+
+from data_management.type_mapping import HUMAN_LABEL_MAP, TRUE_MAPPING
 
 dataset_config = DatasetConfig.from_yaml()
 
@@ -87,6 +90,15 @@ class DataManagerConstants:
 def to_camel_case(s: str):
     return s.lower().replace(' ', '_')
 
+def is_url(string):
+    url_pattern = re.compile(
+        r'^(https?://)?'              # optional http:// or https://
+        r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'  # domain
+        r'(:\d+)?'                    # optional port
+        r'(/[^\s]*)?$'                # optional path
+    )
+    return bool(url_pattern.match(string))
+
 class DataManager:
     """
     Links all data sources together into AstroData objects.
@@ -96,23 +108,36 @@ class DataManager:
     is not needed.
     """
 
-    def __init__(self):
-        print(f'Loading dataset from dataset_config:\n{dataset_config}\n')
-        self.data_dir = dataset_config.raw_data_dir
-        self.data_storage = DataStorage(data_dir=self.data_dir, images_dir=dataset_config.images_dir, reports_dir=dataset_config.reports_dir)
+    def __init__(self, config: DatasetConfig = dataset_config):
+        print(f'Loading dataset from config:\n{config}\n')
+        if not config:
+            return
+        self.data_dir = config.raw_data_dir
+        self.data_storage = DataStorage(data_dir=self.data_dir, images_dir=config.images_dir, reports_dir=config.reports_dir)
 
         # Read sheets
-        labels_sheet = dataset_config.labels_sheet
         sheets_reader = GoogleSheetsReader()
         self.sheets_reader = sheets_reader
-        self.labels_df = sheets_reader.from_url(labels_sheet)
-        self.labels_df = self.convert_columns_to_snake_case(self.labels_df)
-        properties_sheet = dataset_config.properties_sheet
-        self.properties_df = sheets_reader.from_url(properties_sheet)
+        properties_sheet = config.properties_sheet
+        if is_url(properties_sheet):
+            self.properties_df = sheets_reader.from_url(properties_sheet)
+        else:
+            self.properties_df = pd.read_csv(properties_sheet)
         self.properties_df = self.convert_columns_to_snake_case(self.properties_df)
-        dataset_split_sheet = dataset_config.dataset_split_sheet
-        self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
-        self.dataset_split_df = self.convert_columns_to_snake_case(self.dataset_split_df)
+
+        if 'label' not in self.properties_df.columns and 'final' in self.properties_df.columns:
+            self.properties_df['label'] = self.properties_df['final'].str.lower().map(TRUE_MAPPING).map(HUMAN_LABEL_MAP)
+
+        self.labels_df = pd.DataFrame()
+        if config.labels_sheet:
+            labels_sheet = config.labels_sheet
+            self.labels_df = sheets_reader.from_url(labels_sheet)
+            self.labels_df = self.convert_columns_to_snake_case(self.labels_df)
+        self.dataset_split_df = pd.DataFrame()
+        if config.dataset_split_sheet:
+            dataset_split_sheet = config.dataset_split_sheet
+            self.dataset_split_df = sheets_reader.from_url(dataset_split_sheet)
+            self.dataset_split_df = self.convert_columns_to_snake_case(self.dataset_split_df)
 
         # Init data
         (self.astro_data, report) = self._init_astro_data()
@@ -121,24 +146,34 @@ class DataManager:
             self.tic_id_to_data[data.tic_id] = data
         print(str(report) + '\n')
 
-    def _init_astro_data(self) -> tuple[list[AstroData], AstroDataReport]:
+    def _init_astro_data(self) -> Tuple[List[AstroData], AstroDataReport]:
         astro_data = []
         astro_data_report = AstroDataReport()
         # Load data based on the test/train/validation sheet
-        for index, row in self.dataset_split_df.iterrows():
+        for index, row in self.properties_df.iterrows():
             try:
                 tic_id = int(row[DataManagerConstants.TIC_ID_COLUMN])
-                split = Split.from_str(row[DataManagerConstants.SPLIT_COLUMN])
+                astro_id = int(row[DataManagerConstants.ASTRO_ID_COLUMN])
 
+                split = Split.UNALLOCATED
+                try:
+                    # join the split from the dataset_split_df
+                    split_row = self.dataset_split_df[self.dataset_split_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                    split = Split.from_str(split_row[DataManagerConstants.SPLIT_COLUMN])
+                except Exception:
+                    pass
 
-                labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
-                labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
-                if not labels_dict:
+                label = None
+                if DataManagerConstants.LABEL_COLUMN not in self.properties_df.columns and not self.labels_df.empty: # final contains human label
+                    # load label from labels_df
+                    labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                    label = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
+                elif DataManagerConstants.LABEL_COLUMN in row:
+                    label = row[DataManagerConstants.LABEL_COLUMN]
+                else:
+                    label = None
+                if label is None:
                     astro_data_report.num_labels_failed_to_load += 1
-                    continue
-
-                label = labels_dict[DataManagerConstants.LABEL_COLUMN]
-                astro_id = labels_dict[DataManagerConstants.ASTRO_ID_COLUMN]
 
                 properties_row = self.properties_df[self.properties_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
                 properties_dict = (
@@ -146,17 +181,22 @@ class DataManager:
                     if not properties_row.empty else {}
                 )
 
-                properties_dict.update(
-                    {
-                        'distinct': labels_dict.get(DataManagerConstants.DISTINCT_COLUMN),
-                        'astronet_note': labels_dict.get(DataManagerConstants.ASTRONET_NOTE_COLUMN)
-                    }
-                )
+                try:
+                    labels_row = self.labels_df[self.labels_df[DataManagerConstants.TIC_ID_COLUMN] == tic_id]
+                    labels_dict = labels_row.to_dict(orient='records')[0] if not labels_row.empty else {}
+                    properties_dict.update(
+                        {
+                            'distinct': labels_dict.get(DataManagerConstants.DISTINCT_COLUMN),
+                            'astronet_note': labels_dict.get(DataManagerConstants.ASTRONET_NOTE_COLUMN)
+                        }
+                    )
+                except Exception:
+                    pass
 
                 fits_path = self.data_storage.get_path(tic_id=tic_id)
                 if not fits_path:
                     astro_data_report.num_fits_failed_to_load += 1
-                    continue
+                    #continue
                 
                 images_path = self.data_storage.get_images_path(tic_id=tic_id)
                 report_paths = self.data_storage.get_reports_path(tic_id=tic_id)
@@ -175,7 +215,7 @@ class DataManager:
                 ))
                 astro_data_report.num_successful_loads += 1
             except Exception as e:
-                print(f'Failed to load tic_id={tic_id} with exception ' + str(e) + ', skipping...')
+                print(f'Failed to load index={index} with exception ' + str(e) + ', skipping...')
                 traceback.print_exc()
 
         report = AstroDataReport(
@@ -230,9 +270,10 @@ class DataManager:
         df = pd.DataFrame(data_list)
         filtered_dtype_dict = {col: dtype for col, dtype in dtype_dict.items() if col in df.columns}
         df = df.astype(filtered_dtype_dict)
+        df = df.drop_duplicates(subset="astro_id")
         return df
 
-data_manager = DataManager() # singleton
+data_manager = DataManager(config=None) # singleton
 
 # Example usage:
 if __name__ == "__main__":

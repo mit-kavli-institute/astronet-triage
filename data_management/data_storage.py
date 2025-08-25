@@ -1,12 +1,16 @@
 import re
 from pathlib import Path
 from collections import defaultdict
+from typing import Optional
 
 
 class DataStorage:
     def __init__(self, data_dir: Path, images_dir: Path, reports_dir: Path) -> None:
         self.tic_id_to_path: dict[int, str] = {}
         self.tic_id_to_images_path: dict[int, str] = {}
+        self.tic_id_to_reports_path: dict[str, list[str]] = defaultdict(list)
+        if not data_dir:
+            return
         if not data_dir.is_absolute(): # enable both local and full paths
             data_dir = data_dir.resolve()
         if not images_dir.is_absolute(): # enable both local and full paths
@@ -50,11 +54,11 @@ class DataStorage:
             return int(match.group(1))
         return None
 
-    def get_path(self, tic_id: int) -> str | None:
+    def get_path(self, tic_id: int) -> Optional[str]:
         return self.tic_id_to_path.get(tic_id)
 
-    def get_images_path(self, tic_id: int) -> Path | None:
+    def get_images_path(self, tic_id: int) -> Optional[Path]:
         return self.tic_id_to_images_path.get(tic_id)
     
-    def get_reports_path(self, tic_id: int) -> Path | None:
+    def get_reports_path(self, tic_id: int) -> Optional[Path]:
         return self.tic_id_to_reports_path.get(tic_id, [])
