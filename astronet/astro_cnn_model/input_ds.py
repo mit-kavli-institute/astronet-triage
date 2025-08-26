@@ -104,3 +104,7 @@ def build_dataset(file_pattern,
     ds = ds.prefetch(10)
 
     return ds
+
+def build_eval_dataset(file_pattern, input_config, batch_size, include_identifiers, include_labels):
+  """Builds a dataset for evaluation."""
+  return build_dataset(file_pattern, input_config, batch_size, include_identifiers=include_identifiers, include_labels=include_labels)

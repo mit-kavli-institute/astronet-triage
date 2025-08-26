@@ -10,13 +10,14 @@ from tqdm.notebook import tqdm
 
 #model_predictions = "/pdo/users/dimond/astronet/astronet/20250429_181612_predictions_sector86.csv"
 #model_predictions = "/pdo/users/dimond/astronet/astronet/20250723_modelwithtoisremoved_predictions_sector86.csv"
-model_predictions = "/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87/test_predictions.csv" # combined sectors 85, 86, and 87
+model_predictions = "/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_reprocessed/test_predictions.csv" # combined sectors 85, 86, and 87
 tce_catalog = "/pdo/users/dimond/sectors_85_to_87_properties.csv"
 #tce_catalog = "/pdo/users/dimond/astronet/astronet/astronet-vetting-tce-catalog-with-offsets-CORRECTED.csv"
 #qlp_labels = "/pdo/users/dimond/astronet/astronet/pcs.ls"
 vetter_labels = "/pdo/users/dimond/sectors_85_to_87_candidates.ls"
 toi_info = "/pdo/users/dimond/astronet/astronet/toi-plus-2025-07-16.csv"
 toi_notes = "/pdo/users/dimond/astronet/astronet/Astronet Testing TOIs - s86.csv"
+output_file = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv'
 
 
 
@@ -153,7 +154,7 @@ tce_data['operator_passed'] = tce_data.apply(
 tce_data['vetter_passed'] = False
 print(len(tce_data[tce_data['has_toi']]))
 
-tce_data.to_csv('/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv', index=False)
+tce_data.to_csv(output_file, index=False)
 
 
 # toi_data['tic_id_astronet'] = toi_data['tic_id_astronet'].astype(tce_data['tic_id'].dtype)

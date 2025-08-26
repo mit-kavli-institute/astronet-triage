@@ -1,4 +1,6 @@
+from clustering import ClusterParams, Clustering
 from exodash.utils.filter import advanced_filter_sidebar
+from exodash.utils.tic_visualization import TICVisualizer
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,7 +12,9 @@ from matplotlib_venn import venn3
 import matplotlib.pyplot as plt
 import numpy as np
 
-
+FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv'
+#FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv'
+#FILE = '/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv'
 
 # --- Page Config ---
 st.set_page_config(page_title="ExoDash", layout="wide")
@@ -24,9 +28,10 @@ st.write(
 def load_data(config_path: str):
     """Load and deduplicate the main dataset."""
     config = DatasetConfig.from_yaml(config_path)
-    manager = DataManager(config=config)
-    df = pd.read_csv('/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv')#manager.get_data_frame()
-    #df = df.drop_duplicates(subset=["tic_id", "astro_id", "planetno"])
+    manager = DataManager(config=None)
+    df = pd.read_csv(FILE)#sector_86_multi_data_source.csv')#manager.get_data_frame()
+    if FILE ==  '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv':
+        df = df.drop_duplicates(subset=["tic_id", "astro_id", "planetno"])
     #print(len(df))
     return df
 
@@ -34,7 +39,7 @@ def load_data(config_path: str):
 def load_properties(config_path: str):
     """Load additional dataset properties."""
     config = DatasetConfig.from_yaml(config_path)
-    manager = DataManager(config=config)
+    manager = DataManager(config=None)
     return manager.properties_df
 
 # --- Data Loading ---
@@ -50,10 +55,10 @@ if config_path is not None:
             st.session_state.pop(key, None)
 
     if "df" not in st.session_state or config_path != st.session_state.config_path:
-        data_manager = DataManager(config=config)
+        data_manager = DataManager(config=None)
         st.session_state.df = load_data(config_path)
         st.session_state.config_path = config_path
-        st.session_state.properties = load_properties(config_path)
+        #st.session_state.properties = load_properties(config_path)
         st.session_state.data_manager = data_manager
 
     if "light_curve_server" not in st.session_state:
@@ -64,6 +69,8 @@ if config_path is None:
     st.stop()
 
 df = st.session_state.df
+orig_df = df.copy()
+server = st.session_state.light_curve_server
 
 # Dataset summary
 st.header("Dataset Statistics")
@@ -75,6 +82,160 @@ st.write(df.describe())
 
 df = advanced_filter_sidebar(df)
 categorical_features = df.select_dtypes(include=["object", "bool", "string[python]"]).columns.tolist()
+
+
+if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv':
+    astronet_threshold = st.sidebar.slider(
+        label='Astronet Threshold (disp_p)',
+        min_value=0.0,
+        max_value=1.0,
+        value=0.75,  # default
+        step=0.01
+    )
+    astronet_mask = df['disp_p'] > astronet_threshold
+    operator_mask = df['operator_passed'] == True
+    vetter_mask = df['vetter_passed'] == True
+    toi_mask = df['has_toi'] == True
+
+    toi_df = df[df['has_toi'] == True]
+    thresholds = np.linspace(0.0, 1.0, 100)
+    recalls = []
+    for t in thresholds:
+        tp = (toi_df['disp_p'] > t).sum()  # TOIs that pass the threshold
+        fn = (toi_df['disp_p'] <= t).sum() # TOIs that fail
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        recalls.append(recall)
+    selected_recall = (toi_df['disp_p'] > astronet_threshold).sum() / len(toi_df)
+
+
+    fig, ax = plt.subplots()
+
+    ax.plot(thresholds, recalls, label='Recall vs disp_p', color='blue')
+    ax.axvline(astronet_threshold, color='red', linestyle='--', label=f'Selected threshold: {astronet_threshold}')
+    ax.annotate(f"Recall: {selected_recall:.2f}",
+                xy=(astronet_threshold, selected_recall),
+                xytext=(astronet_threshold + 0.02, selected_recall - 0.1),
+                arrowprops=dict(arrowstyle="->", color='black'),
+                fontsize=10, backgroundcolor='white')
+    ax.set_xlabel('Astronet disp_p Threshold')
+    ax.set_ylabel('Recall on TOI list')
+    ax.set_title('TOI Recall vs Astronet disp_p')
+    ax.grid(True)
+    ax.legend()
+    st.pyplot(fig)
+
+    # Build sets of indices
+    astronet = set(df[astronet_mask].index)
+    operator = set(df[operator_mask].index)
+    vetter = set(df[vetter_mask].index)
+    toi = set(df[toi_mask].index)
+    all_indices = set(df.index)
+
+
+    # Plot Venn
+    # fig, ax = plt.subplots()
+    # venn3([astronet, operator, vetter], (f'Astronet [{len(astronet)}]', f'QLP Operator [{len(operator)}]', f'Vetter [{len(vetter)}]'))
+    # st.pyplot(fig)
+
+    fig, ax = plt.subplots()
+    venn3([astronet, operator, toi], (f'Astronet [{len(astronet)}]', f'QLP Operator [{len(operator)}]', f'TOI List [{len(toi)}]'))
+    st.pyplot(fig)
+
+    venn_regions = {
+        'All': (astronet | operator | toi),
+        'TOI': toi,
+        'Operator': operator,
+        'Astronet': astronet,
+        '[TOI] Astronet ∩ ~Operator': (astronet & (all_indices - operator) & toi),
+        '[TOI] Operator ∩ ~Astronet': (operator & (all_indices - astronet) & toi),
+        '[TOI] ~Astronet ∩ ~Operator': ((all_indices - astronet) & (all_indices - operator) & toi),
+    }
+
+    selected_region = st.selectbox("Select a Venn region to inspect", list(venn_regions.keys()))
+    indices = venn_regions[selected_region]
+    subset_df = df.loc[list(indices)]
+    selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images'])
+
+    from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
+    st.write(f'Showing {len(subset_df)} reports')
+    i = 0
+    for idx, row in subset_df.iterrows():
+        i += 1
+        if i >= 0:
+            break
+        tic_id = row['tic_id']
+        astro_id = row['astro_id']
+        st.write(f'Astro ID: {astro_id} ({i} / {len(subset_df)})')
+        st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
+        st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
+        st.write(f"Notes: {row['notes']}")
+
+
+        planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
+        pages = server.get_report_pages(tic_id, planet_number=planet_number)
+        generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types)
+
+    df = subset_df
+    st.write(df)
+
+    
+
+if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv':
+    tce_file = '/pdo/users/dimond/mnt/tess/astronet/tces-sector86-all2.csv'
+    data_dir = '/pdo/users/dimond/mnt/tess/sector_86_fits/'
+    eval_files = ["test:/pdo/astronet-data/data/tfrecords/sector-85/*", "test:/pdo/astronet-data/data/tfrecords/sector-86/*", "test:/pdo/astronet-data/data/tfrecords/sector-87/*"]
+    config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
+    properties_csv = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_small.csv'
+else:
+    tce_file = '/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv'
+    data_dir = '/pdo/users/dimond/mnt/tess/fits_files/'
+    eval_files = ["test:/pdo/astronet-data/data/tfrecords/vetting-aug-2025/*"]
+    config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
+    properties_csv = FILE
+
+
+params = ClusterParams(
+    pca_components=32, whiten=True, cosine_normalize=True,
+    min_cluster_size=10, min_samples=10, cluster_selection_epsilon=0.01,
+    umap_n_neighbors=15, umap_min_dist=0.05,
+    postassign_prob_floor=0.35,
+)
+
+clu = Clustering(
+    df=orig_df,
+    data_dir=data_dir,
+    eval_files=eval_files,
+    config_path=config_path,
+    view_key="global_view",
+    params=params,
+)
+
+clu.load_views()#ids_to_filter=set(df["astro_id"]))   # TFRecords -> id_to_view -> X
+clu.fit_pca()          # PCA/HDBSCAN/UMAP + soft memberships
+
+
+# For ExoDash: get a dataframe to plot & filter
+visualizer = TICVisualizer(server=server, df=df)
+num_to_visualize = st.slider("# of Astro IDs to Visualize", 0, len(df), 0)
+
+for i, astro_id in enumerate(df["astro_id"].head(num_to_visualize)):
+    row = df.loc[df['astro_id'] == astro_id].iloc[0]
+    tic_id = df.loc[df["astro_id"] == astro_id, "tic_id"].values[0]
+    planet_number = int(str(astro_id)[-2:])
+    st.write(f'Astro ID: {astro_id} ({i} / {len(df)})')
+    st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
+    st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
+    st.write(f"Notes: {row['notes']}")
+
+    visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types)
+    st.write(astro_id)
+    fig = clu.show_nearest_neighbors(astro_id=astro_id, df=df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(df["astro_id"]))
+    st.pyplot(fig, use_container_width=True)
+
+show_2d_map = st.checkbox("Show 2D clustering projection?", value=False)
+if show_2d_map:
+    clu.fit_clusters()
+    st.pyplot(clu.plot(use_post_labels=False, highlight_ids=set(df['astro_id'])))
 
 st.subheader("Feature Distribution")
 features = df.columns[1:]
@@ -127,95 +288,86 @@ fig_scatter = px.scatter(
 )
 st.plotly_chart(fig_scatter, use_container_width=True)
 
+# CANDIDATE_FEATURES = [
+#     'planetno', 'tmag', 'period', 'epoch', 'depth', 'duration'
+# ]
+# use_cols = [c for c in CANDIDATE_FEATURES if c in subset_df.columns]
 
-astronet_threshold = st.sidebar.slider(
-    label='Astronet Threshold (disp_p)',
-    min_value=0.0,
-    max_value=1.0,
-    value=0.75,  # default
-    step=0.01
-)
-astronet_mask = df['disp_p'] > astronet_threshold
-operator_mask = df['operator_passed'] == True
-vetter_mask = df['vetter_passed'] == True
-toi_mask = df['has_toi'] == True
+# st.subheader("Clustering")
+# st.write(subset_df)
+# st.caption(f"Using features: {', '.join(use_cols) if use_cols else '(none found)'}")
 
-toi_df = df[df['has_toi'] == True]
-thresholds = np.linspace(0.0, 1.0, 100)
-recalls = []
-for t in thresholds:
-    tp = (toi_df['disp_p'] > t).sum()  # TOIs that pass the threshold
-    fn = (toi_df['disp_p'] <= t).sum() # TOIs that fail
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    recalls.append(recall)
-selected_recall = (toi_df['disp_p'] > astronet_threshold).sum() / len(toi_df)
+# if len(use_cols) < 2:
+#     st.warning("Not enough numeric features found to cluster. Add at least 2 (e.g., per, depth, snr).")
+# else:
+#     import numpy as np
+#     import pandas as pd
+#     from sklearn.preprocessing import StandardScaler
 
+#     # Clean and scale
+#     X = subset_df[use_cols].astype(float).replace([np.inf, -np.inf], np.nan).dropna()
+#     keep_idx = X.index
+#     scaler = StandardScaler()
+#     Xs = scaler.fit_transform(X)
 
-fig, ax = plt.subplots()
+#     # --- Embedding (UMAP) ---
+#     import umap.umap_ as umap
+#     n_neighbors = st.slider("UMAP n_neighbors", 5, 50, 15, step=1)
+#     min_dist = st.slider("UMAP min_dist", 0.0, 0.99, 0.1, step=0.01)
+#     emb = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=42).fit_transform(Xs)
 
-ax.plot(thresholds, recalls, label='Recall vs disp_p', color='blue')
-ax.axvline(astronet_threshold, color='red', linestyle='--', label=f'Selected threshold: {astronet_threshold}')
-ax.annotate(f"Recall: {selected_recall:.2f}",
-            xy=(astronet_threshold, selected_recall),
-            xytext=(astronet_threshold + 0.02, selected_recall - 0.1),
-            arrowprops=dict(arrowstyle="->", color='black'),
-            fontsize=10, backgroundcolor='white')
-ax.set_xlabel('Astronet disp_p Threshold')
-ax.set_ylabel('Recall on TOI list')
-ax.set_title('TOI Recall vs Astronet disp_p')
-ax.grid(True)
-ax.legend()
-st.pyplot(fig)
+#     # --- Clustering (HDBSCAN) ---
+#     try:
+#         import hdbscan
+#         min_cluster_size = st.slider("HDBSCAN min_cluster_size", 5, 100, 20, step=5)
+#         min_samples = st.slider("HDBSCAN min_samples", 1, 50, 10, step=1)
+#         labels = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples).fit_predict(emb)
+#     except Exception as e:
+#         st.info("HDBSCAN unavailable; falling back to KMeans.")
+#         from sklearn.cluster import KMeans
+#         k = st.slider("KMeans: number of clusters (k)", 2, 10, 4, step=1)
+#         labels = KMeans(n_clusters=k, random_state=42).fit_predict(emb)
 
-# Build sets of indices
-astronet = set(df[astronet_mask].index)
-operator = set(df[operator_mask].index)
-vetter = set(df[vetter_mask].index)
-toi = set(df[toi_mask].index)
-all_indices = set(df.index)
+#     # Attach results back to subset_df
+#     subset_df.loc[keep_idx, 'umap_x'] = emb[:, 0]
+#     subset_df.loc[keep_idx, 'umap_y'] = emb[:, 1]
+#     subset_df.loc[keep_idx, 'cluster'] = labels
 
+#     # --- Plot ---
+#     import plotly.express as px
+#     fig_umap = px.scatter(
+#         subset_df.loc[keep_idx],
+#         x='umap_x',
+#         y='umap_y',
+#         color='cluster',
+#         hover_data=['tic_id', 'astro_id', 'period', 'depth', 'tmag'],
+#         title="UMAP of selected Venn region (clusters)"
+#     )
+#     st.plotly_chart(fig_umap, use_container_width=True)
 
-# Plot Venn
-# fig, ax = plt.subplots()
-# venn3([astronet, operator, vetter], (f'Astronet [{len(astronet)}]', f'QLP Operator [{len(operator)}]', f'Vetter [{len(vetter)}]'))
-# st.pyplot(fig)
+#     # --- Cluster summaries ---
+#     st.subheader("Cluster summaries")
+#     valid = subset_df.loc[keep_idx].copy()
+#     # numeric summary: median and IQR
+#     def iqr(s): return s.quantile(0.75) - s.quantile(0.25)
+#     summary = valid.groupby('cluster')[use_cols].agg(['median', iqr, 'count'])
+#     # tidy column names
+#     summary.columns = [f"{a}_{b}" for a, b in summary.columns]
+#     st.dataframe(summary)
 
-fig, ax = plt.subplots()
-venn3([astronet, operator, toi], (f'Astronet [{len(astronet)}]', f'QLP Operator [{len(operator)}]', f'TOI List [{len(toi)}]'))
-st.pyplot(fig)
-
-venn_regions = {
-    '[TOI] Astronet ∩ ~Operator': (astronet & (all_indices - operator) & toi),
-    '[TOI] Operator ∩ ~Astronet': (operator & (all_indices - astronet) & toi),
-    '[TOI] ~Astronet ∩ ~Operator': ((all_indices - astronet) & (all_indices - operator) & toi),
-}
-
-selected_region = st.selectbox("Select a Venn region to inspect", list(venn_regions.keys()))
-indices = venn_regions[selected_region]
-subset_df = df.loc[list(indices)]
-selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images'])
-server = st.session_state.light_curve_server
-
-from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
-st.write(f'Showing {len(subset_df)} reports')
-i = 0
-for idx, row in subset_df.iterrows():
-    i += 1
-    if i >= 2:
-        break
-    tic_id = row['tic_id']
-    astro_id = row['astro_id']
-    st.write(f'Astro ID: {astro_id} ({i} / {len(subset_df)})')
-    st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
-    st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
-    st.write(f"Notes: {row['notes']}")
-
-
-    planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
-    pages = server.get_report_pages(tic_id, planet_number=planet_number)
-    generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types)
-
-df = subset_df
+#     # Top distinguishing features per cluster (Cohen's d vs rest)
+#     import numpy as np
+#     rows = []
+#     for cl in sorted(valid['cluster'].unique()):
+#         A = valid[valid['cluster'] == cl][use_cols].astype(float)
+#         B = valid[valid['cluster'] != cl][use_cols].astype(float)
+#         muA, muB = A.mean(), B.mean()
+#         varA, varB = A.var(), B.var()
+#         pooled = np.sqrt(0.5 * (varA + varB)).replace(0, np.nan)
+#         d = ((muA - muB) / pooled).abs().sort_values(ascending=False)
+#         top = d.head(5).index.tolist()
+#         rows.append({"cluster": cl, "top_features": ", ".join(top)})
+#     st.table(pd.DataFrame(rows))
 
 st.subheader("Missing Data Overview")
 missing_values = df.isnull().sum()
