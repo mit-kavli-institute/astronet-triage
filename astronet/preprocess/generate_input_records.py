@@ -187,7 +187,7 @@ def _process_tce(
   import time
   start_time = time.time()
   astro_id = tce['Astro ID']
-  logging.info(f'Starting to process {astro_id}')
+  logging.debug(f'Starting to process {astro_id}')
   tme, flux = get_lightcurve(tce['Astro ID'])
   if mode == 'vetting':
     apertures = {
@@ -262,7 +262,7 @@ def _process_tce(
   _set_float_feature(ex, 'n_points', [len(fold_num)])
 
   end_time = time.time()
-  logging.info(f'Finished processing {astro_id} in {end_time - start_time} seconds')
+  logging.debug(f'Finished processing {astro_id} in {end_time - start_time} seconds')
   return ex
 
 tce_table = None
@@ -275,7 +275,7 @@ def get_lightcurve(astro_id: int, aperture: Optional[str] = None):
         None: "SAP_FLUX",
     }
     global tce_table
-    matching_tces = tce_table[tce_table["Astro ID"] == astro_id] # tce_table.where(tce_table["Astro ID"] == astro_id)
+    matching_tces = tce_table[tce_table["Astro ID"] == astro_id]
     try:
         _, tce = next(matching_tces.iterrows())
     except StopIteration as e:
@@ -328,7 +328,7 @@ class ProcessRecordWorker:
         return examples
 
 
-def _process_file_shard_parallel_mp(
+def create(
     tce_table: pd.DataFrame,
     file_name: str,
     get_lightcurve,
@@ -351,7 +351,7 @@ def _process_file_shard_parallel_mp(
             astro_id = ex.features.feature['astro_id'].int64_list.value[0]
             existing[astro_id] = ex_str
     except Exception as e:
-        logging.info(f"Warning: could not read existing records from {file_name}: {e}")
+        logging.debug(f"Warning: could not read existing records from {file_name}: {e}")
     tce_dicts = tce_table.to_dict(orient='records')
     logging.info(f"[{shard_name}] Starting processing with {num_processes} processes on {len(tce_dicts)} TCEs")
 
@@ -367,7 +367,7 @@ def _process_file_shard_parallel_mp(
     stats = {"new": 0, "reused": 0, "augmented": 0, "skipped": 0}
 
     for ex_bytes, status, recid in results:
-        logging.info(f"[{shard_name}] Processed Astro ID {recid} -> {status}")
+        logging.debug(f"[{shard_name}] Processed Astro ID {recid} -> {status}")
         if ex_bytes:
             serialized.append(ex_bytes)
         stats[status] += 1
@@ -404,7 +404,7 @@ def main(_):
     for start, end, file_shard in file_shards:
         logging.info(f'Starting shard {file_shard}')
         logging.info(f'{FLAGS.output_dir}')
-        _process_file_shard_parallel_mp(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
+        create(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
