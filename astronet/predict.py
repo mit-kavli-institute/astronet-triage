@@ -15,9 +15,10 @@
 
 import multiprocessing
 import os
-from typing import Optional
 
+import numpy as np
 import pandas as pd
+from astronet import models
 import tensorflow as tf
 from absl import app, flags
 from tqdm import tqdm
@@ -43,77 +44,68 @@ flags.DEFINE_string("output_file", None,
 FLAGS = flags.FLAGS
 
 
-def predict(model_dir: str,
-            data_files: str,
-            output_file: Optional[str] = None,
-            legacy=False):
-  model = tf.keras.models.load_model(model_dir)
-  config = config_util.load_config(model_dir)
+def predict(model_dir: str, data_files: str):
+  train_flags = config_util.load_config(os.path.join(model_dir, "train_flags.json"))
+  config = config_util.load_config(os.path.join(model_dir, "config.json"))
+  model_name = train_flags["model"]
+  model = models.load_model(model_name, model_dir)
+  model.compile(
+    optimizer=tf.keras.optimizers.Adam(),
+    loss=tf.keras.losses.BinaryCrossentropy(),
+    metrics=[
+      tf.keras.metrics.BinaryAccuracy(name="accuracy"),
+      tf.keras.metrics.AUC(name="auc")
+    ]
+  )
 
-  if legacy:
-    for f in config.inputs.features.values():
-      l = getattr(f, "length", None)
-      if l is None:
-        f.shape = []
-      else:
-        f.shape = [l]
-
-  ds = input_ds.build_dataset(
-      file_pattern=data_files,
-      input_config=config.inputs,
-      batch_size=1,
-      include_labels=False,
-      include_identifiers=True)
-
-  label_columns = config.inputs.label_columns
-  label_index = {i: k.lower() for i, k in enumerate(label_columns)}
-
-  print("0 records", end="")
-  series = []
-  for features, identifiers in ds:
-    preds = model(features)
-
-    row = {}
-    row["astro_id"] = identifiers.numpy().item()
-    for i, p in enumerate(preds.numpy()[0]):
-      row[label_index[i]] = p
-
-    series.append(row)
-    print(f"\r{len(series)} records", end="")
-
-  results = pd.DataFrame.from_dict(series)
-
-  if output_file:
-    with tf.io.gfile.GFile(output_file, "w") as f:
-      results.to_csv(f)
-
-  return results, config
+  prediction_dataset = input_ds.build_eval_dataset(
+    data_files,
+    input_config=config.inputs,
+    batch_size=config.hparams.batch_size,
+  )
+  predictions = model.predict(prediction_dataset)
+  # batch[1] is 'astro_id'
+  ids = np.concatenate([batch[1].numpy() for batch in prediction_dataset])
+  prediction_df = pd.DataFrame(predictions, columns=config.inputs.label_columns)
+  prediction_df.insert(0, "astro_id", ids)
+  
+  return prediction_df
 
 
-def checkpoint_dirs(root: str, nruns: Optional[int] = None) -> list[str]:
-  checkpoints = []
-  if nruns is None:
-    nruns = len(os.listdir(root))
-  for i in range(nruns):
-    model_parent = os.path.join(root, str(i + 1))
-    if not os.path.exists(model_parent):
-      break
-    all_dirs = os.listdir(model_parent)
-    if not all_dirs:
-      break
-    (model_dir,) = all_dirs
-    checkpoints.append(os.path.join(model_parent, model_dir))
-  return checkpoints
+def _is_model_directory(dir: str) -> bool:
+  """
+  Check if a directory contains a model compatible with `predict`.
+  
+  This requires a `config.json` file and a `train_flags.json` file.
+  """
+  return (
+    os.path.isfile(os.path.join(dir, "config.json"))
+    and os.path.isfile(os.path.join(dir, "train_flags.json"))
+  )
+
+
+def get_model_directories(models_dir: str) -> list[str]:
+  if _is_model_directory(models_dir):
+    return [models_dir]
+  return [
+    subdirectory
+    for subdirectory in os.listdir(models_dir)
+    if _is_model_directory(subdirectory)
+  ]
 
 
 def batch_predict(models_dir: str,
                   data_files: str,
-                  nruns: int,
                   num_processes: int = 1,
                   **kwargs):
-  model_dirs = checkpoint_dirs(models_dir, nruns)
+  model_dirs = get_model_directories(models_dir)
+  if not model_dirs:
+    raise ValueError(
+      f"No models found in {os.path.abspath(models_dir)}. Model directories "
+      "must contain 'config.json' and 'train_flags.json' files."
+    )
   ensemble_preds = []
-  if num_processes == 1:
+  if num_processes == 1 or len(model_dirs) == 1:
     for model_dir in model_dirs:
       preds, _ = predict(model_dir, data_files, **kwargs)
       ensemble_preds.append(preds)
