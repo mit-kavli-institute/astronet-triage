@@ -11,15 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests the Python wrapping of the median_filter library."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-from absl.testing import absltest
 import numpy as np
+from absl.testing import absltest
 
 from light_curve_util.cc.python import median_filter
 

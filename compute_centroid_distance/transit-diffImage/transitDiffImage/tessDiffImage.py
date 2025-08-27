@@ -1,23 +1,23 @@
-import os
 import glob
-import pandas as pd
-from astropy.io import fits
-from astropy.coordinates import SkyCoord
-from astropy.time import Time
-import astropy.units as u
-import astropy.table
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patheffects as pe
-from astroquery.gaia import Gaia
-from astroquery.mast import Catalogs
-from scipy.optimize import minimize
-import tess_stars2px
+import os
 import pickle
-from scanf import scanf
 
+import astropy.table
+import astropy.units as u
+import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import tess_stars2px
 import tess_stars2px as trdp
 import transitDiffImage.barycentricCorrection as bc
+from astropy.coordinates import SkyCoord
+from astropy.io import fits
+from astropy.time import Time
+from astroquery.gaia import Gaia
+from astroquery.mast import Catalogs
+from scanf import scanf
+from scipy.optimize import minimize
 
 _spiceFileLocation = os.path.join(os.path.dirname(__file__), "data")
 

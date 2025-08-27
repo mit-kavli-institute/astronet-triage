@@ -1,18 +1,19 @@
-import os
-import sys
-import pickle
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 import multiprocessing
+import os
+import pickle
+import sys
 from multiprocessing import Pool
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import tess_stars2px
 from tess_stars2px import tess_stars2px_function_entry
 
 sys.path.insert(1, 'transit-diffImage')
-from transitDiffImage import tessDiffImage, transitCentroids
+from transitDiffImage import tessDiffImage
 from transitDiffImage import tessprfmodel as tprf
-
+from transitDiffImage import transitCentroids
 
 
 def process_astro_id(astro_id):

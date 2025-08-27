@@ -1,11 +1,7 @@
 """Tests for robust_mean.py."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-from absl.testing import absltest
 import numpy as np
+from absl.testing import absltest
 
 from third_party.robust_mean import robust_mean
 from third_party.robust_mean.test_data import random_normal

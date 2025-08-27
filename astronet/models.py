@@ -11,23 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Library of AstroNet models and configurations."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+import os
 
-from astronet.astro_cnn_model import astro_cnn_model
-from astronet.astro_cnn_model import astro_cnn_model_vetting
-from astronet.astro_cnn_model import configurations
-from astronet.astro_cnn_model import configurations_vetting
-from astronet.util import configdict
+import tensorflow as tf
+from absl import logging
+
+from astronet.astro_cnn_model import (astro_cnn_model, configurations,
+                                      configurations_vetting)
+from astronet.util import config_util, configdict
+
+# Filename used when saving model weights.
+MODEL_WEIGHTS_FILENAME = "model.weights.h5"
 
 # Dictionary of model name to (model_class, configuration_module).
 _MODELS = {
     "AstroCNNModel": (astro_cnn_model.AstroCNNModel, configurations),
-    "AstroCNNModelVetting": (astro_cnn_model_vetting.AstroCNNModelVetting, configurations_vetting),
+    "AstroCNNModelVetting":
+        (astro_cnn_model.AstroCNNModel, configurations_vetting),
 }
 
 
@@ -44,7 +46,7 @@ def get_model_class(model_name):
     ValueError: If model_name is unrecognized.
   """
   if model_name not in _MODELS:
-    raise ValueError("Unrecognized model name: %s" % model_name)
+    raise ValueError(f"Unrecognized model name: {model_name}")
 
   return _MODELS[model_name][0]
 
@@ -65,13 +67,57 @@ def get_model_config(model_name, config_name):
     ValueError: If model_name or config_name is unrecognized.
   """
   if model_name not in _MODELS:
-    raise ValueError("Unrecognized model name: %s" % model_name)
+    raise ValueError(f"Unrecognized model name: {model_name}")
 
   config_module = _MODELS[model_name][1]
   try:
     config = getattr(config_module, config_name)()
     config = configdict.ConfigDict(config)
     return config
-  except AttributeError:
-    raise ValueError("Config name '%s' not found in configuration module: %s" %
-                     (config_name, config_module.__name__))
+  except AttributeError as e:
+    raise ValueError(
+        f"Config name '{config_name}' not found in configuration module: "
+        f"{config_module.__name__}") from e
+
+
+def get_weights_filename(model_dir):
+  return os.path.join(model_dir, MODEL_WEIGHTS_FILENAME)
+
+
+def load_from_weights(model_name, model_dir):
+  """Loads a model from a weights h5 file."""
+  model_class = get_model_class(model_name)
+  config = config_util.load_config(model_dir)
+
+  model = model_class(config)
+  weights_filename = get_weights_filename(model_dir)
+  model.load_weights(weights_filename)
+  logging.info(f"Loaded weights from {weights_filename}")
+
+  return model
+
+
+def load_model(model_name, model_dir, save_format="auto"):
+  """Loads a model saved in either Keras or h5 format."""
+  if save_format == "auto":
+    weights_filename = get_weights_filename(model_dir)
+    save_format = "h5" if os.path.exists(weights_filename) else "keras"
+
+  if save_format == "keras":
+    return tf.keras.models.load_model(model_dir)
+
+  if save_format == "h5":
+    return load_from_weights(model_name, model_dir)
+
+  raise ValueError(save_format)
+
+
+def save_model(model, model_dir, save_format="keras"):
+  """Saves a model saved in either Keras or h5 format."""
+  if save_format == "keras":
+    model.save(model_dir)
+  elif save_format == "h5":
+    weights_filename = get_weights_filename(model_dir)
+    model.save_weights(weights_filename)
+  else:
+    raise ValueError(save_format)

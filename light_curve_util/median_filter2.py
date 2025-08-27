@@ -14,6 +14,7 @@
 
 """Utility function for smoothing data using a median filter."""
 import numpy as np
+
 from light_curve_util import keplersplinev2
 
 

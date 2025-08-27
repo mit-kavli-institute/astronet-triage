@@ -1,6 +1,8 @@
 This is a variation of the Liang model found in https://github.com/yuliang419/Astronet-Vetting.
 
-#### Basic commands
+# Usage
+
+## Basic commands
 
 Generate new input data:
 ```
@@ -21,4 +23,37 @@ python astronet/tune.py --model=AstroCNNModel --config_name=local_global_new --t
 Run predictions (or use Predict.ipynb for one-offs):
 ```
 python astronet/predict.py --model_dir=/tmp/astronet/AstroCNNModel_local_global_multiclass_20200222_154634 --data_files=astronet/tfrecords-new\+old/* --output_file=/home/${USER}/predictions.csv
+```
+# Style and linting
+
+* This repository follows the [Google Python style guide](https://google.github.io/styleguide/pyguide.html), with the following exceptions:
+  1. Indentation is 2 spaces, not 4. The Google style guide says 4 to be consistent with PEP8, but Google's own internal and open source repositories use 2 spaces.
+* Formatting is done automatically using the `yapf` formatter with `style=yapf`. This produces formatting consistent with the style guide. `yapf` can be installed via pip. Developers must run the following command before committing any code:
+```bash
+yapf -ri --style=yapf astronet/
+```
+* Import statements are sorted using `isort`. `isort` can be installed via pip. Developers must run the following command before committing any code:
+```bash
+isort  .
+```
+* Code is linted using `pylint`. `pylint` can be installed via pip. The configuration is stored in the `pylint` file in this directory. It is based on the file provided in the Google Python style guide. Developers must run the following command before committing any code, ensuring that there are no lint errors:
+```bash
+pylint --recursive=y astronet
+```
+
+For developers using VScode, the above tools (`yapf`, `isort`, `pylint`) can all be installed as extensions and run automatically while editing using following workspace settings:
+```json
+"[python]": {
+    "editor.rulers": [
+        80
+    ],
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "editor.formatOnType": true,
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "eeyore.yapf",
+}
 ```

@@ -1,8 +1,10 @@
 
+import array
+
+import numpy as np
 import spiceypy as spice
 from astropy.time import Time
-import numpy as np
-import array
+
 
 class barycentricCorrection:
     def __init__(self, spiceFileLocation = ".", tlsFile = None, ephemFile = None, planetFile = None, spacecraftCode='-95'):
