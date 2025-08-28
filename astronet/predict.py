@@ -18,11 +18,11 @@ import os
 
 import numpy as np
 import pandas as pd
-from astronet import models
 import tensorflow as tf
 from absl import app, flags
 from tqdm import tqdm
 
+from astronet import models
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
 
@@ -45,31 +45,33 @@ FLAGS = flags.FLAGS
 
 
 def predict(model_dir: str, data_files: str):
-  train_flags = config_util.load_config(os.path.join(model_dir, "train_flags.json"))
+  train_flags = config_util.load_config(
+      os.path.join(model_dir, "train_flags.json"))
   config = config_util.load_config(os.path.join(model_dir, "config.json"))
   model_name = train_flags["model"]
   model = models.load_model(model_name, model_dir)
   model.compile(
-    optimizer=tf.keras.optimizers.Adam(),
-    loss=tf.keras.losses.BinaryCrossentropy(),
-    metrics=[
-      tf.keras.metrics.BinaryAccuracy(name="accuracy"),
-      tf.keras.metrics.AUC(name="auc")
-    ]
-  )
+      optimizer=tf.keras.optimizers.Adam(),
+      loss=tf.keras.losses.BinaryCrossentropy(),
+      metrics=[
+          tf.keras.metrics.BinaryAccuracy(name="accuracy"),
+          tf.keras.metrics.AUC(name="auc")
+      ])
 
   prediction_dataset = input_ds.build_eval_dataset(
-    data_files,
-    input_config=config.inputs,
-    batch_size=config.hparams.batch_size,
+      data_files,
+      input_config=config.inputs,
+      batch_size=config.hparams.batch_size,
+      include_identifiers=True,
+      include_labels=False,
   )
   predictions = model.predict(prediction_dataset)
   # batch[1] is 'astro_id'
   ids = np.concatenate([batch[1].numpy() for batch in prediction_dataset])
   prediction_df = pd.DataFrame(predictions, columns=config.inputs.label_columns)
   prediction_df.insert(0, "astro_id", ids)
-  
-  return prediction_df
+
+  return prediction_df, config
 
 
 def _is_model_directory(dir: str) -> bool:
@@ -78,46 +80,32 @@ def _is_model_directory(dir: str) -> bool:
   
   This requires a `config.json` file and a `train_flags.json` file.
   """
-  return (
-    os.path.isfile(os.path.join(dir, "config.json"))
-    and os.path.isfile(os.path.join(dir, "train_flags.json"))
-  )
+  return (os.path.isfile(os.path.join(dir, "config.json")) and
+          os.path.isfile(os.path.join(dir, "train_flags.json")))
 
 
 def get_model_directories(models_dir: str) -> list[str]:
   if _is_model_directory(models_dir):
     return [models_dir]
-  return [
-    subdirectory
-    for subdirectory in os.listdir(models_dir)
-    if _is_model_directory(subdirectory)
-  ]
+  return sorted([
+      os.path.join(models_dir, subdirectory)
+      for subdirectory in os.listdir(models_dir)
+      if _is_model_directory(os.path.join(models_dir, subdirectory))
+  ])
 
 
-def batch_predict(models_dir: str,
-                  data_files: str,
-                  num_processes: int = 1,
-                  **kwargs):
+def batch_predict(models_dir: str, data_files: str):
   model_dirs = get_model_directories(models_dir)
   if not model_dirs:
     raise ValueError(
-      f"No models found in {os.path.abspath(models_dir)}. Model directories "
-      "must contain 'config.json' and 'train_flags.json' files."
-    )
-  ensemble_preds = []
-  if num_processes == 1 or len(model_dirs) == 1:
-    for model_dir in model_dirs:
-      preds, _ = predict(model_dir, data_files, **kwargs)
-      ensemble_preds.append(preds)
-  else:
-    with multiprocessing.Pool(num_processes) as pool:
-      ensemble_preds_cfgs = pool.starmap(
-          predict,
-          [(model_dir, data_files, kwargs) for model_dir in model_dirs])
-      ensemble_preds = [pred for pred, _ in ensemble_preds_cfgs]
+        f"No models found in {os.path.abspath(models_dir)}. Model directories "
+        "must contain 'config.json' and 'train_flags.json' files.")
+  ensemble_preds = [
+      predict(model_dir, data_files)[0] for model_dir in model_dirs
+  ]
 
-  for i, pred in enumerate(ensemble_preds):
-    pred["model_no"] = i
+  for i, predictions in enumerate(ensemble_preds):
+    predictions["model_no"] = i
 
   return pd.concat(ensemble_preds, ignore_index=True)
 
