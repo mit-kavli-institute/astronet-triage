@@ -1,11 +1,13 @@
-
 import argparse
-import pandas as pd
 import glob
 import os
 import re
 
-parser = argparse.ArgumentParser(description="Generate a CSV with file paths and properties for generating TFRecords for a given sector. Assumes the FITS files are in /pdo/astronet-data/data/data/fits.")
+import pandas as pd
+
+parser = argparse.ArgumentParser(
+    description="Generate a CSV with file paths and properties for generating TFRecords for a given sector. Assumes the FITS files are in /pdo/astronet-data/data/data/fits."
+)
 parser.add_argument('--sector', type=int, required=True, help='Sector number')
 args = parser.parse_args()
 sector = args.sector
@@ -19,9 +21,12 @@ fits_files = glob.glob(fits_pattern)
 
 # Step 2: Extract TIC ID from filenames and store mapping
 fits_df = pd.DataFrame({
-    "File": fits_files,
+    "File":
+        fits_files,
     "TIC ID": [
-        int(re.search(r'-(\d{16})_tess', os.path.basename(f)).group(1).lstrip('0'))
+        int(
+            re.search(r'-(\d{16})_tess',
+                      os.path.basename(f)).group(1).lstrip('0'))
         for f in fits_files
         if re.search(r'-(\d{16})_tess', os.path.basename(f))
     ]
