@@ -25,6 +25,7 @@ from tqdm import tqdm
 from astronet import models
 from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
+from astronet.util.configdict import ConfigDict
 
 flags.DEFINE_string(
     "model_dir",
@@ -44,7 +45,21 @@ flags.DEFINE_string("output_file", None,
 FLAGS = flags.FLAGS
 
 
-def predict(model_dir: str, data_files: str):
+def predict(model_dir: str, data_files: str) -> tuple[pd.DataFrame, ConfigDict]:
+  """
+  Run model predictions.
+  
+  Args:
+    model_dir: Path to directory containing model config and weights.
+    data_files: Path or glob pattern to match files containing records to run
+      predictions on.
+    
+  Returns:
+    A tuple `(predictions, config)` where
+    - `predictions` is a dataframe containing the model predictions, in which
+      the first column is `astro_id`.
+    - `config` is a `ConfigDict` containing the model configuration.
+  """
   train_flags = config_util.load_config(
       os.path.join(model_dir, "train_flags.json"))
   config = config_util.load_config(os.path.join(model_dir, "config.json"))
@@ -85,6 +100,33 @@ def _is_model_directory(dir: str) -> bool:
 
 
 def get_model_directories(models_dir: str) -> list[str]:
+  """
+  Get a list containing model directories within `models_dir`.
+
+  Supports either passing a model directory directly or a directory containing
+  many model directories for an ensemble:
+
+  ```
+  /model_dir/
+    config.json
+    train_flags.json
+    model_weights.h5
+  
+  /ensemble_dir/
+    model_1/
+      config.json
+      train_flags.json
+      model_weights.h5
+    model_2/
+      config.json
+      train_flags.json
+      model_weights.h5
+    ...
+  ```
+
+  Returns:
+    A list of paths, each of which is a model directory. Sorted alphabetically.
+  """
   if _is_model_directory(models_dir):
     return [models_dir]
   return sorted([
@@ -94,7 +136,22 @@ def get_model_directories(models_dir: str) -> list[str]:
   ])
 
 
-def batch_predict(models_dir: str, data_files: str):
+def batch_predict(models_dir: str, data_files: str) -> pd.DataFrame:
+  """
+  Run predictions from a model or ensemble.
+
+  Args:
+    models_dir: Directory which either directly contains a model directory
+      or contains many model subdirectories for an ensemble.
+    data_files: Path or glob pattern of paths to files with records to run
+      predictions on.
+  
+  Returns:
+    A dataframe with model predictions from each model. Has an `astro_id` column
+    with identifiers for the records and a `model_no` column identifying which
+    model in the ensemble produced each prediction. For ensembles, model numbers
+    correspond to an alphabetical listing of the model directories.
+  """
   model_dirs = get_model_directories(models_dir)
   if not model_dirs:
     raise ValueError(
