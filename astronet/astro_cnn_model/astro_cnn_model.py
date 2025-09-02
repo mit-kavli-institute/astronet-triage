@@ -50,9 +50,10 @@ from astronet.util import config_util
 class AstroCNNModel(tf.keras.Model):
   """A convolutional model for classifying light curves."""
 
-  def __init__(self, config):
+  def __init__(self, config, return_embeddings=False):
     super().__init__()
     self.config = config_util.validate(config)
+    self.return_embeddings = return_embeddings
     self.ts_blocks = {
         name: base.ConvBlock(name, spec)
         for name, spec in config.hparams.time_series_hidden.items()
@@ -94,8 +95,14 @@ class AstroCNNModel(tf.keras.Model):
         for name in sorted(self.ts_blocks)
     ]
 
-  def call(self, inputs, training):
-    y = self.apply_ts_blocks(inputs, training)
-    y.extend([inputs[key] for key in self.config.hparams.aux_inputs])
-    y = self.dense_block(tf.concat(y, axis=-1), training)
-    return self.output_layer(y)
+  def call(self, inputs, training=False):
+      y_parts = self.apply_ts_blocks(inputs, training=training)
+      y_parts.extend([inputs[key] for key in self.config.hparams.aux_inputs])
+      y = tf.concat(y_parts, axis=-1)
+      y = self.dense_block(y, training=training)
+
+      logits = self.output_layer(y)
+
+      if self.return_embeddings:
+          return (logits, y)
+      return logits

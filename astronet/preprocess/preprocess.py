@@ -33,9 +33,11 @@ def read_and_process_light_curve(tess_data_dir, flux_key, filename, min_t,
   return all_time, all_mag
 
 
-def get_spline_mask(time, period, t0, tdur):
-  phase, _ = util.phase_fold_time(time, period, t0)
-  outtran = (np.abs(phase) > (tdur / 2))
+def get_spline_mask(time, period, t0, tdur, pad=2.0, max_frac=0.2):
+  phase, _ = util.phase_fold_time(time, period, t0)   # returns days in [-P/2, P/2)
+  # widen the excluded region around transit:
+  eff = np.clip(pad * tdur, 3*np.median(np.diff(np.sort(time))), max_frac*period)
+  outtran = (np.abs(phase) > (eff / 2.0))             # True = out of transit
   return outtran
 
 

@@ -37,13 +37,13 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
-  # Load config from model_dir
+  return_embeddings = True
   config = config_util.load_config(FLAGS.model_dir)
   model_class = models.get_model_class(FLAGS.model)
-  model = model_class(config)
-
-  # Load the trained model weights
+  model = model_class(config, return_embeddings=return_embeddings)
   model = models.load_model(FLAGS.model, FLAGS.model_dir)
+  if return_embeddings:
+    setattr(model, "return_embeddings", True)
 
   output_dir = FLAGS.output_dir
 
@@ -58,40 +58,79 @@ def main(_):
       raise ValueError("Multiple datasets must be named as name:file_pattern")
     eval_datasets.append((name, pattern))
 
-  # Evaluation results directory
   output_dir = os.path.join(output_dir)
   os.makedirs(output_dir, exist_ok=True)
 
-  # Run evaluation
-  all_metrics = {}
+  result_dfs = []
   for name, file_pattern in eval_datasets:
     dataset = input_ds.build_eval_dataset(
-      file_pattern=file_pattern,
-      input_config=config.inputs,
-      batch_size=config.hparams.batch_size,
-      include_identifiers=True,
-      include_labels=False)
+        file_pattern=file_pattern,
+        input_config=config.inputs,
+        batch_size=config.hparams.batch_size,
+        include_identifiers=True,
+        include_labels=False,
+    )
+
     astro_ids = []
-    tic_ids = []
-    planet_nos = []
-    model_nos = []
+    logits_list = []
+    emb_list = []
+
+    # If you have a sector per file_pattern, parse it; otherwise keep your placeholder
+    sector = int(file_pattern.split("-")[-1].split("/")[0])#  if applicable
 
     for batch in dataset:
-        inputs, identifiers = batch
-        astro_ids.extend([x for x in identifiers.numpy()])
-        tic_ids = [int(str(x)[:-2]) for x in astro_ids]
-        planet_nos = [int(str(x)[-2:]) for x in astro_ids]
-        model_nos = [0 for x in astro_ids]
+      x, identifiers = batch
+      astro_ids.extend([x_id for x_id in identifiers.numpy()])
 
-    # Now create a DataFrame
-    y_pred = model.predict(dataset)
-    df = pd.DataFrame(y_pred, columns=["disp_p", "disp_e", "disp_n", "disp_j"])
-    df.insert(0,"model_no", model_nos)
-    df.insert(0,"planetno", planet_nos)
-    df.insert(0, "tic_id", tic_ids)
-    df.insert(0, "Astro ID", astro_ids)
-    csv_path = os.path.join(output_dir, f"{name}_predictions.csv")
-    df.to_csv(csv_path, index=False)
+      # Forward pass (model returns (logits, embeddings) when return_embeddings=True)
+      out = model(x, training=False)
+      if isinstance(out, (list, tuple)) and len(out) == 2:
+        logits, emb = out
+      else:
+        # Fallback: if your model is still single-output for some reason
+        logits, emb = out, None
+
+      logits_list.append(logits.numpy())
+      if emb is not None:
+        emb_list.append(emb.numpy())
+
+    # Concatenate predictions/embeddings
+    y_pred = np.concatenate(logits_list, axis=0)
+    if emb_list:
+      embeddings = np.concatenate(emb_list, axis=0)
+      # L2-normalize for cosine/Euclidean distance work
+      embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+    else:
+      # Shouldn't happen with return_embeddings=True, but guard anyway
+      raise RuntimeError("Embeddings were not returned by the model. "
+                         "Ensure return_embeddings=True in the model and loader.")
+
+    # Derive metadata from astro_ids (after full pass so lengths match)
+    tic_ids = [int(str(x)[:-2]) for x in astro_ids]
+    planet_nos = [int(str(x)[-2:]) for x in astro_ids]
+    model_nos = [0] * len(astro_ids)
+    sectors = [sector] * len(astro_ids)
+
+    # Build DataFrame
+    pred_df = pd.DataFrame(y_pred, columns=["disp_p", "disp_e", "disp_n", "disp_j"])
+    emb_cols = [f"fc_{i}" for i in range(embeddings.shape[1])]
+    emb_df = pd.DataFrame(embeddings, columns=emb_cols)
+
+    meta_df = pd.DataFrame({
+        "Sector": sectors,
+        "Astro ID": astro_ids,
+        "tic_id": tic_ids,
+        "planetno": planet_nos,
+        "model_no": model_nos,
+    })
+
+    df = pd.concat([meta_df, pred_df, emb_df], axis=1)
+    result_dfs.append(df)
+
+  combined_df = pd.concat(result_dfs, ignore_index=True)
+  csv_path = os.path.join(output_dir, f"{name}_predictions.csv")
+  print(f'Saved results to {csv_path}')
+  combined_df.to_csv(csv_path, index=False)
 
 
 if __name__ == "__main__":

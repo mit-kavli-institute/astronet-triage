@@ -442,6 +442,7 @@ def main(_):
 
     global tce_table
     tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
+    tce_table = tce_table[tce_table["Astro ID"] == 30081274102.0]
 
     num_tces = len(tce_table)
     logging.info("Read %d TCEs", num_tces)
@@ -463,7 +464,7 @@ def main(_):
     for start, end, file_shard in file_shards:
         logging.info(f'Starting shard {file_shard}')
         logging.info(f'{FLAGS.output_dir}')
-        _process_file_shard_parallel_mp(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
+        _process_file_shard_parallel_mp(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=10)
     logging.info("Finished processing %d total file shards", len(file_shards))
 
 
