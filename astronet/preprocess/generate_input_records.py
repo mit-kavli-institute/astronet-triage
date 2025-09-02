@@ -324,8 +324,12 @@ class ProcessRecordWorker:
 
       # Augmented examples
       # TODO: add augmentation support which modifies the lc_getter
-    except Exception:
-      logging.info(traceback.logging.info_exc())
+    except KeyboardInterrupt:
+      logging.debug("ProcessRecordWorker propagating keyboard interrupt")
+      raise
+    except Exception as e:
+      logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(e))}".strip())
+      logging.debug(f"Full traceback for Astro ID {recid} (SAFELY CAUGHT):\n{traceback.format_exc()}")
       return [(None, 'skipped', recid)]
 
     return examples
@@ -353,6 +357,9 @@ def create(
       ex = tf.train.Example.FromString(ex_str)
       astro_id = ex.features.feature['astro_id'].int64_list.value[0]
       existing[astro_id] = ex_str
+  except KeyboardInterrupt:
+    logging.debug("Propagating keyboard interrupt")
+    raise
   except Exception as e:
     logging.debug(
         f"Warning: could not read existing records from {file_name}: {e}")
