@@ -28,8 +28,6 @@ from astronet.util import config_util
 from astronet.astro_cnn_model import input_ds
 
 
-test_tfrecord_pattern = '../mnt/tess/astronet/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-test/*'
-live_sector=False
 
 class AstronetEvaluator:
     """Class to handle Astronet model evaluation and visualization."""
@@ -335,7 +333,8 @@ def main():
     """Main function to run the evaluation."""
     # Configuration
     model_dir = '../mnt/tess/models/vetting/20250429/cshallue/AstroCNNModelVetting_cshallue_20250429_181612'
-    test_tfrecord_pattern = '../mnt/tess/astronet/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-test/*'
+    # test_tfrecord_pattern = '../mnt/tess/astronet/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-test/*'
+    test_tfrecord_pattern = '/pdo/astronet-data/data/tfrecords/sector-87/000**-of-00025'
     live_sector = False
 
     # Alternative configuration for live sector

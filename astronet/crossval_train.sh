@@ -3,11 +3,11 @@ set -e
 
 DATE=$(date +%Y%m%d)
 TIME=$(date +%H%M)
-CONFIG_NAME=cshallue
+CONFIG_NAME=pablomer
 ENSEMBLE_NAME=$CONFIG_NAME
 
 # where your pretrained model lives
-PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
+PRETRAIN_MODEL_DIR=/pdo/users/pablomer/mnt/tess/models/triage/20250520/pablomer-h5/AstroCNNModel_pablomer_20250520_181651
 
 # code root and TFRecord root
 CODE_DIR=/pdo/users/pablomer/Astronet-Triage/
@@ -22,9 +22,16 @@ BASE_OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE-$TIME/${ENSEMB
 # any overrides you need
 # CONFIG_OVERRIDES="init_from_pretrained_model=true,freeze_pretrained_params=false"
 
+#Best run of the 20 trials training run on May 21st, 2025
+CONFIG_OVERRIDES="hparams.learning_rate=0.0017782794100389254,\
+hparams.weight_decay=0.0027384196342643626,\
+hparams.pre_logits_dropout_rate=0.40625,\
+hparams.num_pre_logits_hidden_layers=1,\
+hparams.pre_logits_hidden_layer_size=512"
+
 mkdir -p "$BASE_OUTPUT_DIR"
 
-for i in {1..4}; do
+for i in {1..5}; do
   echo "=== Fold $i ==="
   TRAIN_PATTERN="$TFRECORD_DIR/${TFRECORD_PREFIX}-train_fold${i}/*"
   VAL_PATTERN="$TFRECORD_DIR/${TFRECORD_PREFIX}-val_fold${i}/*"

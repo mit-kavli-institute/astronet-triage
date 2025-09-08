@@ -1,37 +1,47 @@
 #!/bin/bash
+
 set -e
 
-# 1) Point to your conda install
-CONDA_BASE=/pdo/users/cshallue/miniconda3
-
-# 2) Source conda.sh so you can run `conda activate`
-source "$CONDA_BASE/etc/profile.d/conda.sh"
-
-# 3) Activate the GPU-enabled Astronet env
-conda activate astronet-gpu
-
-DATE=20250420
+DATE=$(date +%Y%m%d)
+TIME=$(date +%H%M)
 CONFIG_NAME=cshallue
 #CONFIG_OVERRIDES="inputs.random_reverse_time_series=true"
+CONFIG_OVERRIDES="train_steps=1000"
 ENSEMBLE_NAME=$CONFIG_NAME
-#PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250418/cshallue/AstroCNNModel_cshallue_20250418_115544
+
+
 PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
 
-CODE_DIR=/pdo/users/cshallue/git/astronet
-DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet
-TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
 
-OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE/$ENSEMBLE_NAME/ # Changed
-
-# 5) Exports
-export PYTHONPATH="$CODE_DIR"
-export LD_LIBRARY_PATH="$CONDA_PREFIX/lib"
+# CODE_DIR=/pdo/users/cshallue/git/astronet
+CODE_DIR=/pdo/users/pablomer/Astronet-Triage/
+DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet/
 
 
-for i in {1..1}
+TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
+
+
+OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE/$ENSEMBLE_NAME/$TIME/
+
+
+#Best run of the 300 trials training run on May 1st, 2025
+# CONFIG_OVERRIDES="hparams.learning_rate=0.0012738895510624943,\
+# hparams.weight_decay=2.213220594759495e-06,\
+# hparams.pre_logits_dropout_rate=0.4394965848842629,\
+# hparams.num_pre_logits_hidden_layers=1,\
+# hparams.pre_logits_hidden_layer_size=256,\
+# init_from_pretrained_model=false,\
+# freeze_pretrained_params=true"
+
+
+
+for i in {1..5}
 do
     echo "Training model ${i}"
-    /pdo/users/dmuth/miniconda3/envs/tf/bin/python $CODE_DIR/astronet/train.py \
+    # PYTHONPATH=$CODE_DIR LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib python $CODE_DIR/astronet/train.py \
+    # PYTHONPATH=$CODE_DIR_chris LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib python $CODE_DIR/astronet/train.py \
+    # /pdo/users/dmuth/miniconda3/envs/tf/bin/python $CODE_DIR/astronet/train.py \
+    /pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python $CODE_DIR/astronet/train.py \
         --model=AstroCNNModelVetting \
         --config_name=$CONFIG_NAME \
         --config_file=$CONFIG_FILE \
@@ -42,3 +52,10 @@ do
         --eval_files="val:$DATA_DIR/$TFRECORD_PREFIX-val/*" \
         --eval_files="test:$DATA_DIR/$TFRECORD_PREFIX-test/*"
 done
+# /pdo/users/pablomer/miniconda3/envs/tf-env/bin/python $CODE_DIR/astronet/train.py \
+
+# After training loop, generate a csv with the combined predictions
+echo "All models trained. Now generating combined predictions..."
+/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python \
+    /pdo/users/pablomer/Astronet-Triage/astronet/combine_model_results.py \
+    --base_path="$OUTPUT_DIR"
