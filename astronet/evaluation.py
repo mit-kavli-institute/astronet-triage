@@ -1,5 +1,6 @@
 """Functions for evaluating a trained model."""
 
+import copy
 import json
 import os
 
@@ -64,3 +65,47 @@ def save_metrics(metrics, eval_dir):
   filename = os.path.join(eval_dir, "metrics.json")
   with open(filename, "w", encoding="utf-8") as f:
     json.dump(metrics, f, indent=2)
+
+
+def calc_ensemble_mean(all_results):
+  """Calculates the mean of the results of an ensemble."""
+  ensembled_results = {}
+  for trial_results in all_results:
+    for dataset_name, results in trial_results.items():
+      if dataset_name not in ensembled_results:
+        ensembled_results[dataset_name] = copy.deepcopy(results)
+      else:
+        cumulative_results = ensembled_results[dataset_name]
+        for key, value in results.items():
+          if key == "y_label":
+            if not np.all(cumulative_results[key] == value):
+              raise ValueError(f"Inconsistent labels")
+          elif key in ["loss", "y_pred"]:
+            cumulative_results[key] += value
+          else:
+            raise KeyError(key)
+
+  n_models = len(all_results)
+  for dataset_name, cumulative_results in ensembled_results.items():
+    for key in cumulative_results:
+      if key in ["loss", "y_pred"]:
+        cumulative_results[key] /= n_models
+      elif key != "y_label":
+        raise KeyError(key)
+
+  return ensembled_results
+
+
+def calc_ensemble_metrics(all_results, primary_class):
+  """Calculates metrics given the results from an ensemble."""
+  all_ensembled_results = calc_ensemble_mean(all_results)
+  all_metrics = {}
+  for dataset_name, ensembled_results in all_ensembled_results.items():
+    metrics = calc_auc_scores(
+        y_label=ensembled_results["y_label"],
+        y_pred=ensembled_results["y_pred"],
+        primary_class=primary_class)
+    metrics["loss"] = ensembled_results["loss"]
+    all_metrics[dataset_name] = metrics
+
+  return all_metrics

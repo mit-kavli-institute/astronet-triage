@@ -2,7 +2,6 @@ import copy
 import os
 import shutil
 
-import numpy as np
 import tensorflow as tf
 from absl import logging
 from tensorboard.plugins.hparams import api as hp
@@ -19,33 +18,6 @@ _METRIC_LABELS = {
 }
 
 
-def calc_final_metrics(all_results, primary_class):
-  """Calculates final metrics given the results from an ensemble."""
-  ensemble_data = {}
-  for trial_results in all_results:
-    for dataset, (loss, labels, predictions) in trial_results.items():
-      if dataset not in ensemble_data:
-        ensemble_data[dataset] = loss, labels, predictions
-      else:
-        sum_loss, prior_labels, sum_predictions = ensemble_data[dataset]
-        if not np.all(labels == prior_labels):
-          raise ValueError(f"Inconsistent labels")
-        sum_loss += loss
-        sum_predictions += predictions
-        ensemble_data[dataset] = sum_loss, labels, sum_predictions
-
-  final_metrics = {}
-  n_models = len(all_results)
-  for dataset, (sum_loss, labels, sum_predictions) in ensemble_data.items():
-    predictions = sum_predictions / n_models
-    results = evaluation.calc_auc_scores(labels, predictions, primary_class)
-    results["loss"] = sum_loss / n_models
-    final_metrics[dataset] = results
-
-  logging.info(f"Metrics over {n_models}-model ensemble: {final_metrics}")
-  return final_metrics
-
-
 def run_trial(model_class, config, train_files, val_files, shuffle_buffer_size):
   """Runs a single tuning trial."""
   model = model_class(config)
@@ -59,7 +31,8 @@ def run_trial(model_class, config, train_files, val_files, shuffle_buffer_size):
     batch_size = config.hparams.batch_size
     metrics, y_label, y_pred = evaluation.evaluate_model(
         model, config.inputs, file_pattern, batch_size=batch_size)
-    results[dataset] = metrics["loss"], y_label, y_pred
+    results[dataset] = dict(
+        loss=metrics["loss"], y_label=y_label, y_pred=y_pred)
   return results
 
 
@@ -111,8 +84,9 @@ def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
 
     # Run the trial.
     all_results = []
-    for i in range(study_config.n_ensemble):
-      logging.info(f"Model {i + 1}/{study_config.n_ensemble} in ensemble")
+    n_ensemble = study_config.n_ensemble
+    for i in range(n_ensemble):
+      logging.info(f"Model {i + 1}/{n_ensemble} in ensemble")
       results = run_trial(
           model_class,
           trial_config,
@@ -122,8 +96,9 @@ def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
       logging.info(f"Train loss: {results['train'][0]:.4g}, "
                    f"val loss: {results['val'][0]:.4g}")
       all_results.append(results)
-    final_metrics = calc_final_metrics(
+    final_metrics = evaluation.calc_ensemble_metrics(
         all_results, primary_class=trial_config.inputs.primary_class)
+    logging.info(f"Metrics over {n_ensemble}-model ensemble: {final_metrics}")
     evaluation.save_metrics(final_metrics, trial_dir)
 
     # Log to Tensorboard.
