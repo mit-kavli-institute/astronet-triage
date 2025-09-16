@@ -54,9 +54,13 @@ def evaluate_model(model, input_config, file_pattern, batch_size):
       input_config=input_config,
       batch_size=batch_size)
   y_label, y_pred = generate_labels_and_predictions(model, dataset)
-  metrics = calc_auc_scores(y_label, y_pred, input_config.primary_class)
-  keras_metrics = calc_keras_metrics(model, dataset)
-  metrics.update(keras_metrics)
+  if np.all(np.isfinite(y_pred)):
+    # Only calculate metrics with finite predictions.
+    metrics = calc_auc_scores(y_label, y_pred, input_config.primary_class)
+    keras_metrics = calc_keras_metrics(model, dataset)
+    metrics.update(keras_metrics)
+  else:
+    metrics = {"loss": np.nan}
   return metrics, y_label, y_pred
 
 

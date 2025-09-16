@@ -2,6 +2,7 @@ import copy
 import os
 import shutil
 
+import numpy as np
 import tensorflow as tf
 from absl import logging
 from tensorboard.plugins.hparams import api as hp
@@ -21,19 +22,23 @@ _METRIC_LABELS = {
 def run_trial(model_class, config, train_files, val_files, shuffle_buffer_size):
   """Runs a single tuning trial."""
   model = model_class(config)
-  training.train(
+  history = training.train(
       model,
       config,
       train_files=train_files,
       shuffle_buffer_size=shuffle_buffer_size)
-  results = {}
+  if not np.isfinite(history.history["loss"]):
+    logging.warning("Encountered NaN training loss, skipping evaluation.")
+    return {"train": {"loss": np.nan}}
+
+  eval_results = {}
   for dataset, file_pattern in [("train", train_files), ("val", val_files)]:
     batch_size = config.hparams.batch_size
     metrics, y_label, y_pred = evaluation.evaluate_model(
         model, config.inputs, file_pattern, batch_size=batch_size)
-    results[dataset] = dict(
+    eval_results[dataset] = dict(
         loss=metrics["loss"], y_label=y_label, y_pred=y_pred)
-  return results
+  return eval_results
 
 
 def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
@@ -64,6 +69,7 @@ def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
     hp.hparams_config(hparams=ss.get_tensorboard_specs(), metrics=metric_specs)
 
   # Run trials.
+  num_feasible_trials = 0
   for n, search_params in enumerate(ss.search()):
     trial_id = str(n)
     trial_dir = os.path.join(study_dir, trial_id)
@@ -85,6 +91,7 @@ def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
     # Run the trial.
     all_results = []
     n_ensemble = study_config.n_ensemble
+    is_feasible = True
     for i in range(n_ensemble):
       logging.info(f"Model {i + 1}/{n_ensemble} in ensemble")
       results = run_trial(
@@ -93,13 +100,22 @@ def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
           train_files=study_config.train_files,
           val_files=study_config.val_files,
           shuffle_buffer_size=study_config.shuffle_buffer_size)
-      logging.info(f"Train loss: {results['train'][0]:.4g}, "
-                   f"val loss: {results['val'][0]:.4g}")
+      if not np.isfinite(results['train']['loss']):
+        is_feasible = False
+        logging.warning(f"Model {i + 1} produced NaN loss.")
+        break
+      logging.info(f"Train loss: {results['train']['loss']:.4g}, "
+                   f"val loss: {results['val']['loss']:.4g}")
       all_results.append(results)
-    final_metrics = evaluation.calc_ensemble_metrics(
-        all_results, primary_class=trial_config.inputs.primary_class)
-    logging.info(f"Metrics over {n_ensemble}-model ensemble: {final_metrics}")
-    evaluation.save_metrics(final_metrics, trial_dir)
+
+    if is_feasible:
+      final_metrics = evaluation.calc_ensemble_metrics(
+          all_results, primary_class=trial_config.inputs.primary_class)
+      logging.info(f"Metrics over {n_ensemble}-model ensemble: {final_metrics}")
+      evaluation.save_metrics(final_metrics, trial_dir)
+      num_feasible_trials += 1
+    else:
+      final_metrics = {}
 
     # Log to Tensorboard.
     with tf.summary.create_file_writer(trial_dir).as_default():
@@ -109,5 +125,5 @@ def run_tuning_study(study_config, study_dir, n_trials=None, overwrite=False):
           tf.summary.scalar(
               f"{dataset}_{metric}", value, step=trial_config.train_steps)
 
-    if n_trials and n >= n_trials - 1:
+    if n_trials and num_feasible_trials >= n_trials:
       break
