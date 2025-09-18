@@ -84,6 +84,8 @@ def generate_view(
     trim_edges=False,
     scale=None,
     depth=None,
+    raw_time=None,
+    raw_flux=None,
 ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -102,7 +104,7 @@ def generate_view(
   del tic_id  # Unused.
   if binning is None:
     view, mask, std = median_filter2.new_binning(
-        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges)
+        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux)
   else:
     view, mask, std = median_filter2.new_binning(
         time,
@@ -112,7 +114,9 @@ def generate_view(
         t_min,
         t_max,
         method=binning,
-        trim_edges=trim_edges)
+        trim_edges=trim_edges,
+        raw_time=raw_time,
+        raw_flux=raw_flux)
 
   if normalize:
     # Normalization places:
@@ -140,7 +144,7 @@ def generate_view(
   return view, std, mask, scale, depth
 
 
-def global_view(tic_id, time, flux, period, num_bins=201):
+def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None):
   """Generates a 'global view' of a phase folded light curve.
 
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
@@ -163,7 +167,9 @@ def global_view(tic_id, time, flux, period, num_bins=201):
       period,
       num_bins=num_bins,
       t_min=-period / 2,
-      t_max=period / 2)
+      t_max=period / 2,
+      raw_time=time,
+      raw_flux=flux)
 
 
 def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):
