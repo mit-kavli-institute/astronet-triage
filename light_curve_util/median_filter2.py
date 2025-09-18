@@ -14,6 +14,7 @@
 
 """Utility function for smoothing data using a median filter."""
 import numpy as np
+import os
 
 from light_curve_util import keplersplinev2
 
@@ -35,26 +36,61 @@ def get_overlap(hbw, t, c):
     return bin_overlap
 
 
-def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False):
+def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None):
   t = time.copy()
-  
+  time_for_cadence=t
+  # Use raw_time for cadence selection if provided, otherwise use folded time
+#   time_for_cadence = raw_time if raw_time is not None else t
+
+  # Debug controls (non-intrusive): set ASTRONET_DEBUG_BINNING=1 to enable
+  DEBUG = os.getenv("ASTRONET_DEBUG_BINNING") == "1"
+  if DEBUG:
+    total_points_phase1 = 0
+    total_points_phase2 = 0
+    bins_all_phase1 = 0
+    bins_all_phase2 = 0
+    bins_mixed = 0
+    print('raw_time',raw_time)
+    print('t',t)
+
   bins_left_edge, step = np.linspace(
       t_min, t_max, num=num_bins, endpoint=False, retstep=True)
 
   bin_width = step
   hbw = bin_width / 2
-  
+
   bins_center = bins_left_edge + 0.5 * bin_width
 
   f = np.zeros(num_bins)
   s = np.zeros(num_bins)
   m = np.ones(num_bins)
   for i, b in enumerate(bins_center):
-    # time from bin center
+    # time from bin center (use folded time for binning)
     t_c = tmod(t, period, b)
-    
+
     # find which points are within the bin
-    bin_mask = abs(t_c) <= hbw + np.where(t_c > PHASE2_T, HC_PHASE2, HC_PHASE1)
+    # Use raw_time for cadence selection, but align with folded time indices
+    if raw_time is not None:
+        # Map raw_time to the same indices as the folded time
+        cadence_hw = np.where(time_for_cadence > PHASE2_T, HC_PHASE2, HC_PHASE1)
+    else:
+        cadence_hw = np.where(time_for_cadence > PHASE2_T, HC_PHASE2, HC_PHASE1)
+
+    bin_mask = abs(t_c) <= hbw + cadence_hw
+
+    if DEBUG:
+      if np.any(bin_mask):
+        used = cadence_hw[bin_mask]
+        c1 = np.sum(used == HC_PHASE1)
+        c2 = np.sum(used == HC_PHASE2)
+        total_points_phase1 += int(c1)
+        total_points_phase2 += int(c2)
+        if c1 > 0 and c2 == 0:
+          bins_all_phase1 += 1
+        elif c2 > 0 and c1 == 0:
+          bins_all_phase2 += 1
+        elif c1 > 0 and c2 > 0:
+          bins_mixed += 1
 
     if not any(bin_mask):
         m[i] = 0.0
@@ -62,7 +98,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
 
     in_bin = t_c[bin_mask]
     f_x = flux[bin_mask]
-    
+
     if not len(f_x):
         m[i] = 0.0
         continue
@@ -70,7 +106,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     if len(f_x) == 1:
         f[i] = f_x[0]
         continue
-    
+
     if method == 'weighted_mean':
         # calculate the robust mean to remove outliers
         mask = keplersplinev2.robust_mean_mask(f_x)
@@ -78,13 +114,14 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         # remove outliers
         f_x = f_x[mask]
         in_bin = in_bin[mask]
-    
+
     if not len(f_x):
         m[i] = 0.0
         continue
 
     if method == 'weighted_mean':
         if len(in_bin) > 1:
+            # Use raw_time for cadence in get_overlap too
             weight = [get_overlap(hbw, in_bin[j], b) / bin_width
                       for j in range(len(in_bin))]
             f[i] = np.average(f_x, weights=weight)
@@ -94,7 +131,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         f[i] = np.max(f_x)
 
     s[i] = np.std(f_x)
-    
+
   if trim_edges:
       clear_bins = set()
       for i in range(len(m)):
@@ -105,5 +142,13 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
                 clear_bins.add(i + 1)
       for i in list(clear_bins):
         m[i] = 0.0
+
+  if DEBUG:
+      print("[new_binning DEBUG] cadence selection summary:")
+      print(f"  bins all phase1: {bins_all_phase1}")
+      print(f"  bins all phase2: {bins_all_phase2}")
+      print(f"  bins mixed:      {bins_mixed}")
+      print(f"  points phase1:   {total_points_phase1}")
+      print(f"  points phase2:   {total_points_phase2}")
 
   return f, m, s
