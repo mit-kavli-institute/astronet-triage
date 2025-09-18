@@ -63,8 +63,8 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
                     aperture_fluxes):
 
   if time is None or len(time) == 0 or flux is None or len(flux) == 0:
-    logging.warning(f"Skipping TIC {tic}: empty time/flux array.") # <-- Changed line
-    SKIPPED_TICS.append(tic)  # global list
+    logging.warning(f"Skipping TIC {tic}: empty time/flux array.")
+    SKIPPED_TICS.append(tic)
     return None
 
   if bkspace is None:
@@ -75,19 +75,21 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(
       tic, time, flux, period, epoc, duration, bkspace)
 
-  time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
+  folded_time, folded_flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
   odds = (fold_num % 2) == 1
   evens = (fold_num % 2) == 0
 
-  view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period)
-  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period)
+  # Use detrended arrays as raw arrays for binning
+  view, std, mask, _, _ = preprocess.global_view(tic, folded_time, folded_flux, period,
+                                                raw_time=detrended_time, raw_flux=detrended_flux)
+  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, folded_time, tr_mask, period)
   set_float_feature(ex, f"global_view{tag}", view)
   set_float_feature(ex, f"global_std{tag}", std)
   set_float_feature(ex, f"global_mask{tag}", mask)
   set_float_feature(ex, f"global_transit_mask{tag}", tr_mask)
 
-  view, std, mask, scale, depth = preprocess.local_view(tic, time, flux, period,
+  view, std, mask, scale, depth = preprocess.local_view(tic, folded_time, folded_flux, period,
                                                         duration)
   set_float_feature(ex, f"local_view{tag}", view)
   set_float_feature(ex, f"local_std{tag}", std)
@@ -108,13 +110,13 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
     set_float_feature(ex, f"local_aperture_{k}{tag}", view)
 
   view, std, mask, _, _ = preprocess.local_view(
-      tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth)
+      tic, folded_time[odds], folded_flux[odds], period, duration, scale=scale, depth=depth)
   set_float_feature(ex, f"local_view_odd{tag}", view)
   set_float_feature(ex, f"local_std_odd{tag}", std)
   set_float_feature(ex, f"local_mask_odd{tag}", mask)
 
   view, std, mask, _, _ = preprocess.local_view(
-      tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth)
+      tic, folded_time[evens], folded_flux[evens], period, duration, scale=scale, depth=depth)
   set_float_feature(ex, f"local_view_even{tag}", view)
   set_float_feature(ex, f"local_std_even{tag}", std)
   set_float_feature(ex, f"local_mask_even{tag}", mask)
@@ -126,22 +128,16 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   #     tic, time, flux, period, duration, scale=scale, depth=depth)
 
   try:
-      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, folded_time, folded_flux, period, duration)
       (view, std, mask, scale, _), t0 = preprocess.secondary_view(
-          tic, time, flux, period, duration, scale=scale, depth=depth)
+          tic, folded_time, folded_flux, period, duration, scale=scale, depth=depth)
   except IndexError as e:
-      logging.warning(f"Skipping TIC {tic}: preprocess.secondary_view failed (IndexError).", exc_info=False) # Set exc_info=True to include traceback
-
-      # Log details at a lower level (e.g., DEBUG) if desired
-      time_info = f"shape {time.shape}" if hasattr(time, 'shape') else f"length {len(time)}"
-      flux_info = f"shape {flux.shape}" if hasattr(flux, 'shape') else f"length {len(flux)}"
+      logging.warning(f"Skipping TIC {tic}: preprocess.secondary_view failed (IndexError).", exc_info=False)
+      time_info = f"shape {folded_time.shape}" if hasattr(folded_time, 'shape') else f"length {len(folded_time)}"
+      flux_info = f"shape {folded_flux.shape}" if hasattr(folded_flux, 'shape') else f"length {len(folded_flux)}"
       logging.debug(f"  Details for failed TIC {tic}: Error='{e}', Input time info='{time_info}', Input flux info='{flux_info}'")
-
       SKIPPED_TICS.append(tic)
       return None
-
-
-
 
   set_float_feature(ex, f"secondary_view{tag}", view)
   set_float_feature(ex, f"secondary_std{tag}", std)
@@ -154,14 +150,14 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
     set_float_feature(ex, f"secondary_scale{tag}", [0.0])
     set_float_feature(ex, f"secondary_scale_present{tag}", [0.0])
 
-  full_view = preprocess.sample_segments_view(tic, time, flux, fold_num, period,
+  full_view = preprocess.sample_segments_view(tic, folded_time, folded_flux, fold_num, period,
                                               duration)
   set_float_feature(ex, f"sample_segments_view{tag}", full_view)
 
   odd_view = preprocess.sample_segments_view(
       tic,
-      time[odds],
-      flux[odds],
+      folded_time[odds],
+      folded_flux[odds],
       fold_num[odds],
       period,
       duration,
@@ -170,8 +166,8 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
       local=True)
   even_view = preprocess.sample_segments_view(
       tic,
-      time[evens],
-      flux[evens],
+      folded_time[evens],
+      folded_flux[evens],
       fold_num[evens],
       period,
       duration,
@@ -181,24 +177,26 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   full_view = np.concatenate([odd_view, even_view], axis=-1)
   set_float_feature(ex, f"sample_segments_local_view{tag}", full_view)
 
-  time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
+  # Double period views
+  folded_time_2x, folded_flux_2x, fold_num_2x, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2,
       epoc - period / 2)
-  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux,
-                                                     period * 2)
+  view, std, mask, scale, _ = preprocess.global_view(tic, folded_time_2x, folded_flux_2x,
+                                                     period * 2, raw_time=detrended_time, raw_flux=detrended_flux)
   set_float_feature(ex, f"global_view_double_period{tag}", view)
   set_float_feature(ex, f"global_view_double_period_std{tag}", std)
   set_float_feature(ex, f"global_view_double_period_mask{tag}", mask)
 
-  time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
+  # Half period views
+  folded_time_half, folded_flux_half, fold_num_half, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
-  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux,
-                                                     period / 2)
+  view, std, mask, scale, _ = preprocess.global_view(tic, folded_time_half, folded_flux_half,
+                                                     period / 2, raw_time=detrended_time, raw_flux=detrended_flux)
   set_float_feature(ex, f"global_view_half_period{tag}", view)
   set_float_feature(ex, f"global_view_half_period_std{tag}", std)
   set_float_feature(ex, f"global_view_half_period_mask{tag}", mask)
 
-  view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2,
+  view, std, mask, scale, _ = preprocess.local_view(tic, folded_time_half, folded_flux_half, period / 2,
                                                     duration)
   set_float_feature(ex, f"local_view_half_period{tag}", view)
   set_float_feature(ex, f"local_view_half_period_std{tag}", std)
@@ -362,7 +360,7 @@ def _process_file_shard(
 
   num_new = num_processed - num_skipped - num_existing
   print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new "
-        "{num_skipped} bad            ")
+        f"{num_skipped} bad            ")
 
 
 def create(
@@ -383,7 +381,7 @@ def create(
   for i in range(num_shards):
     start, end = boundaries[i:i + 2]
     tce_shards.append(
-        (start, end, os.path.join(output_dir, f"{i+1:05d}-of-{num_shards:05f}")))
+        (start, end, os.path.join(output_dir, f"{i+1:05d}-of-{num_shards:05d}")))
   logging.info(f"Processing {len(tce_table)} TCEs in {len(tce_shards)} shards.")
 
   if num_processes == 1:
