@@ -168,8 +168,8 @@ def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flu
       num_bins=num_bins,
       t_min=-period / 2,
       t_max=period / 2,
-      raw_time=time,
-      raw_flux=flux)
+      raw_time=raw_time,
+      raw_flux=raw_flux)
 
 
 def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):

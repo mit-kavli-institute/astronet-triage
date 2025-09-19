@@ -38,9 +38,8 @@ def get_overlap(hbw, t, c):
 
 def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None):
   t = time.copy()
-  time_for_cadence=t
   # Use raw_time for cadence selection if provided, otherwise use folded time
-#   time_for_cadence = raw_time if raw_time is not None else t
+  time_for_cadence = raw_time if raw_time is not None else t
 
   # Debug controls (non-intrusive): set ASTRONET_DEBUG_BINNING=1 to enable
   DEBUG = os.getenv("ASTRONET_DEBUG_BINNING") == "1"
@@ -52,6 +51,10 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     bins_mixed = 0
     print('raw_time',raw_time)
     print('t',t)
+    print('time for cadence',time_for_cadence)
+    raw_time_folded=tmod(raw_time,period,b)
+
+
 
   bins_left_edge, step = np.linspace(
       t_min, t_max, num=num_bins, endpoint=False, retstep=True)
