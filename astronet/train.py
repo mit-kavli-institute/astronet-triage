@@ -67,10 +67,18 @@ flags.DEFINE_integer("train_steps", None,
 flags.DEFINE_integer("shuffle_buffer_size", 25000,
                      "Size of the shuffle buffer for the training dataset.")
 
+flags.DEFINE_integer("gpu", None, "Index of GPU devide to run on.")
+
 FLAGS = flags.FLAGS
 
 
 def main(_):
+  if FLAGS.gpu is not None:
+    gpu_devices = tf.config.get_visible_devices("GPU")
+    tf.config.set_visible_devices([gpu_devices[FLAGS.gpu]], "GPU")
+    logging.info(
+        f"Set logical GPU devices to {tf.config.list_logical_devices('GPU')}")
+
   # Keep track of training flags for record-keeping purposes.
   train_flags = {
       "model": FLAGS.model,
