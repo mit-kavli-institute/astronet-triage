@@ -11,9 +11,16 @@ from exodash.utils.file_io import dataset_selector
 from matplotlib_venn import venn3
 import matplotlib.pyplot as plt
 import numpy as np
+from streamlit_plotly_events import plotly_events
 
-FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv'
-#FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv'
+#FILE = "/pdo/astronet-data/data/labels/all_data_embeddings.csv"
+#
+#FILE = "/pdo/astronet-data/data/labels/sectors_85_to_87_with_test_set_embeddings.csv"
+# FILE = "/pdo/astronet-data/data/labels/vetting-09-04-2025-test-with-embeddings.csv"
+#"/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv"
+#FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_embeddings.csv'
+#FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv'
+FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv'
 #FILE = '/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv'
 
 # --- Page Config ---
@@ -30,8 +37,9 @@ def load_data(config_path: str):
     config = DatasetConfig.from_yaml(config_path)
     manager = DataManager(config=None)
     df = pd.read_csv(FILE)#sector_86_multi_data_source.csv')#manager.get_data_frame()
-    if FILE ==  '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv':
+    if FILE ==  '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_embeddings.csv':
         df = df.drop_duplicates(subset=["tic_id", "astro_id", "planetno"])
+    df = df.drop_duplicates(subset=["tic_id", "astro_id", "planetno"])
     #print(len(df))
     return df
 
@@ -80,11 +88,14 @@ st.write(f"**Total Features:** {df.shape[1]}")
 st.subheader("Summary Statistics")
 st.write(df.describe())
 
+orig_df['domain'] = 'sector'
+df['domain'] = 'sector'
 df = advanced_filter_sidebar(df)
 categorical_features = df.select_dtypes(include=["object", "bool", "string[python]"]).columns.tolist()
+selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images'])
 
 
-if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv':
+if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_embeddings.csv':
     astronet_threshold = st.sidebar.slider(
         label='Astronet Threshold (disp_p)',
         min_value=0.0,
@@ -154,9 +165,9 @@ if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE
     selected_region = st.selectbox("Select a Venn region to inspect", list(venn_regions.keys()))
     indices = venn_regions[selected_region]
     subset_df = df.loc[list(indices)]
-    selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images'])
 
     from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
+    subset_df = subset_df.loc[:, ~subset_df.columns.str.startswith("fc_")]
     st.write(f'Showing {len(subset_df)} reports')
     i = 0
     for idx, row in subset_df.iterrows():
@@ -179,17 +190,27 @@ if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE
     st.write(df)
 
     
-
-if FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_fixed_tfrecords.csv':
-    tce_file = '/pdo/users/dimond/mnt/tess/astronet/tces-sector86-all2.csv'
-    data_dir = '/pdo/users/dimond/mnt/tess/sector_86_fits/'
+if FILE == '/pdo/astronet-data/data/labels/sectors_85_to_87_with_test_set_embeddings.csv':
+    data_dir = '/pdo/astronet-data/data/fits/all/'
+    eval_files = ["test:/pdo/astronet-data/data/tfrecords/vetting-aug-2025/*", "test:/pdo/astronet-data/data/tfrecords/sector-85/*", "test:/pdo/astronet-data/data/tfrecords/sector-86/*", "test:/pdo/astronet-data/data/tfrecords/sector-87/*"]
+    config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
+    properties_csv = FILE
+elif FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_embeddings.csv':
+    data_dir = '/pdo/astronet-data/data/fits/all/'
     eval_files = ["test:/pdo/astronet-data/data/tfrecords/sector-85/*", "test:/pdo/astronet-data/data/tfrecords/sector-86/*", "test:/pdo/astronet-data/data/tfrecords/sector-87/*"]
     config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
-    properties_csv = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_small.csv'
+    properties_csv = FILE
 else:
-    tce_file = '/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv'
-    data_dir = '/pdo/users/dimond/mnt/tess/fits_files/'
-    eval_files = ["test:/pdo/astronet-data/data/tfrecords/vetting-aug-2025/*"]
+    data_dir = '/pdo/astronet-data/data/fits/all/'
+    #data_dir = '/pdo/users/dimond/mnt/tess/fits_files/'
+    eval_files = [
+        "test:/pdo/astronet-data/data/tfrecords/vetting-aug-2025-test/*",
+        "test:/pdo/astronet-data/data/tfrecords/vetting-aug-2025-train/*",
+        "test:/pdo/astronet-data/data/tfrecords/vetting-aug-2025-val/*",
+        "test:/pdo/astronet-data/data/tfrecords/sector-85/*",
+        "test:/pdo/astronet-data/data/tfrecords/sector-86/*",
+        "test:/pdo/astronet-data/data/tfrecords/sector-87/*"
+    ]
     config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
     properties_csv = FILE
 
@@ -210,32 +231,148 @@ clu = Clustering(
     params=params,
 )
 
-clu.load_views()#ids_to_filter=set(df["astro_id"]))   # TFRecords -> id_to_view -> X
+use_embeddings = st.checkbox("Use embeddings (vs global view)?", value=True)
+data_source = 'embeddings' if use_embeddings else 'tfrecords'
+clu.load_views(data_source=data_source)#ids_to_filter=set(df["astro_id"]))   # TFRecords -> id_to_view -> X
 clu.fit_pca()          # PCA/HDBSCAN/UMAP + soft memberships
 
 
 # For ExoDash: get a dataframe to plot & filter
 visualizer = TICVisualizer(server=server, df=df)
-num_to_visualize = st.slider("# of Astro IDs to Visualize", 0, len(df), 0)
 
-for i, astro_id in enumerate(df["astro_id"].head(num_to_visualize)):
-    row = df.loc[df['astro_id'] == astro_id].iloc[0]
-    tic_id = df.loc[df["astro_id"] == astro_id, "tic_id"].values[0]
-    planet_number = int(str(astro_id)[-2:])
-    st.write(f'Astro ID: {astro_id} ({i} / {len(df)})')
-    st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
-    st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
-    st.write(f"Notes: {row['notes']}")
+# for i, astro_id in enumerate(df["astro_id"].head(num_to_visualize)):
+#     # nearest_neighbors = clu.get_nearest_neighbors(astro_id=astro_id, df=df, n=10, include_self=True, filter_ids=set(df["astro_id"]))
+#     # neighbors_df = nearest_neighbors.merge(
+#     #     df, on="query_id", how="left"
+#     # )
+#     # st.write(nearest_neighbors)
+#     # 1/0
+#     row = df.loc[df['astro_id'] == astro_id].iloc[0]
+#     tic_id = df.loc[df["astro_id"] == astro_id, "tic_id"].values[0]
+#     planet_number = int(str(astro_id)[-2:])
+#     st.write(f'Astro ID: {astro_id} ({i} / {len(df)})')
+#     st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
+#     #st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
+#     #st.write(f"Notes: {row['notes']}")
+
+#     if astro_id < 10000:
+#         planet_number = 0
+
+#     visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types)
+#     st.write(astro_id)
+#     fig = clu.show_nearest_neighbors(astro_id=astro_id, df=df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(df["astro_id"]))
+#     st.pyplot(fig, use_container_width=True)
+
+color_by = 'domain'
+
+num_highlight = len(set(df['astro_id']))
+num_orig = len(set(orig_df['astro_id']))
+
+highlight_ids = None
+if num_highlight <= 0.8 * num_orig:
+    highlight_ids = set(df['astro_id'])
+
+show_2d_map = st.checkbox("Show 2D clustering projection?", value=True)
+
+with st.form("cluster_controls"):
+    # (build widgets bound to your params object)
+    # e.g. self.params.min_cluster_size = st.slider(...)
+    recompute = st.form_submit_button("Compute / Recompute")
+
+if recompute or "clu_ready" not in st.session_state:
+    st.session_state["clu_ready"] = True
+    clu.fit_clusters()
+
+if show_2d_map:
+    clu.fit_clusters()
+    # controls
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        color_by = st.selectbox(
+            "Color by",
+            options=['domain'],#[None] + [c for c in orig_df.columns if c != "astro_id"],
+            index=0
+        )
+    with col2:
+        select_mode = st.radio("Selection tool", options=["box", "lasso"], horizontal=True, index=0)
+    with col3:
+        annotate = st.checkbox("Annotate highlights (non-interactive overlay)", value=False)
+
+    # build interactive fig
+    fig, to_ids = clu.plot_interactive(
+        df=orig_df,
+        color_by=color_by,
+        select_mode=select_mode,
+        # optionally pass your existing highlight_ids for a bold overlay:
+        highlight_ids=highlight_ids,
+    )
+
+    # render + capture selection
+    # Note: set select_event=True to enable box/lasso capture
+    selected_points = plotly_events(
+        fig,
+        select_event=True,
+        override_height=640,
+        override_width="100%",   # or int
+        key="umap_interactive"
+    )
+
+    selected_ids = to_ids(selected_points)
+
+    st.caption(f"Selected: {len(selected_ids)} points")
+    if selected_ids:
+        # show a peek of the selected rows
+        st.dataframe(
+            orig_df.loc[orig_df["astro_id"].isin(selected_ids)].head(100),
+            use_container_width=True
+        )
+
+        # handy export
+        csv = pd.DataFrame({"astro_id": selected_ids}).to_csv(index=False)
+        st.download_button(
+            "Download selected astro_id list",
+            data=csv,
+            file_name="selected_astro_ids.csv",
+            mime="text/csv",
+        )
+
+        # stash in session_state for downstream tools
+        st.session_state["umap_selected_ids"] = selected_ids
+# if show_2d_map:
+#     clu.fit_clusters()
+#     st.pyplot(clu.plot(use_post_labels=False, df=orig_df, color_by=color_by, highlight_ids=highlight_ids))
+
+
+num_to_visualize = st.slider("# of Astro IDs to Visualize", 0, 25, 1)
+num_viz = 0
+for astro_id in selected_ids:
+    if num_viz >= num_to_visualize:
+        break
+    # nearest_neighbors = clu.get_nearest_neighbors(astro_id=astro_id, df=df, n=10, include_self=True, filter_ids=set(df["astro_id"]))
+    # neighbors_df = nearest_neighbors.merge(
+    #     df, on="query_id", how="left"
+    # )
+    # st.write(nearest_neighbors)
+    # 1/0
+    try:
+        row = orig_df.loc[orig_df['astro_id'] == astro_id].iloc[0]
+        tic_id = orig_df.loc[orig_df["astro_id"] == astro_id, "tic_id"].values[0]
+        planet_number = int(str(astro_id)[-2:])
+        st.write(f'Astro ID: {astro_id}')
+        st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
+    except Exception:
+        continue
+    #st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
+    #st.write(f"Notes: {row['notes']}")
+
+    if astro_id < 30000:
+        planet_number = 1
 
     visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types)
     st.write(astro_id)
     fig = clu.show_nearest_neighbors(astro_id=astro_id, df=df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(df["astro_id"]))
     st.pyplot(fig, use_container_width=True)
-
-show_2d_map = st.checkbox("Show 2D clustering projection?", value=False)
-if show_2d_map:
-    clu.fit_clusters()
-    st.pyplot(clu.plot(use_post_labels=False, highlight_ids=set(df['astro_id'])))
+    num_viz += 1
 
 st.subheader("Feature Distribution")
 features = df.columns[1:]

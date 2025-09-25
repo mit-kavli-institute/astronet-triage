@@ -32,7 +32,7 @@ class TICVisualizer:
             cols = st.columns(3)
             for i, (ptype, page_num) in enumerate(type_to_page.items()):
                 with cols[i % 3]:
-                    image = self.server.get_page_image(tic_id, page_num)
+                    image = self.server.get_page_image(tic_id, page_num, planet_number=planet_number)
                     if isinstance(image, Image.Image):
                         st.image(image, caption=f"{ptype} (Page {page_num})", use_container_width=True)
                     else:
