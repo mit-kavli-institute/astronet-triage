@@ -1,6 +1,7 @@
 import math
 import os
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, is_dataclass
+import seaborn as sns
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 import numpy as np
@@ -16,10 +17,12 @@ import tensorflow as tf
 import umap
 import hdbscan
 
+import plotly.graph_objects as go
+from matplotlib.colors import Normalize
 from astronet.util import config_util
 from astronet.astro_cnn_model import input_ds
 from astronet.preprocess import preprocess
-
+import streamlit as st
 
 def robust_z(x: np.ndarray) -> np.ndarray:
     """Median/MAD z-score; stable against outliers."""
@@ -49,6 +52,44 @@ class ClusterParams:
     # Post-assign grey points
     postassign_prob_floor: float = 0.35
 
+
+def params_to_key(params) -> tuple:
+    """Make your self.params hashable and stable."""
+    if is_dataclass(params):
+        d = asdict(params)
+    elif isinstance(params, dict):
+        d = params
+    else:
+        # Fallback: read attributes that matter
+        d = {k: getattr(params, k) for k in dir(params) if not k.startswith("_") and
+            isinstance(getattr(params, k), (int, float, str, bool, type(None)))}
+    return tuple(sorted(d.items()))
+
+@st.cache_data(show_spinner=True, max_entries=6)
+def cached_l2_normalize(Z: np.ndarray, cosine_normalize: bool) -> np.ndarray:
+    if not cosine_normalize:
+        return Z
+    from sklearn.preprocessing import normalize
+    return normalize(Z, norm="l2", axis=1)
+
+@st.cache_resource(show_spinner=True, max_entries=3)
+def cached_hdbscan_fit(Z_cos: np.ndarray, hdb_key: tuple):
+    import hdbscan
+    # reconstruct kwargs from key
+    hdb_kwargs = dict(hdb_key)
+    cl = hdbscan.HDBSCAN(**hdb_kwargs).fit(Z_cos)
+    return cl  # resource (fitted model)
+
+@st.cache_data(show_spinner=True, max_entries=6)
+def cached_membership_vectors(_clusterer) -> np.ndarray:
+    import hdbscan
+    return hdbscan.all_points_membership_vectors(_clusterer)
+
+@st.cache_data(show_spinner=True, max_entries=6)
+def cached_umap(Z_cos: np.ndarray, umap_key: tuple, seed: int = 0) -> np.ndarray:
+    import umap
+    u = umap.UMAP(random_state=seed, **dict(umap_key))
+    return u.fit_transform(Z_cos)
 
 class Clustering:
     """
@@ -165,11 +206,9 @@ class Clustering:
         """
         mapping: Dict[int, np.ndarray] = {}
         filter_set = set(filter_ids) if filter_ids is not None else None
-        print(f'Filter set: {filter_set}')
 
         for features, identifiers in ds:
             ids = identifiers.numpy()
-            print(f'Ids: {len(ids)}')
             views = features[view_key].numpy()  # shape: (B, ...)
 
             for astro_id, v in zip(ids, views):
@@ -184,17 +223,24 @@ class Clustering:
                     mapping[astro_id] = v
 
         return mapping
-    def load_views(self, ids_to_filter=None) -> None:
-        """Populate self.id_to_view from TFRecords."""
+    
+    def load_views(self, ids_to_filter=None, data_source: str = 'embeddings') -> None:
         id_to_view_all: Dict[int, np.ndarray] = {}
         for _, ds in self._build_eval_set():
             id_to_view_all.update(self._build_id_to_view(ds, self.view_key, ids_to_filter))
         self.id_to_view = id_to_view_all
+        if data_source == 'tfrecords':
+            """Populate self.id_to_view from TFRecords."""
+            self.ids = sorted(self.id_to_view.keys())
+            X = [robust_z(self.id_to_view[i]) for i in self.ids]
+            self.X = np.vstack(X).astype(np.float32)
+        else: 
+            fc_cols = [c for c in self.df.columns if c.startswith("fc_")]
+            assert len(fc_cols) > 0, "No embedding columns found (fc_*). Did you export embeddings?"
+            self.ids = self.df["astro_id"].astype(int).tolist()
+            X = self.df[fc_cols].to_numpy(dtype=np.float32)
+            self.X = np.vstack(X).astype(np.float32)
 
-        # Align X/ids arrays
-        self.ids = sorted(self.id_to_view.keys())
-        X = [robust_z(self.id_to_view[i]) for i in self.ids]
-        self.X = np.vstack(X).astype(np.float32)
 
     # ---------- Fitting (embedding → clustering → viz) ----------
 
@@ -210,37 +256,36 @@ class Clustering:
         self.ids_c = self.ids # keep
 
         # # PCA
-        self.pca = PCA(n_components=self.params.pca_components, random_state=0).fit(self.X)
+        self.pca = PCA(n_components=self.params.pca_components, random_state=42).fit(self.X)
         self.Z = self.pca.transform(self.X)
         self.nn_ = NearestNeighbors(n_neighbors=10, metric="euclidean").fit(self.Z)
 
     def fit_clusters(self) -> None:
         # Cosine emphasis (shape)
-        Z_cos = normalize(self.Z, norm="l2", axis=1) if self.params.cosine_normalize else self.Z
+        Z_cos = cached_l2_normalize(self.Z, self.params.cosine_normalize)
 
         # HDBSCAN
-        self.clusterer = hdbscan.HDBSCAN(
-            min_cluster_size=self.params.min_cluster_size,
-            min_samples=self.params.min_samples,
-            cluster_selection_epsilon=self.params.cluster_selection_epsilon,
-            cluster_selection_method=self.params.cluster_selection_method,
-            prediction_data=True,
-            metric="euclidean",  # euclidean on L2-normalized ≈ cosine
-        ).fit(Z_cos)
-        labels = self.clusterer.labels_
-        self.labels_ = labels
+        hdb_params = {
+            "min_cluster_size": self.params.min_cluster_size,
+            "min_samples": self.params.min_samples,
+            "cluster_selection_epsilon": self.params.cluster_selection_epsilon,
+            "cluster_selection_method": self.params.cluster_selection_method,
+            "prediction_data": True,
+            "metric": "euclidean",
+        }
+        self.clusterer = cached_hdbscan_fit(Z_cos, tuple(sorted(hdb_params.items())))
+        self.labels_ = self.clusterer.labels_
 
         # Soft memberships for post-assign
-        self.probs_ = hdbscan.all_points_membership_vectors(self.clusterer)
+        self.probs_ = cached_membership_vectors(self.clusterer)
 
         # UMAP (viz only)
-        u = umap.UMAP(
-            n_neighbors=self.params.umap_n_neighbors,
-            min_dist=self.params.umap_min_dist,
-            metric="euclidean",
-            random_state=0,
-        )
-        self.viz_ = u.fit_transform(Z_cos)
+        umap_key = tuple(sorted({
+            "n_neighbors": self.params.umap_n_neighbors,
+            "min_dist": self.params.umap_min_dist,
+            "metric": "euclidean",
+        }.items()))
+        self.viz_ = cached_umap(Z_cos, umap_key, seed=0)
 
         # Neighbor index (for quick “similar” queries)
         self.Z_cos = Z_cos
@@ -340,94 +385,318 @@ class Clustering:
 
     def plot(
         self,
-        use_post_labels: bool = True,
+        df,
+        use_post_labels: bool = True,      # kept for compatibility with your pipeline even though colors come from df[color_by]
         highlight_ids: Optional[List[int]] = None,
-        alpha_bg: float = 0.12,          # how faint the background is
-        s_bg: int = 10,                  # background marker size
-        s_hi: int = 28,                  # highlighted marker size
-        annotate: bool = False,          # label highlighted points with astro_id
+        alpha_bg: float = 0.12,            # how faint the background is
+        s_bg: int = 10,                    # background marker size
+        s_hi: int = 28,                    # highlighted marker size
+        annotate: bool = False,            # label highlighted points with astro_id
+        color_by: Optional[str] = 'first_letter',  # column in df used to color points; None -> no coloring
     ) -> plt.Figure:
-        """UMAP scatter: all points faint, selected astro_ids highlighted."""
-        assert self.viz_ is not None and self.labels_ is not None
+        """UMAP scatter: if color_by is set, color by df[color_by]; otherwise use a uniform background color.
+        Selected astro_ids are highlighted."""
+        assert self.viz_ is not None, "self.viz_ must be computed"
+        assert hasattr(self, "ids"), "self.ids must exist and correspond to df['astro_id']"
+        assert 'astro_id' in df.columns, "df must contain 'astro_id'"
+        if color_by is not None:
+            assert color_by in df.columns, f"df is missing the '{color_by}' column"
 
-        labels = self.labels_post_ if (use_post_labels and self.labels_post_ is not None) else self.labels_
-
-        # Stable color mapping across the WHOLE dataset
-        all_non_noise = [u for u in np.unique(labels) if u != -1]
-        palette = plt.cm.get_cmap("tab20", max(1, len(all_non_noise)))
-
-        def color_for(lb, alpha=1.0):
-            return (0.7, 0.7, 0.7, 0.25 * alpha)
-            if lb == -1:  # noise
-                return (0.7, 0.7, 0.7, 0.25 * alpha)
-            idx = all_non_noise.index(lb) if lb in all_non_noise else 0
-            r, g, b, _ = palette(idx % palette.N)
+        # Utilities
+        def _rgba_with_alpha(rgba, alpha):
+            r, g, b, _ = rgba
             return (r, g, b, alpha)
 
+        legend_handles = []
+
+        # Build colors
+        if color_by is None:
+            # Uniform, de-emphasized background
+            bg_colors = [(0.5, 0.5, 0.5, alpha_bg)] * len(self.viz_)
+            def hi_color_at_index(_i):
+                # single accent color for highlights
+                return (0.1, 0.1, 0.1, 1.0)
+            title = "Light-curve islands (UMAP)"
+        else:
+            # Map df rows to the embedding order via astro_id
+            df = df.drop_duplicates(subset="astro_id", keep="first").set_index("astro_id")
+            df_by_id = df.set_index('astro_id')
+            series = df_by_id[color_by].reindex(self.ids)
+
+            # Determine coloring mode
+            is_numeric = pd.api.types.is_numeric_dtype(series)
+
+            if is_numeric:
+                vals = series.astype(float)
+                vmin = np.nanmin(vals) if np.isfinite(vals).any() else 0.0
+                vmax = np.nanmax(vals) if np.isfinite(vals).any() else 1.0
+                if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+                    vmin, vmax = 0.0, 1.0
+
+                norm = Normalize(vmin=vmin, vmax=vmax)
+                cmap = plt.cm.get_cmap('viridis')
+
+                bg_colors = []
+                for v in vals:
+                    if np.isfinite(v):
+                        bg_colors.append(_rgba_with_alpha(cmap(norm(v)), alpha_bg))
+                    else:
+                        bg_colors.append((0.7, 0.7, 0.7, 0.25 * alpha_bg))  # gray for missing
+
+                def hi_color_at_index(i):
+                    v = vals[i]
+                    if np.isfinite(v):
+                        return _rgba_with_alpha(cmap(norm(v)), 1.0)
+                    else:
+                        return (0.5, 0.5, 0.5, 0.9)
+
+                legend_handles.append(Line2D([0], [0], marker='o', linestyle='',
+                                            markersize=np.sqrt(s_bg), markerfacecolor=cmap(norm(vmin)),
+                                            markeredgecolor='none', label=f'{color_by} (low)'))
+                legend_handles.append(Line2D([0], [0], marker='o', linestyle='',
+                                            markersize=np.sqrt(s_bg), markerfacecolor=cmap(norm(vmax)),
+                                            markeredgecolor='none', label=f'{color_by} (high)'))
+            else:
+                # Categorical palette
+                cat_values = series.astype('string').fillna('NA')
+                codes, uniques = pd.factorize(cat_values, sort=True)
+                palette = sns.color_palette("colorblind", n_colors=len(uniques))
+                bg_colors = []
+                for code in codes:
+                    if code >= 0:
+                        r, g, b = palette[code % len(palette)]
+                        bg_colors.append((r, g, b, alpha_bg))
+                    else:
+                        bg_colors.append((0.7, 0.7, 0.7, 0.25 * alpha_bg))
+
+                def hi_color_at_index(i):
+                    code = codes[i]
+                    if code >= 0:
+                        r, g, b = palette[code % len(palette)]
+                        return (r, g, b, 1.0)
+                    else:
+                        return (0.5, 0.5, 0.5, 0.9)
+
+                # Legend chips (cap to a reasonable number)
+                max_legend = min(len(uniques), 12)
+                for idx in range(max_legend):
+                    r, g, b = palette[idx % len(palette)]
+                    legend_handles.append(
+                        Line2D([0], [0], marker='o', linestyle='',
+                            markersize=np.sqrt(s_bg), markerfacecolor=(r, g, b, 0.9),
+                            markeredgecolor='none', label=f'{color_by} = {str(uniques[idx])}')
+                    )
+                if len(uniques) > max_legend:
+                    legend_handles.append(
+                        Line2D([0], [0], linestyle='none', label=f'(+{len(uniques)-max_legend} more)')
+                    )
+
+            title = f"Light-curve islands (UMAP), colored by '{color_by}'"
+
+        # Figure and axes
         fig, ax = plt.subplots(figsize=(7, 6))
 
-        # 1) Background: all points (dimmed)
-        bg_colors = [color_for(lb, alpha=alpha_bg) for lb in labels]
+        # 1) Background
         ax.scatter(self.viz_[:, 0], self.viz_[:, 1], s=s_bg, c=bg_colors, linewidths=0, zorder=1)
 
-        # 2) Highlights: filtered ids (full color, thicker edge)
+        # 2) Highlights
         if highlight_ids:
-            mask = np.isin(self.ids_c, list(highlight_ids))
+            mask = np.isin(np.asarray(self.ids), list(highlight_ids))
             if np.any(mask):
-                hi_colors = [color_for(lb, alpha=1.0) for lb in labels[mask]]
+                hi_colors = [hi_color_at_index(i) for i in np.where(mask)[0]]
                 ax.scatter(self.viz_[mask, 0], self.viz_[mask, 1],
                         s=s_hi, c=hi_colors, edgecolors="k", linewidths=0.6, zorder=3)
 
                 if annotate:
-                    for x, y, aid in zip(self.viz_[mask, 0], self.viz_[mask, 1], np.array(self.ids_c)[mask]):
+                    for x, y, aid in zip(self.viz_[mask, 0], self.viz_[mask, 1], np.asarray(self.ids)[mask]):
                         ax.annotate(str(aid), (x, y), xytext=(3, 3), textcoords="offset points",
                                     fontsize=8, color="k", zorder=4)
 
-                # small legend chip for "highlighted"
-                legend_handles = [Line2D([0], [0], marker='o', linestyle='',
-                                        markersize=np.sqrt(s_hi), markerfacecolor=(0.3,0.3,0.3,0.9),
-                                        markeredgecolor='k', label='Highlighted')]
-                ax.legend(handles=legend_handles, loc='best', frameon=True)
+                legend_handles.append(
+                    Line2D([0], [0], marker='o', linestyle='',
+                        markersize=np.sqrt(s_hi), markerfacecolor=(0.3, 0.3, 0.3, 0.9),
+                        markeredgecolor='k', label='Highlighted')
+                )
             else:
                 ax.text(0.02, 0.98, "No astro_id matched the filter", transform=ax.transAxes,
                         va="top", ha="left", fontsize=10, bbox=dict(facecolor="white", alpha=0.8, lw=0))
 
-        ax.set_title("Light-curve islands (PCA→HDBSCAN, UMAP viz)")
+        if legend_handles:
+            ax.legend(handles=legend_handles, loc='best', frameon=True, fontsize=9)
+
+        ax.set_title(title)
         ax.set_xlabel("UMAP-1")
         ax.set_ylabel("UMAP-2")
         fig.tight_layout()
         return fig
     
-    def show_nearest_neighbors(
+
+    def plot_interactive(
+        self,
+        df: pd.DataFrame,
+        use_post_labels: bool = True,         # kept for parity with your API
+        highlight_ids=None,
+        alpha_bg: float = 0.12,
+        s_bg: int = 6,
+        color_by: str = "first_letter",
+        select_mode: str = "box",             # "box" or "lasso"
+        height: int = 640
+    ):
+        """
+        Interactive UMAP with box/lasso selection.
+        Returns (fig, colors, selected_ids_function) so Streamlit can render and fetch selections.
+        """
+        assert self.viz_ is not None, "self.viz_ must be computed"
+        assert hasattr(self, "ids"), "self.ids must exist and correspond to df['astro_id']"
+        assert "astro_id" in df.columns, "df must contain 'astro_id'"
+        if color_by is not None:
+            assert color_by in df.columns, f"df is missing the '{color_by}' column"
+
+        # map df rows to embedding order via astro_id
+        df_by_id = df.drop_duplicates(subset="astro_id", keep="first").set_index("astro_id")
+        #df_by_id = df.set_index("astro_id")
+        series = df_by_id[color_by].reindex(self.ids) if color_by is not None else None
+
+        # colors
+        if color_by is None:
+            # uniform gray
+            marker_color = "rgba(128,128,128,{})".format(alpha_bg)
+            colors = [marker_color] * len(self.ids)
+            colorbar = None
+            show_colorbar = False
+            hover_extra = None
+        else:
+            is_numeric = pd.api.types.is_numeric_dtype(series)
+            if is_numeric:
+                vals = series.astype(float)
+                vmin = np.nanmin(vals) if np.isfinite(vals).any() else 0.0
+                vmax = np.nanmax(vals) if np.isfinite(vals).any() else 1.0
+                if not np.isfinite(vmin) or not np.isfinite(vmax) or vmin == vmax:
+                    vmin, vmax = 0.0, 1.0
+                norm = Normalize(vmin=vmin, vmax=vmax)
+
+                # Plotly will color by a separate numeric array (better than precomputed RGBA for colorbar)
+                colors = vals.values
+                colorbar = dict(title=color_by)
+                show_colorbar = True
+                hover_extra = vals
+            else:
+                # categorical
+                cat_values = series.astype("string").fillna("NA")
+                codes, uniques = pd.factorize(cat_values, sort=True)
+                palette = sns.color_palette("colorblind", n_colors=max(1, len(uniques)))
+                # convert to rgba strings with alpha
+                def code_to_rgba(c):
+                    if c >= 0:
+                        r, g, b = palette[c % len(palette)]
+                        return f"rgba({int(r*255)},{int(g*255)},{int(b*255)},{alpha_bg})"
+                    return f"rgba(180,180,180,{0.25*alpha_bg})"
+                colors = [code_to_rgba(c) for c in codes]
+                colorbar = None
+                show_colorbar = False
+                hover_extra = cat_values.values
+
+        # highlight overlay (drawn later)
+        hi_mask = None
+        if highlight_ids:
+            hi_mask = np.isin(np.asarray(self.ids), list(highlight_ids))
+
+        # Build base scatter (Scattergl = WebGL; fast for 20k+ points)
+        x = self.viz_[:, 0]
+        y = self.viz_[:, 1]
+        customdata = np.array(self.ids)  # we’ll read this back from selections
+
+        base_kwargs = dict(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(size=s_bg, opacity=1.0),
+            customdata=customdata,
+            hovertemplate="<b>astro_id</b>: %{customdata}<br>UMAP-1=%{x:.3f}<br>UMAP-2=%{y:.3f}"
+        )
+        if color_by is None or not pd.api.types.is_numeric_dtype(series) if color_by is not None else True:
+            # using per-point rgba strings, no colorbar
+            base_kwargs["marker"]["color"] = colors
+        else:
+            # numeric color with colorbar
+            base_kwargs["marker"]["color"] = colors
+            base_kwargs["marker"]["colorbar"] = colorbar
+            base_kwargs["marker"]["colorscale"] = "Viridis"
+            base_kwargs["marker"]["showscale"] = show_colorbar
+            if hover_extra is not None:
+                base_kwargs["hovertemplate"] += f"<br><b>{color_by}</b>: %{{marker.color:.4g}}"
+
+        fig = go.Figure(data=[go.Scattergl(**base_kwargs)])
+        title = "Light-curve islands (UMAP)" + (f", colored by '{color_by}'" if color_by else "")
+        fig.update_layout(
+            title=title,
+            xaxis_title="UMAP-1",
+            yaxis_title="UMAP-2",
+            dragmode="select" if select_mode == "box" else "lasso",
+            height=height,
+            margin=dict(l=0, r=0, t=50, b=0),
+        )
+
+        # overlay highlights (solid color + thin outline)
+        if hi_mask is not None and np.any(hi_mask):
+            fig.add_trace(go.Scattergl(
+                x=x[hi_mask],
+                y=y[hi_mask],
+                mode="markers",
+                marker=dict(size=max(s_bg+4, 10), color="rgba(40,40,40,1.0)", line=dict(width=0.8, color="black")),
+                customdata=customdata[hi_mask],
+                hovertemplate="<b>astro_id</b>: %{customdata}<extra></extra>",
+                name="Highlighted",
+            ))
+
+        # function to post-process selection payloads into astro_ids
+        def _selected_ids_from_plotly_events(selected_points):
+            """selected_points = output of plotly_events(...) (list[dict])"""
+            if not selected_points:
+                return []
+            # each item has 'customdata' when we set it above
+            ids = []
+            for pt in selected_points:
+                cd = pt.get("customdata", None)
+                if cd is not None:
+                    ids.append(int(cd))
+                else:
+                    # Fallback: map by pointIndex for the base trace
+                    # (pointIndex == row in your x/y/customdata arrays)
+                    idx = pt.get("pointIndex", None)
+                    curve = pt.get("curveNumber", 0)
+                    if idx is not None:
+                        if curve == 0:
+                            # background trace: index aligns to self.ids
+                            ids.append(int(self.ids[idx]))
+                        elif curve == 1:
+                            # highlight overlay: index aligns to the masked array
+                            # rebuild mask the same way you did above:
+                            hi_mask = np.isin(np.asarray(self.ids), list(highlight_ids)) if highlight_ids else None
+                            if hi_mask is not None:
+                                ids.append(int(np.asarray(self.ids)[hi_mask][idx]))
+            # dedupe (lasso can return dups)
+            return list(dict.fromkeys(ids))
+
+        return fig, _selected_ids_from_plotly_events
+    
+    def get_nearest_neighbors(
         self,
         astro_id: int,
         df,
         n: int = 6,
-        include_self: bool = False,
+        include_self: bool = True,
         layout: Literal["grid", "list"] = "grid",
         cols: int = 3,
         filter_ids=None,
-    ) -> Union[plt.Figure, List[plt.Figure]]:
-        """
-        Plot the N nearest neighbors of `astro_id` with distances.
-
-        Args:
-            astro_id: query ID present in `self.ids`
-            n: number of neighbors to display (excluding self unless include_self=True)
-            include_self: include the query itself (distance ~0) in the results
-            layout: "grid" -> single Figure with subplots, "list" -> list of Figures
-            cols: number of columns for the grid layout
-
-        Returns:
-            - If layout="grid": a matplotlib Figure containing all neighbors
-            - If layout="list": a list of matplotlib Figures (one per neighbor)
-        """
+        data_source: str = 'embeddings'
+    ) -> pd.DataFrame:
         assert self.nn_ is not None and self.Z is not None, "Call fit() first."
-        assert self.id_to_view, "Call load_views() first."
         try:
             i = self.ids.index(astro_id)
         except ValueError:
             raise ValueError(f"astro_id {astro_id} not in clustered set.")
+        
 
         # Ask for extra neighbor to account for self at distance 0
         n_total = n + (0 if include_self else 1)
@@ -447,6 +716,64 @@ class Clustering:
 
         if not neighbors:
             raise ValueError("No neighbors found (check n/include_self settings).")
+        records = []
+        for dist, idx in zip(dists, idxs):
+            records.append({"astro_id": int(idx), "distance": float(dist)})
+
+        df = pd.DataFrame(records)
+        return df.head(n)
+    
+    def show_nearest_neighbors(
+        self,
+        astro_id: int,
+        df,
+        n: int = 6,
+        include_self: bool = False,
+        layout: Literal["grid", "list"] = "grid",
+        cols: int = 3,
+        filter_ids=None,
+        data_source: str = 'embeddings'
+    ) -> Union[plt.Figure, List[plt.Figure]]:
+        """
+        Plot the N nearest neighbors of `astro_id` with distances.
+
+        Args:
+            astro_id: query ID present in `self.ids`
+            n: number of neighbors to display (excluding self unless include_self=True)
+            include_self: include the query itself (distance ~0) in the results
+            layout: "grid" -> single Figure with subplots, "list" -> list of Figures
+            cols: number of columns for the grid layout
+
+        Returns:
+            - If layout="grid": a matplotlib Figure containing all neighbors
+            - If layout="list": a list of matplotlib Figures (one per neighbor)
+        """
+        assert self.nn_ is not None and self.Z is not None, "Call fit() first."
+        try:
+            i = self.ids.index(astro_id)
+        except ValueError:
+            raise ValueError(f"astro_id {astro_id} not in clustered set.")
+        
+
+        # Ask for extra neighbor to account for self at distance 0
+        n_total = n + (0 if include_self else 1)
+        dists, idxs = self.nn_.kneighbors(self.Z[i].reshape(1, -1), n_neighbors=1000)
+        dists = dists[0].tolist()
+        idxs = idxs[0].tolist()
+
+        neighbors: List[Tuple[int, float]] = []
+        for j, d in zip(idxs, dists):
+            nid = self.ids[j]
+            if filter_ids and nid not in filter_ids:
+                continue
+            if include_self or nid != astro_id:
+                neighbors.append((nid, float(d)))
+            if len(neighbors) == n:
+                break
+
+        if not neighbors:
+            raise ValueError("No neighbors found (check n/include_self settings).")
+        assert self.id_to_view, "Call load_views() first."
 
         # Helper: make a single panel for one neighbor with distance in title
         def _one_panel(ax, view: np.ndarray, nid: int, dist: float, df):
@@ -454,16 +781,21 @@ class Clustering:
             disp_p = df.loc[df["astro_id"] == nid, "disp_p"].iloc[0]
             disp_e = df.loc[df["astro_id"] == nid, "disp_e"].iloc[0]
             disp_j = df.loc[df["astro_id"] == nid, "disp_j"].iloc[0]
+            tmag = df.loc[df["astro_id"] == nid, "tmag"].iloc[0]
+            period = df.loc[df["astro_id"] == nid, "period"].iloc[0]
+            duration = df.loc[df["astro_id"] == nid, "duration"].iloc[0]
+            #sector = df.loc[df["astro_id"] == nid, "sector"].iloc[0]
             phase = np.linspace(0, 1, len(view), endpoint=False)
             ax.plot(phase, view, marker='.', linestyle='-')
             ax.set_title(
-                f"ID {nid}  (d={dist:.3f})\n"
-                f"disp_p={disp_p:.2f}, disp_e={disp_e:.2f}, disp_j={disp_j:.2f}",
+                f"ID {nid} (d={dist:.3f})\n"
+                f"disp_p={disp_p:.2f}, disp_e={disp_e:.2f}, disp_j={disp_j:.2f}\n"
+                f"tmag={tmag:.2f}, period={period:.2f}, duration={duration:.2f}",
                 fontsize=10
             )
             ax.set_xlabel("Phase")
             ax.set_ylabel("Norm. flux")
-            ax.invert_yaxis()
+            #ax.invert_yaxis()
             ax.grid(True)
 
         if layout == "list":
