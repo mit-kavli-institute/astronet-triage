@@ -9,17 +9,20 @@ import scipy.special
 from tqdm.notebook import tqdm
 
 
-uses_sectors = False
+uses_sectors = True
 #model_predictions = "/pdo/users/dimond/astronet/astronet/20250429_181612_predictions_sector86.csv"
 #model_predictions = "/pdo/users/dimond/astronet/astronet/20250723_modelwithtoisremoved_predictions_sector86.csv"
-model_predictions = "/pdo/astronet-data/models/vetting/experimental/dimond/entire_vetting_09_06_2025/test_predictions.csv" # combined sectors 85, 86, and 87
-tce_catalog = "/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv"
+#model_predictions = "/pdo/astronet-data/models/vetting/experimental/dimond/entire_vetting_09_06_2025/test_predictions.csv" # combined sectors 85, 86, and 87
+model_predictions = '/pdo/astronet-data/models/vetting/experimental/dimond/sector_87_reprocessed_with_embeddings/test_predictions.csv'
+#tce_catalog = '/pdo/astronet-data/data/properties/tces-sector87_with_labels.csv'
+#tce_catalog = "/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv"
 #tce_catalog = "/pdo/users/dimond/astronet/astronet/astronet-vetting-tce-catalog-with-offsets-CORRECTED.csv"
 #qlp_labels = "/pdo/users/dimond/astronet/astronet/pcs.ls"
+tce_catalog = "/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv"
 vetter_labels = "/pdo/users/dimond/sectors_85_to_87_candidates.ls"
 toi_info = "/pdo/users/dimond/astronet/astronet/toi-plus-2025-07-16.csv"
 toi_notes = "/pdo/users/dimond/astronet/astronet/Astronet Testing TOIs - s86.csv"
-output_file = '/pdo/astronet-data/data/labels/entire-vetting-09-06-2025-with-embeddings.csv'
+output_file = '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings.csv'
 
 
 
@@ -41,14 +44,14 @@ astronet_results = pd.read_csv(
 astronet_results = astronet_results.rename(columns={'Sector': 'sector', 'Astro ID': 'astro_id'})
 astronet_data = pd.read_csv(
     tce_catalog,
-)#[["astro_id", "tic_id", "planetno", "tmag", "period", "epoch", "depth", "duration", "centroid_distance_arcsec", "sector"]]
+)[["astro_id", "tic_id", "planetno", "tmag", "period", "epoch", "depth", "duration", "centroid_distance_arcsec", "sector"]]
 astronet_data["astro_id"] = astronet_data["astro_id"].astype(int)
 astronet_data = astronet_data.drop_duplicates(subset=['astro_id'])#(subset=['tic_id', 'planetno'])
 
 if not uses_sectors:
     astronet_data = astronet_data.drop(columns=['decision', 'as', 'ch', 'disp_b', 'disp_e', 'disp_j', 'disp_n', 'disp_p', 'disp_t', 'disp_u', 'dm', 'et', 'mk', 'md', 'total_votes', 'selected_total_votes'])
 
-astronet_data = astronet_results.merge(astronet_data, on=['astro_id'], how='right').dropna(subset='model_no')
+astronet_data = astronet_results.merge(astronet_data, on=['tic_id', 'astro_id', 'planetno'], how='right').dropna(subset='model_no')
 #astronet_data = astronet_data.merge(astronet_results, on=["astro_id", "tic_id", "planetno"])
 astronet_data = Table.from_pandas(astronet_data)
 
@@ -80,6 +83,7 @@ if uses_sectors:
     toi_data = toi_data.merge(toi_notes, on='toi_id', how='left')
 
     toi_data = Table.from_pandas(toi_data)
+    print(toi_data)
 
     def get_ephemeris_matches(astronet_rows, toi_rows):
         cartesian_table = join(
@@ -105,6 +109,7 @@ if uses_sectors:
         best_match = cartesian_table[np.argmax(cartesian_table["match_strength"])]
         return best_match
 
+    print(astronet_data)
     matched_astronet_data = vstack(
         [
             get_ephemeris_matches(row, toi_data[toi_data["tic_id"] == row["tic_id"]])
@@ -167,6 +172,7 @@ else:
 print(f'Saved to {output_file}')
 tce_data.to_csv(output_file, index=False)
 
+"""
 tce_data = tce_data.drop(tce_data.filter(regex="^fc_").columns, axis=1)
 tce_data = tce_data.drop(columns=['sector', 'model_no', 'disp_p', 'disp_e', 'disp_n', 'disp_j'])
 tce_data['true_label'] = tce_data['first_letter']
@@ -186,6 +192,7 @@ combined = pd.concat([df1, df2], ignore_index=True)
 
 # Save
 combined.to_csv("/pdo/astronet-data/data/labels/all_data_embeddings.csv", index=False)
+"""
 
 # tce_data['true_label'] = tce_data['first_letter']
 # saved_model_results = tce_data[['astro_id', 'tic_id', 'model_no', 'disp_p', 'disp_e', 'disp_n',  'disp_j', 'true_label']]

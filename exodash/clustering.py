@@ -185,6 +185,7 @@ class Clustering:
                 include_labels=False,
             )
             pairs.append((name, ds))
+        print(pairs)
         return pairs
 
     @staticmethod
@@ -225,10 +226,12 @@ class Clustering:
         return mapping
     
     def load_views(self, ids_to_filter=None, data_source: str = 'embeddings') -> None:
+        print('Load views')
         id_to_view_all: Dict[int, np.ndarray] = {}
         for _, ds in self._build_eval_set():
             id_to_view_all.update(self._build_id_to_view(ds, self.view_key, ids_to_filter))
         self.id_to_view = id_to_view_all
+        print(f'Built views: {len(self.id_to_view)}')
         if data_source == 'tfrecords':
             """Populate self.id_to_view from TFRecords."""
             self.ids = sorted(self.id_to_view.keys())
@@ -600,6 +603,9 @@ class Clustering:
         hi_mask = None
         if highlight_ids:
             hi_mask = np.isin(np.asarray(self.ids), list(highlight_ids))
+
+        print(self.ids)
+        print(highlight_ids)
 
         # Build base scatter (Scattergl = WebGL; fast for 20k+ points)
         x = self.viz_[:, 0]
