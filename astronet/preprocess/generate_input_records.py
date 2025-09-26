@@ -369,7 +369,7 @@ def create(
   )
 
   worker = ProcessRecordWorker(existing, get_lightcurve, mode, training,
-                               _process_tce, tce_table, output_dir, 5)
+                               _process_tce, tce_table, output_dir, 0)
 
   with multiprocessing.Pool(processes=num_processes) as pool:
     results_nested = pool.map(worker, tce_dicts)
@@ -402,22 +402,18 @@ def main(_):
   logging.info("Read %d TCEs", num_tces)
 
   # Further split training TCEs into file shards.
-  file_shards = []  # List of (tce_table_shard, file_name).
-  boundaries = np.linspace(
-      0,
-      len(tce_table),
-      FLAGS.num_shards + 1,
-  ).astype(int)
+  file_shards = []
+  boundaries = np.linspace(0, len(tce_table), FLAGS.num_shards + 1).astype(int)
   for i in range(FLAGS.num_shards):
-    start = boundaries[i]
-    end = boundaries[i + 1]
-    filename = f"{i:05}-of-{FLAGS.num_shards:05}"
-    file_shards.append((start, end, os.path.join(FLAGS.output_dir, filename)))
+      start = boundaries[i]
+      end = boundaries[i + 1]
+      filename = f"{i:05}-of-{FLAGS.num_shards:05}"
+      file_shards.append((start, end, os.path.join(FLAGS.output_dir, filename)))
 
-    logging.info("Processing %d total file shards", len(file_shards))
-    for start, end, file_shard in file_shards:
-      logging.info(f'Starting shard {file_shard}')
-      logging.info(f'{FLAGS.output_dir}')
+  # Now process each shard exactly once
+  logging.info("Processing %d total file shards", len(file_shards))
+  for start, end, file_shard in file_shards:
+      logging.info(f"Starting shard {file_shard}")
       create(
           tce_table[start:end],
           file_shard,
@@ -425,8 +421,9 @@ def main(_):
           FLAGS.mode,
           False,
           output_dir=FLAGS.output_dir,
-          num_processes=35)
-    logging.info("Finished processing %d total file shards", len(file_shards))
+          num_processes=35
+      )
+  logging.info("Finished processing %d total file shards", len(file_shards))
 
 
 if __name__ == "__main__":
