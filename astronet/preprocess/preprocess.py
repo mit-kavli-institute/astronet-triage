@@ -54,9 +54,9 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
   return filter_outliers(time, detrended_flux, input_mask)
 
 
-def phase_fold_and_sort_light_curve(time, flux, mask, period, t0):
+def phase_fold_and_sort_light_curve(time, flux, mask, period, t0, scatter_weights=None):
   if not np.size(time):
-    return np.array([]), np.array([]), np.array([]), np.array([])
+    return np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
 
   # Phase fold time.
   time, fold_num = util.phase_fold_time(time, period, t0)
@@ -67,8 +67,11 @@ def phase_fold_and_sort_light_curve(time, flux, mask, period, t0):
   flux = flux[sorted_i]
   mask = mask[sorted_i]
   fold_num = fold_num[sorted_i]
+  # Also sort weights if provided
+  if scatter_weights is not None:
+    scatter_weights = scatter_weights[sorted_i]
 
-  return time, flux, fold_num, mask
+  return time, flux, fold_num, mask, scatter_weights
 
 
 def generate_view(
@@ -86,6 +89,7 @@ def generate_view(
     depth=None,
     raw_time=None,
     raw_flux=None,
+    scatter_weights=None,
 ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -104,7 +108,10 @@ def generate_view(
   del tic_id  # Unused.
   if binning is None:
     view, mask, std = median_filter2.new_binning(
-        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux)
+        time, flux, period, num_bins, t_min, t_max,
+        trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux,
+        scatter_weights=scatter_weights  # Pass weights to binning function
+    )
   else:
     view, mask, std = median_filter2.new_binning(
         time,
@@ -116,7 +123,9 @@ def generate_view(
         method=binning,
         trim_edges=trim_edges,
         raw_time=raw_time,
-        raw_flux=raw_flux)
+        raw_flux=raw_flux,
+        scatter_weights=scatter_weights
+    )
 
   if normalize:
     # Normalization places:
@@ -144,7 +153,7 @@ def generate_view(
   return view, std, mask, scale, depth
 
 
-def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None):
+def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None, scatter_weights=None):
   """Generates a 'global view' of a phase folded light curve.
 
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
@@ -169,10 +178,71 @@ def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flu
       t_min=-period / 2,
       t_max=period / 2,
       raw_time=raw_time,
-      raw_flux=raw_flux)
+      raw_flux=raw_flux,
+      scatter_weights=scatter_weights)
 
 
-def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):
+def split_and_calculate_weights(time, flux, gap_width=0.75):
+    """Split the time and flux whenever there is a gap in the time array.
+    For each segment, calculate the scatter of the flux values and return
+    an array of weights where the higher scatter values have lower weights.
+
+    Args:
+        time: 1D array of time values
+        flux: 1D array of flux values
+        period: The period of the event (in days)
+        num_bins: The number of intervals to divide the time axis into
+        t_min: The inclusive leftmost value to consider on the time axis
+        t_max: The exclusive rightmost value to consider on the time axis
+        gap_width: Minimum gap size (in time units) for a split
+
+    Returns:
+        weights: Array of weights for each data point
+    """
+    import numpy as np
+    from light_curve_util.keplersplinev2 import split
+
+    # Split the data into segments based on gaps
+    split_times, split_fluxes = split(time, flux, gap_width)
+    #instead, split every 10 points
+    # split_times = []
+    # split_fluxes = []
+    # for i in range(0, len(time), 10):
+    #     split_times.append(time[i:i+10])
+    #     split_fluxes.append(flux[i:i+10])
+
+    # Initialize weights array
+    weights = np.ones(len(time))
+
+    # Calculate scatter for each segment
+    segment_scatters = []
+    for seg_flux in split_fluxes:
+        if len(seg_flux) > 1:
+            segment_scatters.append(np.std(seg_flux))
+        else:
+            segment_scatters.append(0.0)  # Single points get scatter 0
+
+    # Calculate weights based on inverse scatter
+    if len(segment_scatters) > 1 and np.max(segment_scatters) > 0:
+        # Normalize scatters to [0, 1] range
+        max_scatter = np.max(segment_scatters)
+        normalized_scatters = np.array(segment_scatters) / max_scatter
+
+        # Weight is inversely proportional to normalized scatter
+        # Add small value to avoid division by zero
+        segment_weights = 1.0 / (normalized_scatters**2 + 1e-2)
+
+        # Apply weights to each segment
+        start_idx = 0
+        for i, (seg_time, seg_flux) in enumerate(zip(split_times, split_fluxes)):
+            end_idx = start_idx + len(seg_time)
+            weights[start_idx:end_idx] = segment_weights[i]
+            start_idx = end_idx
+
+    return weights
+
+
+def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201, scatter_weights=None):
   return generate_view(
       tic_id,
       time,
@@ -182,7 +252,8 @@ def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):
       t_min=-period / 2,
       t_max=period / 2,
       normalize=False,
-      binning='max')
+      binning='max',
+      scatter_weights=scatter_weights)
 
 
 def local_view(tic_id,
@@ -193,7 +264,8 @@ def local_view(tic_id,
                num_bins=61,
                num_durations=2,
                scale=None,
-               depth=None):
+               depth=None,
+               scatter_weights=None):
   """Generates a 'local view' of a phase folded light curve.
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
   http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -219,6 +291,7 @@ def local_view(tic_id,
       t_max=min(period / 2, duration * num_durations),
       scale=scale,
       depth=depth,
+      scatter_weights=scatter_weights,
   )
 
 
@@ -254,6 +327,10 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
   new_time = time[mask]
   new_flux = flux[mask]
 
+  # Check if we have enough data points
+  if len(new_time) < 5:
+    return period / 2, new_time, new_flux
+
   # rearrange so that time goes from 0 to period
   new_time[new_time < 0] += period
   new_index = np.argsort(new_time)
@@ -261,31 +338,57 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
   new_flux = new_flux[new_index]
   new_flux -= 1.  # centre flux at zero
 
+  # Check if we still have enough data after rearrangement
+  if len(new_time) < 5:
+    return period / 2, new_time, new_flux + 1.
+
   # grid search for secondary. Fix duration to duration of primary.
+  # Add bounds checking
+  if new_time[-1] - new_time[0] <= 2 * duration:
+    return period / 2, new_time, new_flux + 1.
+
   time_grid = np.arange(new_time[0] + duration, new_time[-1] - duration,
                         duration * 0.1)
+
+  # Check if time_grid is empty
+  if len(time_grid) == 0:
+    return period / 2, new_time, new_flux + 1.
+
   min_index = 0
   max_index = min_index
   best_t0 = period / 2
   best_sr = 0
 
   for t0 in time_grid:
-    while new_time[min_index] < (t0 - duration):
+    # Add bounds checking for min_index
+    while min_index < len(new_time) and new_time[min_index] < (t0 - duration):
       min_index += 1
     min_in_transit = min_index
     max_in_transit = min_in_transit
-    while (new_time[max_index] < (t0 + duration)) and (max_index
-                                                       < len(new_time)):
+
+    # Add bounds checking for max_index
+    while (max_index < len(new_time) - 1) and (new_time[max_index] < (t0 + duration)):
       max_index += 1
-    while new_time[min_in_transit] < (t0 - duration / 2):
+
+    # Add bounds checking for min_in_transit
+    while min_in_transit < len(new_time) - 1 and new_time[min_in_transit] < (t0 - duration / 2):
       min_in_transit += 1
-    while new_time[max_in_transit] < (t0 + duration / 2):
+
+    # Add bounds checking for max_in_transit
+    while max_in_transit < len(new_time) - 1 and new_time[max_in_transit] < (t0 + duration / 2):
       max_in_transit += 1
+
+    # Ensure indices are within bounds
+    min_in_transit = min(min_in_transit, len(new_time) - 1)
+    max_in_transit = min(max_in_transit, len(new_time) - 1)
+
     if max_index - min_index < 5:
       continue
-    r = float(max_in_transit - min_in_transit + 1) / len(
-        new_time)  # assuming identical uniform weights
-    s = sum(new_flux[min_in_transit:max_in_transit] / float(len(new_time)))
+    if max_in_transit <= min_in_transit:
+      continue
+
+    r = float(max_in_transit - min_in_transit + 1) / len(new_time)
+    s = sum(new_flux[min_in_transit:max_in_transit + 1] / float(len(new_time)))
 
     sr = s**2 / (r * (1 - r))
     if sr > best_sr:
@@ -302,7 +405,8 @@ def secondary_view(tic_id,
                    num_bins=61,
                    num_durations=2,
                    scale=None,
-                   depth=None):
+                   depth=None,
+                   scatter_weights=None):
   """Generates a 'local view' of a phase folded light curve, centered on phase
   0.5. See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
   http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -339,7 +443,8 @@ def secondary_view(tic_id,
           t_min=t_min,
           t_max=t_max,
           scale=scale,
-          depth=depth),
+          depth=depth,
+          scatter_weights=scatter_weights),
       t0,
   )
 
@@ -371,7 +476,8 @@ def sample_segments_view(tic_id,
                          duration,
                          num_bins=201,
                          num_transits=7,
-                         local=False):
+                         local=False,
+                         scatter_weights=None):
   times, fluxes, nums = sample_segments(
       time, flux, fold_num, num_transits=num_transits)
   full_view = []
@@ -381,6 +487,14 @@ def sample_segments_view(tic_id,
     if local:
       t_min = max(t_min, 2 * duration)
       t_max = min(t_max, 2 * duration)
+
+    # Extract scatter weights for this segment
+    segment_weights = None
+    if scatter_weights is not None:
+      # Find the indices corresponding to this segment
+      segment_mask = fold_num == n
+      segment_weights = scatter_weights[segment_mask]
+
     view, _, mask, _, _ = generate_view(
         tic_id,
         t,
@@ -391,6 +505,7 @@ def sample_segments_view(tic_id,
         t_max=period * n + t_min,
         normalize=False,
         trim_edges=True,
+        scatter_weights=segment_weights,
     )
     full_view.append(view)
     full_view.append(mask)

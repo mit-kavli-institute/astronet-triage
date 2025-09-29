@@ -28,15 +28,15 @@ def tmod(t, p, e):
 PHASE2_T = 2036.2
 HC_PHASE1 = 30.0 / 60.0 / 24 / 2
 HC_PHASE2 = 10.0 / 60.0 / 24 / 2
+# TODO(pablomer): This chooses between 30min cadence and 10 min cadence, need to add also the check for EM2 where the cadence is 200s
 
 
-def get_overlap(hbw, t, c):
-    hc = HC_PHASE1 if t < PHASE2_T else HC_PHASE2
-    bin_overlap = max(0, min(hbw, t + hc) - max(-hbw, t - hc))
+def get_overlap(hbw, cadence_hw):
+    bin_overlap = max(0.0, min(hbw, cadence_hw) - max(-hbw, -cadence_hw))
     return bin_overlap
 
 
-def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None):
+def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None, scatter_weights=None):
   t = time.copy()
   # Use raw_time for cadence selection if provided, otherwise use folded time
   time_for_cadence = raw_time if raw_time is not None else t
@@ -52,9 +52,6 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     print('raw_time',raw_time)
     print('t',t)
     print('time for cadence',time_for_cadence)
-    raw_time_folded=tmod(raw_time,period,b)
-
-
 
   bins_left_edge, step = np.linspace(
       t_min, t_max, num=num_bins, endpoint=False, retstep=True)
@@ -67,6 +64,7 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   f = np.zeros(num_bins)
   s = np.zeros(num_bins)
   m = np.ones(num_bins)
+
   for i, b in enumerate(bins_center):
     # time from bin center (use folded time for binning)
     t_c = tmod(t, period, b)
@@ -74,7 +72,6 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     # find which points are within the bin
     # Use raw_time for cadence selection, but align with folded time indices
     if raw_time is not None:
-        # Map raw_time to the same indices as the folded time
         cadence_hw = np.where(time_for_cadence > PHASE2_T, HC_PHASE2, HC_PHASE1)
     else:
         cadence_hw = np.where(time_for_cadence > PHASE2_T, HC_PHASE2, HC_PHASE1)
@@ -101,6 +98,12 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
 
     in_bin = t_c[bin_mask]
     f_x = flux[bin_mask]
+    cadence_in_bin = cadence_hw[bin_mask]
+
+    # Extract scatter weights for points in this bin
+    scatter_weights_in_bin = None
+    if scatter_weights is not None:
+        scatter_weights_in_bin = scatter_weights[bin_mask]
 
     if not len(f_x):
         m[i] = 0.0
@@ -117,6 +120,11 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         # remove outliers
         f_x = f_x[mask]
         in_bin = in_bin[mask]
+        cadence_in_bin = cadence_in_bin[mask]
+
+        # Also apply the same mask to scatter weights if available
+        if scatter_weights_in_bin is not None:
+            scatter_weights_in_bin = scatter_weights_in_bin[mask]
 
     if not len(f_x):
         m[i] = 0.0
@@ -124,10 +132,20 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
 
     if method == 'weighted_mean':
         if len(in_bin) > 1:
-            # Use raw_time for cadence in get_overlap too
-            weight = [get_overlap(hbw, in_bin[j], b) / bin_width
-                      for j in range(len(in_bin))]
-            f[i] = np.average(f_x, weights=weight)
+            # Calculate base weights from cadence overlap
+            base_weights = [get_overlap(hbw, cadence_in_bin[j]) / bin_width
+                          for j in range(len(in_bin))]
+
+            # Combine with scatter weights if available
+            if scatter_weights_in_bin is not None:
+                # print('DEBUG: scatter_weights_in_bin',scatter_weights_in_bin)
+                # Combine cadence weights with scatter weights
+                combined_weights = [base_weights[j] * scatter_weights_in_bin[j]
+                                  for j in range(len(in_bin))]
+            else:
+                combined_weights = base_weights
+
+            f[i] = np.average(f_x, weights=combined_weights)
         else:
             f[i], = f_x
     elif method == 'max':

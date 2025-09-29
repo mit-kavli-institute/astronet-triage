@@ -75,22 +75,25 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(
       tic, time, flux, period, epoc, duration, bkspace)
 
-  folded_time, folded_flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
-      detrended_time, detrended_flux, transit_mask, period, epoc)
+  # Calculate the scatter weights from detrended time and flux
+  scatter_weights = preprocess.split_and_calculate_weights(detrended_time, detrended_flux)
+
+  folded_time, folded_flux, fold_num, tr_mask, folded_weights = preprocess.phase_fold_and_sort_light_curve(
+      detrended_time, detrended_flux, transit_mask, period, epoc, scatter_weights=scatter_weights)
   odds = (fold_num % 2) == 1
   evens = (fold_num % 2) == 0
 
   # Use detrended arrays as raw arrays for binning
   view, std, mask, _, _ = preprocess.global_view(tic, folded_time, folded_flux, period,
-                                                raw_time=detrended_time, raw_flux=detrended_flux)
-  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, folded_time, tr_mask, period)
+                                                raw_time=detrended_time, raw_flux=detrended_flux, scatter_weights=folded_weights)
+  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, folded_time, tr_mask, period, scatter_weights=folded_weights)
   set_float_feature(ex, f"global_view{tag}", view)
   set_float_feature(ex, f"global_std{tag}", std)
   set_float_feature(ex, f"global_mask{tag}", mask)
   set_float_feature(ex, f"global_transit_mask{tag}", tr_mask)
 
   view, std, mask, scale, depth = preprocess.local_view(tic, folded_time, folded_flux, period,
-                                                        duration)
+                                                        duration, scatter_weights=folded_weights)
   set_float_feature(ex, f"local_view{tag}", view)
   set_float_feature(ex, f"local_std{tag}", std)
   set_float_feature(ex, f"local_mask{tag}", mask)
@@ -103,20 +106,21 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   for k, (t, f) in aperture_fluxes.items():
     t, f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration,
                                             bkspace)
-    t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(
-        t, f, m, period, epoc)
+    aperture_weights = preprocess.split_and_calculate_weights(t, f)
+    t, f, _, _, aperture_weights_folded = preprocess.phase_fold_and_sort_light_curve(
+        t, f, m, period, epoc, scatter_weights=aperture_weights)
     view, std, _, _, _ = preprocess.local_view(
-        tic, t, f, period, duration, scale=scale, depth=depth)
+        tic, t, f, period, duration, scale=scale, depth=depth, scatter_weights=aperture_weights_folded)
     set_float_feature(ex, f"local_aperture_{k}{tag}", view)
 
   view, std, mask, _, _ = preprocess.local_view(
-      tic, folded_time[odds], folded_flux[odds], period, duration, scale=scale, depth=depth)
+      tic, folded_time[odds], folded_flux[odds], period, duration, scale=scale, depth=depth, scatter_weights=folded_weights[odds])
   set_float_feature(ex, f"local_view_odd{tag}", view)
   set_float_feature(ex, f"local_std_odd{tag}", std)
   set_float_feature(ex, f"local_mask_odd{tag}", mask)
 
   view, std, mask, _, _ = preprocess.local_view(
-      tic, folded_time[evens], folded_flux[evens], period, duration, scale=scale, depth=depth)
+      tic, folded_time[evens], folded_flux[evens], period, duration, scale=scale, depth=depth, scatter_weights=folded_weights[evens])
   set_float_feature(ex, f"local_view_even{tag}", view)
   set_float_feature(ex, f"local_std_even{tag}", std)
   set_float_feature(ex, f"local_mask_even{tag}", mask)
@@ -128,9 +132,9 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
   #     tic, time, flux, period, duration, scale=scale, depth=depth)
 
   try:
-      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, folded_time, folded_flux, period, duration)
+      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, folded_time, folded_flux, period, duration, scatter_weights=folded_weights)
       (view, std, mask, scale, _), t0 = preprocess.secondary_view(
-          tic, folded_time, folded_flux, period, duration, scale=scale, depth=depth)
+          tic, folded_time, folded_flux, period, duration, scale=scale, depth=depth, scatter_weights=folded_weights)
   except IndexError as e:
       logging.warning(f"Skipping TIC {tic}: preprocess.secondary_view failed (IndexError).", exc_info=False)
       time_info = f"shape {folded_time.shape}" if hasattr(folded_time, 'shape') else f"length {len(folded_time)}"
@@ -151,7 +155,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
     set_float_feature(ex, f"secondary_scale_present{tag}", [0.0])
 
   full_view = preprocess.sample_segments_view(tic, folded_time, folded_flux, fold_num, period,
-                                              duration)
+                                              duration, scatter_weights=folded_weights)
   set_float_feature(ex, f"sample_segments_view{tag}", full_view)
 
   odd_view = preprocess.sample_segments_view(
@@ -163,7 +167,8 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
       duration,
       num_bins=61,
       num_transits=4,
-      local=True)
+      local=True,
+      scatter_weights=folded_weights)
   even_view = preprocess.sample_segments_view(
       tic,
       folded_time[evens],
@@ -173,31 +178,33 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
       duration,
       num_bins=61,
       num_transits=4,
-      local=True)
+      local=True,
+      scatter_weights=folded_weights)
   full_view = np.concatenate([odd_view, even_view], axis=-1)
   set_float_feature(ex, f"sample_segments_local_view{tag}", full_view)
 
   # Double period views
-  folded_time_2x, folded_flux_2x, fold_num_2x, _ = preprocess.phase_fold_and_sort_light_curve(
+  folded_time_2x, folded_flux_2x, fold_num_2x, _, folded_weights_2x = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2,
-      epoc - period / 2)
+      epoc - period / 2,
+      scatter_weights=scatter_weights)
   view, std, mask, scale, _ = preprocess.global_view(tic, folded_time_2x, folded_flux_2x,
-                                                     period * 2, raw_time=detrended_time, raw_flux=detrended_flux)
+                                                     period * 2, raw_time=detrended_time, raw_flux=detrended_flux, scatter_weights=folded_weights_2x)
   set_float_feature(ex, f"global_view_double_period{tag}", view)
   set_float_feature(ex, f"global_view_double_period_std{tag}", std)
   set_float_feature(ex, f"global_view_double_period_mask{tag}", mask)
 
   # Half period views
-  folded_time_half, folded_flux_half, fold_num_half, _ = preprocess.phase_fold_and_sort_light_curve(
-      detrended_time, detrended_flux, transit_mask, period / 2, epoc)
+  folded_time_half, folded_flux_half, fold_num_half, _, folded_weights_half = preprocess.phase_fold_and_sort_light_curve(
+      detrended_time, detrended_flux, transit_mask, period / 2, epoc, scatter_weights=scatter_weights)
   view, std, mask, scale, _ = preprocess.global_view(tic, folded_time_half, folded_flux_half,
-                                                     period / 2, raw_time=detrended_time, raw_flux=detrended_flux)
+                                                     period / 2, raw_time=detrended_time, raw_flux=detrended_flux, scatter_weights=folded_weights_half)
   set_float_feature(ex, f"global_view_half_period{tag}", view)
   set_float_feature(ex, f"global_view_half_period_std{tag}", std)
   set_float_feature(ex, f"global_view_half_period_mask{tag}", mask)
 
   view, std, mask, scale, _ = preprocess.local_view(tic, folded_time_half, folded_flux_half, period / 2,
-                                                    duration)
+                                                    duration, scatter_weights=folded_weights_half)
   set_float_feature(ex, f"local_view_half_period{tag}", view)
   set_float_feature(ex, f"local_view_half_period_std{tag}", std)
   set_float_feature(ex, f"local_view_half_period_mask{tag}", mask)
