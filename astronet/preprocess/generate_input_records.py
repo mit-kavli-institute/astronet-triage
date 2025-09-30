@@ -421,7 +421,7 @@ def main(_):
           FLAGS.mode,
           False,
           output_dir=FLAGS.output_dir,
-          num_processes=35
+          num_processes=40
       )
   logging.info("Finished processing %d total file shards", len(file_shards))
 
