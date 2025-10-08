@@ -1,2 +1,3 @@
 *.pyc
 .pylintrc.swp
+*.png
