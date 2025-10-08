@@ -170,7 +170,6 @@ def main(_):
     for name, block in model.ts_blocks.items():
       pretrain_block = pretrain_model.ts_blocks.get(name)
       if pretrain_block is not None:
-        # preloaded_blocks.append(name)
         block.set_weights(pretrain_block.get_weights())
         logging.info(f"Block '{name}': set params from pretrained model")
         if config.freeze_pretrained_params:

@@ -12,9 +12,11 @@
 # limitations under the License.
 """Script for generating TFrecord files from TESS TCEs."""
 
+import argparse
 import multiprocessing
 import os
 import sys
+import traceback
 from typing import Literal, Optional
 
 import numpy as np
@@ -38,25 +40,20 @@ class LCGetter(Protocol):
 
 AstronetMode = Literal["triage", "vetting"]
 
-flags.DEFINE_string(
-    "input_tce_csv_file", None, "Filename of input TCE file.", required=True)
+parser = argparse.ArgumentParser()
 
-flags.DEFINE_string(
-    "tess_data_dir", None, "TESS data directory.", required=True)
+parser.add_argument("--input_tce_csv_file", type=str, required=True)
 
-flags.DEFINE_string("output_dir", None, "Output directory.", required=True)
+parser.add_argument("--tess_data_dir", type=str, required=True)
 
-flags.DEFINE_integer("num_shards", 20, "Number of output shards.")
+parser.add_argument("--output_dir", type=str, required=True)
 
-flags.DEFINE_enum(
-    "mode",
-    None, ["triage", "vetting"],
-    "Whether to generate for triage or vetting.",
-    required=True)
+parser.add_argument("--num_shards", type=int, default=20)
 
-flags.DEFINE_bool("training", True, "Whether to generate for training.")
+parser.add_argument(
+    "--mode", type=str, choices=["triage", "vetting"], required=True)
 
-FLAGS = flags.FLAGS
+parser.add_argument("--not-training", action="store_true")
 
 
 def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
@@ -207,8 +204,12 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace,
 
 def _process_tce(tce, get_lightcurve: LCGetter, mode: AstronetMode,
                  training: bool):
-  time, flux = get_lightcurve(tce["Astro ID"])
-  if mode == "vetting":
+  import time
+  start_time = time.time()
+  astro_id = tce['Astro ID']
+  logging.debug(f'Starting to process {astro_id}')
+  tme, flux = get_lightcurve(tce['Astro ID'])
+  if mode == 'vetting':
     apertures = {
         "s": get_lightcurve(tce["Astro ID"], aperture="s"),
         "m": get_lightcurve(tce["Astro ID"], aperture="m"),
@@ -220,7 +221,7 @@ def _process_tce(tce, get_lightcurve: LCGetter, mode: AstronetMode,
   ex = tf.train.Example()
 
   for bkspace in [0.3, 5.0, None]:
-    fold_num = _standard_views(ex, tce["TIC ID"], time, flux, tce.Per, tce.Epoc,
+    fold_num = _standard_views(ex, tce['TIC ID'], tme, flux, tce.Per, tce.Epoc,
                                tce.Dur, bkspace, apertures)
     if fold_num is None:
       # We are skipping this TCE entirely
@@ -284,157 +285,146 @@ def _process_tce(tce, get_lightcurve: LCGetter, mode: AstronetMode,
   set_float_feature(ex, "n_folds", [len(set(fold_num))])
   set_float_feature(ex, "n_points", [len(fold_num)])
 
+  end_time = time.time()
+  logging.debug(
+      f'Finished processing {astro_id} in {end_time - start_time} seconds')
   return ex
 
 
-def _process_file_shard(
-    tce_table: pd.DataFrame,
-    file_name: str,
-    get_lightcurve: LCGetter,
-    mode: AstronetMode,
-    training: bool,
-):
-  shard_name = os.path.basename(file_name)
-  shard_size = len(tce_table)
+tce_table = None
 
-  existing = {}
-  # tfr = tf.data.TFRecordDataset(file_name)
-  # for record in tfr:
-  #   ex_str = record.numpy()
-  #   ex = tf.train.Example.FromString(ex_str)
-  #   existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
 
-  if tf.io.gfile.exists(file_name):
-    tfr = tf.data.TFRecordDataset(file_name)
-    for record in tfr:
-        ex_str = record.numpy()
-        ex = tf.train.Example.FromString(ex_str)
-        existing[ex.features.feature["astro_id"].int64_list.value[0]] = ex_str
+def get_lightcurve(astro_id: int, aperture: Optional[str] = None):
+  aperture_key_map = {
+      "s": "SAP_FLUX_SML",
+      "m": "SAP_FLUX_MID",
+      "l": "SAP_FLUX_LAG",
+      None: "SAP_FLUX",
+  }
+  global tce_table
+  matching_tces = tce_table[tce_table["Astro ID"] == astro_id]
+  try:
+    _, tce = next(matching_tces.iterrows())
+  except StopIteration as e:
+    raise ValueError(f"Astro ID not found: {astro_id}") from e
+  if "MinT" not in tce:
+    tce["MinT"] = -np.inf
+  if "MaxT" not in tce:
+    tce["MaxT"] = np.inf
+  return preprocess.read_and_process_light_curve(
+      FLAGS.tess_data_dir,
+      aperture_key_map[aperture],
+      tce.File,
+      tce.MinT,
+      tce.MaxT,
+  )
 
-  with tf.io.TFRecordWriter(file_name) as writer:
-    num_processed = 0
-    num_skipped = 0
-    num_existing = 0
-    print("", end="")
-    for _, tce in tce_table.iterrows():
-      num_processed += 1
-      recid = int(tce["Astro ID"])
-      print("\r                                      ", end="")
-      print(f"\r[{num_processed}/{shard_size}] {recid}", end="")
 
-      if recid in existing:
-        print(" exists", end="")
-        sys.stdout.flush()
-        writer.write(existing[recid])
-        num_existing += 1
-        continue
+class ProcessRecordWorker:
 
-      examples = []
-      print(" processing", end="")
-      sys.stdout.flush()
+  def __init__(self, existing, get_lightcurve, mode, training, _process_tce,
+               tce_table, output_dir, augment_times):
+    self.existing = existing
+    self.get_lightcurve = get_lightcurve
+    self.mode = mode
+    self.training = training
+    self._process_tce = _process_tce
+    self.tce_table = tce_table
+    self.augment_times = augment_times
+    self.output_dir = output_dir
 
-      ### OLD version:
-      # ex = _process_tce(tce, get_lightcurve, mode, training)
-      # examples.append(ex)
+  def __call__(self, tce_row_dict):
+    tce = pd.Series(tce_row_dict)
+    recid = int(tce['Astro ID'])
+    examples = []
 
-      # print(" writing                   ", end="")
-      # sys.stdout.flush()
-      # for example in examples:
-      #   writer.write(example.SerializeToString())
+    try:
+      if recid in self.existing and self.augment_times == 0:
+        return [(self.existing[recid], 'reused', recid)]
 
-      ### New version:
-      ex = _process_tce(tce, get_lightcurve, mode, training)
+      # Original example: simply pass through the light curve
+      def passthrough_lc_getter(astro_id, aperture=None):
+        return self.get_lightcurve(astro_id, aperture)
 
-      # If ex is None, we skip this TCE:
-      if ex is None:
-        num_skipped += 1
-        print(" -> Skipped", end="")
-      else:
-        # Otherwise, we append it to 'examples'
-        examples.append(ex)
-      print(" writing                   ", end="")
-      sys.stdout.flush()
-      # ### [MODIFIED] We only write out the non-None examples:
-      for example in examples:
-        writer.write(example.SerializeToString())
+      ex = self._process_tce(tce, passthrough_lc_getter, self.mode,
+                             self.training)
+      examples.append((ex.SerializeToString(), 'new', recid))
 
-  num_new = num_processed - num_skipped - num_existing
-  print(f"\r{shard_name}: {num_processed}/{shard_size} {num_new} new "
-        f"{num_skipped} bad            ")
+      # Augmented examples
+      # TODO: add augmentation support which modifies the lc_getter
+    except KeyboardInterrupt:
+      logging.debug("ProcessRecordWorker propagating keyboard interrupt")
+      raise
+    except Exception as e:
+      logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(e))}".strip())
+      logging.debug(f"Full traceback for Astro ID {recid} (SAFELY CAUGHT):\n{traceback.format_exc()}")
+      return [(None, 'skipped', recid)]
+
+    return examples
 
 
 def create(
     tce_table: pd.DataFrame,
-    output_dir: str,
-    num_shards: int,
-    num_processes: int,
-    mode: AstronetMode,
+    file_name: str,
+    get_lightcurve,
+    mode,
     training: bool,
-    get_lightcurve: LCGetter,
+    output_dir: str,
+    num_processes: int = None,
 ):
-  tf.io.gfile.makedirs(output_dir)
-  logging.info(f"Processing {len(tce_table)} TCEs")
+  shard_name = os.path.basename(file_name)
+  shard_size = len(tce_table)
+  num_processes = num_processes or 1
 
-  tce_shards: tuple[pd.DataFrame,
-                    str] = []  # List of (tce_table_shard, file_name)
-  boundaries = np.linspace(0, len(tce_table), num_shards + 1).astype(int)
-  for i in range(num_shards):
-    start, end = boundaries[i:i + 2]
-    tce_shards.append(
-        (start, end, os.path.join(output_dir, f"{i+1:05d}-of-{num_shards:05d}")))
-  logging.info(f"Processing {len(tce_table)} TCEs in {len(tce_shards)} shards.")
+  # Read existing TFRecords
+  existing = {}
+  try:
+    tfr = tf.data.TFRecordDataset(file_name)
+    for record in tfr:
+      ex_str = record.numpy()
+      ex = tf.train.Example.FromString(ex_str)
+      astro_id = ex.features.feature['astro_id'].int64_list.value[0]
+      existing[astro_id] = ex_str
+  except KeyboardInterrupt:
+    logging.debug("Propagating keyboard interrupt")
+    raise
+  except Exception as e:
+    logging.debug(
+        f"Warning: could not read existing records from {file_name}: {e}")
+  tce_dicts = tce_table.to_dict(orient='records')
+  logging.info(
+      f"[{shard_name}] Starting processing with {num_processes} processes on {len(tce_dicts)} TCEs"
+  )
 
-  if num_processes == 1:
-    for start, end, file in tce_shards:
-      _process_file_shard(tce_table[start:end], file, get_lightcurve, mode,
-                          training)
-  else:
-    with multiprocessing.Pool(num_processes) as pool:
-      pool.starmap(
-          _process_file_shard,
-          [(
-              tce_table[start:end],
-              file,
-              get_lightcurve,
-              mode,
-              training,
-          ) for start, end, file in tce_shards],
-      )
-  logging.info("Finished processing")
+  worker = ProcessRecordWorker(existing, get_lightcurve, mode, training,
+                               _process_tce, tce_table, output_dir, 5)
+
+  with multiprocessing.Pool(processes=num_processes) as pool:
+    results_nested = pool.map(worker, tce_dicts)
+
+  results = [item for sublist in results_nested for item in sublist]  # Flatten
+
+  serialized = []
+  stats = {"new": 0, "reused": 0, "augmented": 0, "skipped": 0}
+
+  for ex_bytes, status, recid in results:
+    logging.debug(f"[{shard_name}] Processed Astro ID {recid} -> {status}")
+    if ex_bytes:
+      serialized.append(ex_bytes)
+    stats[status] += 1
+
+  with tf.io.TFRecordWriter(file_name) as writer:
+    for ex in serialized:
+      writer.write(ex)
+
+  logging.info(f"[{shard_name}] Done. Total: {shard_size}, Stats: {stats}")
 
 
 def main(_):
   tf.io.gfile.makedirs(FLAGS.output_dir)
 
+  global tce_table
   tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
-
-  def get_lightcurve(
-      astro_id: int,
-      aperture: Optional[str] = None) -> tuple[np.ndarray, np.ndarray]:
-    aperture_key_map = {
-        "s": "SAP_FLUX_SML",
-        "m": "SAP_FLUX_MID",
-        "l": "SAP_FLUX_LAG",
-        None: "SAP_FLUX",
-    }
-    matching_tces = tce_table[
-        tce_table["Astro ID"] ==
-        astro_id]  # tce_table.where(tce_table["Astro ID"] == astro_id)
-    try:
-      _, tce = next(matching_tces.iterrows())
-    except StopIteration as e:
-      raise ValueError(f"Astro ID not found: {astro_id}") from e
-    if "MinT" not in tce:
-      tce["MinT"] = -np.inf
-    if "MaxT" not in tce:
-      tce["MaxT"] = np.inf
-    return preprocess.read_and_process_light_curve(
-        FLAGS.tess_data_dir,
-        aperture_key_map[aperture],
-        tce.File,
-        tce.MinT,
-        tce.MaxT,
-    )
 
   num_tces = len(tce_table)
   logging.info("Read %d TCEs", num_tces)
@@ -452,11 +442,19 @@ def main(_):
     filename = f"{i:05}-of-{FLAGS.num_shards:05}"
     file_shards.append((start, end, os.path.join(FLAGS.output_dir, filename)))
 
-  logging.info("Processing %d total file shards", len(file_shards))
-  for start, end, file_shard in file_shards:
-    _process_file_shard(tce_table[start:end], file_shard, get_lightcurve,
-                        FLAGS.mode, FLAGS.training)
-  logging.info("Finished processing %d total file shards", len(file_shards))
+    logging.info("Processing %d total file shards", len(file_shards))
+    for start, end, file_shard in file_shards:
+      logging.info(f'Starting shard {file_shard}')
+      logging.info(f'{FLAGS.output_dir}')
+      create(
+          tce_table[start:end],
+          file_shard,
+          get_lightcurve,
+          FLAGS.mode,
+          False,
+          output_dir=FLAGS.output_dir,
+          num_processes=35)
+    logging.info("Finished processing %d total file shards", len(file_shards))
 
   ### [ADDED] At the very end, write the problematic TICs to a file
   if SKIPPED_TICS:
@@ -477,4 +475,5 @@ def main(_):
 
 if __name__ == "__main__":
   logging.set_verbosity(logging.INFO)
-  app.run(main)
+  FLAGS, unparsed = parser.parse_known_args()
+  app.run(main=main, argv=[sys.argv[0]] + unparsed)

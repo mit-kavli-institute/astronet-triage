@@ -227,6 +227,22 @@ def build_train_dataset(file_pattern,
       exclude_astro_ids=exclude_astro_ids)
 
 
+<<<<<<< HEAD
 def build_eval_dataset(file_pattern, input_config, batch_size,include_identifiers=False,include_labels=True):
   """Builds a dataset for evaluation."""
   return build_dataset(file_pattern, input_config, batch_size, use_cache=False,include_identifiers=include_identifiers,include_labels=include_labels)
+=======
+def build_eval_dataset(file_pattern,
+                       input_config,
+                       batch_size,
+                       include_identifiers=False,
+                       include_labels=True):
+  """Builds a dataset for evaluation."""
+  return build_dataset(
+      file_pattern,
+      input_config,
+      batch_size,
+      include_identifiers=include_identifiers,
+      include_labels=include_labels,
+      use_cache=False)
+>>>>>>> origin/main

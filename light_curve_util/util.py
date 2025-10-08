@@ -34,11 +34,12 @@ def phase_fold_time(time, period, t0):
   shifted_time = time - t0 + half_period
 
   # Normalize the time scale to begin as close to zero as possible.
-  first_t = min(shifted_time)
-  shifted_time -= np.floor(np.min(shifted_time) / period) * period
-  if min(shifted_time) < 0:
-    raise ValueError(
-        f'unexpected time shift {first_t} ({t0}, {half_period}, {period}, {min(shifted_time)})')
+  if len(shifted_time) > 0:
+      first_t = min(shifted_time)
+      shifted_time -= np.floor(np.min(shifted_time) / period) * period
+      if min(shifted_time) < 0:
+        raise ValueError(
+            f'unexpected time shift {first_t} ({t0}, {half_period}, {period}, {min(shifted_time)})')
 
   fold_num, result = np.divmod(shifted_time, period)
   fold_num = fold_num.astype(int)

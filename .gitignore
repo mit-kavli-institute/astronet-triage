@@ -1,3 +1,4 @@
 *.pyc
 .pylintrc.swp
 *.png
+config.yaml
