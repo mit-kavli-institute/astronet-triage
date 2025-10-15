@@ -252,7 +252,7 @@ def mask_transit(time, duration, period, mask_width=2, phase_limit=0.1):
   return np.array(mask)
 
 
-def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
+def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1, raw_time=None):
   """Mask out transits, rearrange LC such that time goes from 0 to period. Then
   perform grid search for most likely secondary eclipse. To be called after
   preprocess.phase_fold_and_sort_light_curve. OOT flux should be 1.
@@ -263,6 +263,7 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
     :param period: the period of the event (in days).
     :param mask_width: number of durations to mask out.
     :param phase_limit: minimum phase to search for secondary eclipse.
+    :param raw_time: 1D array of raw time values corresponding to the folded time.
     :return: time of centre of most likely secondary.
   """
   if period < 1:
@@ -277,12 +278,15 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
 
   new_time = time[mask]
   new_flux = flux[mask]
+  new_raw_time = raw_time[mask] if raw_time is not None else None
 
   # rearrange so that time goes from 0 to period
   new_time[new_time < 0] += period
   new_index = np.argsort(new_time)
   new_time = new_time[new_index]
   new_flux = new_flux[new_index]
+  if new_raw_time is not None:
+    new_raw_time = new_raw_time[new_index]
   new_flux -= 1.  # centre flux at zero
 
   # grid search for secondary. Fix duration to duration of primary.
@@ -315,7 +319,7 @@ def find_secondary(time, flux, duration, period, mask_width=2, phase_limit=0.1):
     if sr > best_sr:
       best_t0 = t0
       best_sr = sr
-  return best_t0, new_time, new_flux + 1.
+  return best_t0, new_time, new_flux + 1., new_raw_time
 
 
 def secondary_view(tic_id,
@@ -347,23 +351,20 @@ def secondary_view(tic_id,
     uniformly spaced bins on the phase-folded time axis.
   """
 
-  if all_30min is False:
-        warnings.warn(
-            "secondary_view: all_30min=False is not implemented yet; "
-            "falling back to all_30min=True (30-min cadence).",
-            category=UserWarning,
-            stacklevel=2,
-        )
-        all_30min = True
+  # Only use raw_time when all_30min=False
+  if all_30min is True:
+        # Force 30-minute cadence, don't use raw_time
+        if raw_time is not None:
+            raise ValueError("Cannot use raw_time when all_30min=True. Set all_30min=False to use raw_time for cadence selection.")
         raw_time = None
         raw_flux = None
 
   if len(time):
-    t0, new_time, new_flux = find_secondary(time, flux, duration, period)
+    t0, new_time, new_flux, new_raw_time = find_secondary(time, flux, duration, period, raw_time=raw_time)
     t_min = max(t0 - period / 2, t0 - duration * num_durations, new_time[0])
     t_max = min(t0 + period / 2, t0 + duration * num_durations, new_time[-1])
   else:
-    t0, new_time, new_flux = 0.0, time, flux
+    t0, new_time, new_flux, new_raw_time = 0.0, time, flux, raw_time
     t_min = 0.0
     t_max = 0.0
 
@@ -379,7 +380,7 @@ def secondary_view(tic_id,
           scale=scale,
           depth=depth,
           all_30min=all_30min,
-          raw_time=raw_time,
+          raw_time=new_raw_time,
           raw_flux=raw_flux),
       t0,
   )
