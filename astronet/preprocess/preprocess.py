@@ -15,6 +15,8 @@
 
 import os
 
+import warnings
+
 import numpy as np
 
 from light_curve_util import keplersplinev2, median_filter2, tess_io, util
@@ -70,6 +72,13 @@ def phase_fold_and_sort_light_curve(time, flux, mask, period, t0):
 
   return time, flux, fold_num, mask
 
+def align_raw_time(detr_t, detr_f, period, epoch):
+  folded_abs_time, _ = util.phase_fold_time(detr_t, period, epoch)
+  sort_idx = np.argsort(folded_abs_time)
+  raw_time_aligned = detr_t[sort_idx]
+  raw_flux_aligned = detr_f[sort_idx]  # optional, if you also want raw_flux
+  return raw_time_aligned, raw_flux_aligned
+
 
 def generate_view(
     tic_id,
@@ -86,6 +95,7 @@ def generate_view(
     depth=None,
     raw_time=None,
     raw_flux=None,
+    all_30min=True,
 ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -104,7 +114,7 @@ def generate_view(
   del tic_id  # Unused.
   if binning is None:
     view, mask, std = median_filter2.new_binning(
-        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux)
+        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux, all_30min=all_30min)
   else:
     view, mask, std = median_filter2.new_binning(
         time,
@@ -116,7 +126,8 @@ def generate_view(
         method=binning,
         trim_edges=trim_edges,
         raw_time=raw_time,
-        raw_flux=raw_flux)
+        raw_flux=raw_flux,
+        all_30min=all_30min)
 
   if normalize:
     # Normalization places:
@@ -144,7 +155,7 @@ def generate_view(
   return view, std, mask, scale, depth
 
 
-def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None):
+def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None, all_30min=True):
   """Generates a 'global view' of a phase folded light curve.
 
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
@@ -160,6 +171,9 @@ def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flu
     1D NumPy array of size num_bins containing the median flux values of
     uniformly spaced bins on the phase-folded time axis.
   """
+
+
+
   return generate_view(
       tic_id,
       time,
@@ -169,10 +183,11 @@ def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flu
       t_min=-period / 2,
       t_max=period / 2,
       raw_time=raw_time,
-      raw_flux=raw_flux)
+      raw_flux=raw_flux,
+      all_30min=all_30min)
 
 
-def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):
+def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201, all_30min=True, raw_time=None, raw_flux=None):
   return generate_view(
       tic_id,
       time,
@@ -182,7 +197,10 @@ def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201):
       t_min=-period / 2,
       t_max=period / 2,
       normalize=False,
-      binning='max')
+      binning='max',
+      raw_time=raw_time,
+      raw_flux=raw_flux,
+      all_30min=all_30min)
 
 
 def local_view(tic_id,
@@ -193,7 +211,10 @@ def local_view(tic_id,
                num_bins=61,
                num_durations=2,
                scale=None,
-               depth=None):
+               depth=None,
+               all_30min=True,
+               raw_time=None,
+               raw_flux=None):
   """Generates a 'local view' of a phase folded light curve.
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
   http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -219,6 +240,9 @@ def local_view(tic_id,
       t_max=min(period / 2, duration * num_durations),
       scale=scale,
       depth=depth,
+      all_30min=all_30min,
+      raw_time=raw_time,
+      raw_flux=raw_flux
   )
 
 
@@ -302,7 +326,10 @@ def secondary_view(tic_id,
                    num_bins=61,
                    num_durations=2,
                    scale=None,
-                   depth=None):
+                   depth=None,
+                   all_30min=True,
+                   raw_time=None,
+                   raw_flux=None):
   """Generates a 'local view' of a phase folded light curve, centered on phase
   0.5. See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
   http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -319,6 +346,17 @@ def secondary_view(tic_id,
     1D NumPy array of size num_bins containing the median flux values of
     uniformly spaced bins on the phase-folded time axis.
   """
+
+  if all_30min is False:
+        warnings.warn(
+            "secondary_view: all_30min=False is not implemented yet; "
+            "falling back to all_30min=True (30-min cadence).",
+            category=UserWarning,
+            stacklevel=2,
+        )
+        all_30min = True
+        raw_time = None
+        raw_flux = None
 
   if len(time):
     t0, new_time, new_flux = find_secondary(time, flux, duration, period)
@@ -339,7 +377,10 @@ def secondary_view(tic_id,
           t_min=t_min,
           t_max=t_max,
           scale=scale,
-          depth=depth),
+          depth=depth,
+          all_30min=all_30min,
+          raw_time=raw_time,
+          raw_flux=raw_flux),
       t0,
   )
 
@@ -371,7 +412,22 @@ def sample_segments_view(tic_id,
                          duration,
                          num_bins=201,
                          num_transits=7,
-                         local=False):
+                         local=False,
+                         all_30min=True,
+                         raw_time=None,
+                         raw_flux=None):
+
+  if all_30min is False:
+    warnings.warn(
+            "sample_segments_view: all_30min=False is not implemented yet; "
+            "falling back to all_30min=True (30-min cadence).",
+            category=UserWarning,
+            stacklevel=2,
+        )
+    all_30min = True
+    raw_time = None
+    raw_flux = None
+
   times, fluxes, nums = sample_segments(
       time, flux, fold_num, num_transits=num_transits)
   full_view = []
@@ -391,6 +447,9 @@ def sample_segments_view(tic_id,
         t_max=period * n + t_min,
         normalize=False,
         trim_edges=True,
+        all_30min=all_30min,
+        raw_time=None,
+        raw_flux=None
     )
     full_view.append(view)
     full_view.append(mask)

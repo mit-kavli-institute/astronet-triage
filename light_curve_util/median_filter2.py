@@ -26,17 +26,22 @@ def tmod(t, p, e):
 
 
 PHASE2_T = 2036.2
+PHASE3_T = 2825.25
 HC_PHASE1 = 30.0 / 60.0 / 24 / 2
 HC_PHASE2 = 10.0 / 60.0 / 24 / 2
+HC_PHASE3 = 3.33 / 60.0 / 24 / 2
 
 
-def get_overlap(hbw, t, c):
-    hc = HC_PHASE1 if t < PHASE2_T else HC_PHASE2
-    bin_overlap = max(0, min(hbw, t + hc) - max(-hbw, t - hc))
-    return bin_overlap
+def get_overlap(hbw, t_centered, half_cadence):
+    """
+    Overlap between a bin of half-width hbw centered at 0 and a point with
+    'reach' given by half_cadence, located at t_centered (already folded
+    relative to the bin center).
+    """
+    return max(0, min(hbw, t_centered + half_cadence) - max(-hbw, t_centered - half_cadence))
 
 
-def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None):
+def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None, all_30min=True):
   t = time.copy()
   # Use raw_time for cadence selection if provided, otherwise use folded time
   time_for_cadence = raw_time if raw_time is not None else t
@@ -44,16 +49,13 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   # Debug controls (non-intrusive): set ASTRONET_DEBUG_BINNING=1 to enable
   DEBUG = os.getenv("ASTRONET_DEBUG_BINNING") == "1"
   if DEBUG:
-    total_points_phase1 = 0
-    total_points_phase2 = 0
-    bins_all_phase1 = 0
-    bins_all_phase2 = 0
+    total_points_phase1 = total_points_phase2 = total_points_phase3 = 0
+    bins_all_phase1 = bins_all_phase2 = bins_all_phase3 = 0
     bins_mixed = 0
-    print('raw_time',raw_time)
-    print('t',t)
-    print('time for cadence',time_for_cadence)
-    raw_time_folded=tmod(raw_time,period,b)
-
+    print('Shape of t: ', t.shape)
+    print('Shape of raw_time: ', raw_time.shape)
+    # print the number of points between tmin and tmax
+    print('Number of points between tmin and tmax: ', len(t[(t >= t_min) & (t <= t_max)]))
 
 
   bins_left_edge, step = np.linspace(
@@ -67,32 +69,50 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   f = np.zeros(num_bins)
   s = np.zeros(num_bins)
   m = np.ones(num_bins)
+
+# Use raw_time for cadence selection, but align with folded time indices
+  if all_30min:
+        # Force 30-minute cadence for all points
+        cadence_hw = np.full_like(t, HC_PHASE1, dtype=float)
+  elif raw_time is not None:
+        cadence_hw = np.select(
+            [time_for_cadence <= PHASE2_T,
+            (time_for_cadence > PHASE2_T) & (time_for_cadence <= PHASE3_T),
+            time_for_cadence > PHASE3_T],
+            [HC_PHASE1, HC_PHASE2, HC_PHASE3]
+        )
+  else:
+        raise ValueError("Cannot determine cadence: all_30min=False and raw_time=None.")
+
+  point_bin_hits_pre  = np.zeros(len(t), dtype=int)
+  point_bin_hits_post = np.zeros(len(t), dtype=int)
   for i, b in enumerate(bins_center):
     # time from bin center (use folded time for binning)
     t_c = tmod(t, period, b)
 
     # find which points are within the bin
-    # Use raw_time for cadence selection, but align with folded time indices
-    if raw_time is not None:
-        # Map raw_time to the same indices as the folded time
-        cadence_hw = np.where(time_for_cadence > PHASE2_T, HC_PHASE2, HC_PHASE1)
-    else:
-        cadence_hw = np.where(time_for_cadence > PHASE2_T, HC_PHASE2, HC_PHASE1)
+
 
     bin_mask = abs(t_c) <= hbw + cadence_hw
+
+    point_bin_hits_pre[bin_mask] += 1
 
     if DEBUG:
       if np.any(bin_mask):
         used = cadence_hw[bin_mask]
         c1 = np.sum(used == HC_PHASE1)
         c2 = np.sum(used == HC_PHASE2)
+        c3 = np.sum(used == HC_PHASE3)
         total_points_phase1 += int(c1)
         total_points_phase2 += int(c2)
-        if c1 > 0 and c2 == 0:
+        total_points_phase3 += int(c3)
+        if c1 > 0 and c2 == 0 and c3 == 0:
           bins_all_phase1 += 1
-        elif c2 > 0 and c1 == 0:
+        elif c2 > 0 and c1 == 0 and c3 == 0:
           bins_all_phase2 += 1
-        elif c1 > 0 and c2 > 0:
+        elif c3 > 0 and c1 == 0 and c2 == 0:
+          bins_all_phase3 += 1
+        else:
           bins_mixed += 1
 
     if not any(bin_mask):
@@ -114,9 +134,17 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         # calculate the robust mean to remove outliers
         mask = keplersplinev2.robust_mean_mask(f_x)
 
+        # indices of original points in this bin
+        idx_in_bin = np.where(bin_mask)[0]
+
+        # apply outlier mask to original indices, then count post-outlier hits
+        if len(idx_in_bin):
+          point_bin_hits_post[idx_in_bin[mask]] += 1
+
         # remove outliers
         f_x = f_x[mask]
         in_bin = in_bin[mask]
+        cad_in = cadence_hw[bin_mask][mask]
 
     if not len(f_x):
         m[i] = 0.0
@@ -125,7 +153,8 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     if method == 'weighted_mean':
         if len(in_bin) > 1:
             # Use raw_time for cadence in get_overlap too
-            weight = [get_overlap(hbw, in_bin[j], b) / bin_width
+            # weight = [get_overlap(hbw, in_bin[j], b) / bin_width
+            weight = [get_overlap(hbw, in_bin[j], cad_in[j]) / bin_width
                       for j in range(len(in_bin))]
             f[i] = np.average(f_x, weights=weight)
         else:
@@ -147,11 +176,30 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         m[i] = 0.0
 
   if DEBUG:
-      print("[new_binning DEBUG] cadence selection summary:")
-      print(f"  bins all phase1: {bins_all_phase1}")
-      print(f"  bins all phase2: {bins_all_phase2}")
-      print(f"  bins mixed:      {bins_mixed}")
-      print(f"  points phase1:   {total_points_phase1}")
-      print(f"  points phase2:   {total_points_phase2}")
+    print("[new_binning DEBUG] cadence selection summary:")
+    print(f"  bins all phase1: {bins_all_phase1}")
+    print(f"  bins all phase2: {bins_all_phase2}")
+    print(f"  bins all phase3: {bins_all_phase3}")
+    print(f"  bins mixed:      {bins_mixed}")
+    print(f"  points phase1:   {total_points_phase1}")
+    print(f"  points phase2:   {total_points_phase2}")
+    print(f"  points phase3:   {total_points_phase3}")
+
+
+    two_plus_pre  = int(np.sum(point_bin_hits_pre  >= 2))
+    two_plus_post = int(np.sum(point_bin_hits_post >= 2))
+    print(f"[new_binning DEBUG] points in ≥2 bins (pre-outlier):  {two_plus_pre}")
+    print(f"[new_binning DEBUG] points in ≥2 bins (post-outlier): {two_plus_post}")
+
+    three_plus_pre  = int(np.sum(point_bin_hits_pre  >= 3))
+    three_plus_post = int(np.sum(point_bin_hits_post >= 3))
+    print(f"[new_binning DEBUG] points in ≥3 bins (pre-outlier):  {three_plus_pre}")
+    print(f"[new_binning DEBUG] points in ≥3 bins (post-outlier): {three_plus_post}")
+
+    # (Optional) show full histogram: how many points hit 0,1,2,3,... bins
+    hist_pre  = np.bincount(point_bin_hits_pre)
+    hist_post = np.bincount(point_bin_hits_post)
+    print(f"[new_binning DEBUG] hits histogram pre : {dict(enumerate(hist_pre))}")
+    print(f"[new_binning DEBUG] hits histogram post: {dict(enumerate(hist_post))}")
 
   return f, m, s
