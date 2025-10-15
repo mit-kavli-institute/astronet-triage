@@ -53,7 +53,10 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
     bins_all_phase1 = bins_all_phase2 = bins_all_phase3 = 0
     bins_mixed = 0
     print('Shape of t: ', t.shape)
-    print('Shape of raw_time: ', raw_time.shape)
+    if raw_time is not None:
+      print('Shape of raw_time: ', raw_time.shape)
+    else:
+      print('raw_time is None')
     # print the number of points between tmin and tmax
     print('Number of points between tmin and tmax: ', len(t[(t >= t_min) & (t <= t_max)]))
 
