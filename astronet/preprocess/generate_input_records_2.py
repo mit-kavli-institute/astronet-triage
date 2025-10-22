@@ -359,9 +359,9 @@ def create(
     output_dir: str,
     num_processes: int = None,
 ):
-    shard_name = os.path.basename(file_name)
-    shard_size = len(tce_table)
-    num_processes = num_processes or 1
+  shard_name = os.path.basename(file_name)
+  shard_size = len(tce_table)
+  num_processes = num_processes or 1
 
   # Read existing TFRecords
   existing = {}
@@ -377,60 +377,59 @@ def create(
     raise
   except Exception as e:
     logging.debug(f"Warning: could not read existing records from {file_name}: {e}")
-    tce_dicts = tce_table.to_dict(orient='records')
-    logging.info(f"[{shard_name}] Starting processing with {num_processes} processes on {len(tce_dicts)} TCEs")
+  tce_dicts = tce_table.to_dict(orient='records')
+  logging.info(f"[{shard_name}] Starting processing with {num_processes} processes on {len(tce_dicts)} TCEs")
 
-    worker = ProcessRecordWorker(existing, get_lightcurve, mode, training, _process_tce, tce_table, output_dir, 5)
+  worker = ProcessRecordWorker(existing, get_lightcurve, mode, training, _process_tce, tce_table, output_dir, 5)
 
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        results_nested  = pool.map(worker, tce_dicts)
+  with multiprocessing.Pool(processes=num_processes) as pool:
+    results_nested  = pool.map(worker, tce_dicts)
 
-    results = [item for sublist in results_nested for item in sublist]  # Flatten
+  results = [item for sublist in results_nested for item in sublist]  # Flatten
 
+  serialized = []
+  stats = {"new": 0, "reused": 0, "augmented": 0, "skipped": 0}
 
-    serialized = []
-    stats = {"new": 0, "reused": 0, "augmented": 0, "skipped": 0}
+  for ex_bytes, status, recid in results:
+    logging.debug(f"[{shard_name}] Processed Astro ID {recid} -> {status}")
+    if ex_bytes:
+      serialized.append(ex_bytes)
+    stats[status] += 1
 
-    for ex_bytes, status, recid in results:
-        logging.debug(f"[{shard_name}] Processed Astro ID {recid} -> {status}")
-        if ex_bytes:
-            serialized.append(ex_bytes)
-        stats[status] += 1
+  with tf.io.TFRecordWriter(file_name) as writer:
+    for ex in serialized:
+      writer.write(ex)
 
-    with tf.io.TFRecordWriter(file_name) as writer:
-        for ex in serialized:
-            writer.write(ex)
-
-    logging.info(f"[{shard_name}] Done. Total: {shard_size}, Stats: {stats}")
+  logging.info(f"[{shard_name}] Done. Total: {shard_size}, Stats: {stats}")
 
 def main(_):
-    tf.io.gfile.makedirs(FLAGS.output_dir)
+  tf.io.gfile.makedirs(FLAGS.output_dir)
 
-    global tce_table
-    tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
+  global tce_table
+  tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
 
-    num_tces = len(tce_table)
-    logging.info("Read %d TCEs", num_tces)
+  num_tces = len(tce_table)
+  logging.info("Read %d TCEs", num_tces)
 
-    # Further split training TCEs into file shards.
-    file_shards = []  # List of (tce_table_shard, file_name).
-    boundaries = np.linspace(
-        0, len(tce_table), FLAGS.num_shards + 1).astype(np.int)
-    for i in range(FLAGS.num_shards):
-      start = boundaries[i]
-      end = boundaries[i + 1]
-      file_shards.append((
-          start,
-          end,
-          os.path.join(FLAGS.output_dir, "%.5d-of-%.5d" % (i, FLAGS.num_shards))
-      ))
+  # Further split training TCEs into file shards.
+  file_shards = []  # List of (tce_table_shard, file_name).
+  boundaries = np.linspace(
+      0, len(tce_table), FLAGS.num_shards + 1).astype(np.int)
+  for i in range(FLAGS.num_shards):
+    start = boundaries[i]
+    end = boundaries[i + 1]
+    file_shards.append((
+        start,
+        end,
+        os.path.join(FLAGS.output_dir, "%.5d-of-%.5d" % (i, FLAGS.num_shards))
+    ))
 
-    logging.info("Processing %d total file shards", len(file_shards))
-    for start, end, file_shard in file_shards:
-        logging.info(f'Starting shard {file_shard}')
-        logging.info(f'{FLAGS.output_dir}')
-        create(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
-    logging.info("Finished processing %d total file shards", len(file_shards))
+  logging.info("Processing %d total file shards", len(file_shards))
+  for start, end, file_shard in file_shards:
+    logging.info(f'Starting shard {file_shard}')
+    logging.info(f'{FLAGS.output_dir}')
+    create(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
+  logging.info("Finished processing %d total file shards", len(file_shards))
 
   ### [ADDED] At the very end, write the problematic TICs to a file
   if SKIPPED_TICS:
