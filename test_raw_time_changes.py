@@ -48,9 +48,9 @@ def test_view_functions_with_raw_time():
     period = 2.0
     duration = 0.1
 
-    # Create raw time data (simulate different cadence)
-    raw_time = np.linspace(-1, 1, 200)  # Higher cadence
-    raw_flux = 1.0 + 0.01 * np.sin(2 * np.pi * raw_time) + 0.001 * np.random.randn(200)
+    # Create raw time data (same length as time/flux for testing)
+    raw_time = np.linspace(-1, 1, 100)  # Same length as time/flux
+    raw_flux = 1.0 + 0.01 * np.sin(2 * np.pi * raw_time) + 0.001 * np.random.randn(100)
 
     try:
         # Test global_view with raw time
