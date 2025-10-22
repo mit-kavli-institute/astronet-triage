@@ -335,7 +335,11 @@ class ProcessRecordWorker:
                 return self.get_lightcurve(astro_id, aperture)
 
             ex = self._process_tce(tce, passthrough_lc_getter, self.mode, self.training)
-            examples.append((ex.SerializeToString(), 'new', recid))
+            if ex is not None:
+                examples.append((ex.SerializeToString(), 'new', recid))
+            else:
+                # TCE was skipped (e.g., due to secondary_view IndexError)
+                return [(None, 'skipped', recid)]
 
             # Augmented examples
             # TODO: add augmentation support which modifies the lc_getter
@@ -343,7 +347,7 @@ class ProcessRecordWorker:
             logging.debug("ProcessRecordWorker propagating keyboard interrupt")
             raise
         except Exception as e:
-            logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(e))}".strip())
+            logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(type(e), e))}".strip())
             logging.debug(f"Full traceback for Astro ID {recid} (SAFELY CAUGHT):\n{traceback.format_exc()}")
             return [(None, 'skipped', recid)]
 

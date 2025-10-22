@@ -130,7 +130,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   for k, (t, f) in aperture_fluxes.items():
     detr_t, detr_f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
     t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(detr_t, detr_f, m, period, epoc)
-    # Align raw time for aperture
+    # Align raw time for aperture - use the detrended data that was phase-folded
     aperture_raw_time, aperture_raw_flux = preprocess.align_raw_time(detr_t, detr_f, period, epoc)
     view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth, all_30min=False, raw_time=aperture_raw_time, raw_flux=aperture_raw_flux)
     _set_float_feature(ex, f'local_aperture_{k}{tag}', view)
@@ -345,7 +345,11 @@ class ProcessRecordWorker:
                 return self.get_lightcurve(astro_id, aperture)
 
             ex = self._process_tce(tce, passthrough_lc_getter, self.mode, self.training)
-            examples.append((ex.SerializeToString(), 'new', recid))
+            if ex is not None:
+                examples.append((ex.SerializeToString(), 'new', recid))
+            else:
+                # TCE was skipped (e.g., due to secondary_view IndexError)
+                return [(None, 'skipped', recid)]
 
             # Augmented examples
             # TODO: add augmentation support which modifies the lc_getter
@@ -353,7 +357,7 @@ class ProcessRecordWorker:
             logging.debug("ProcessRecordWorker propagating keyboard interrupt")
             raise
         except Exception as e:
-            logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(e))}".strip())
+            logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(type(e), e))}".strip())
             logging.debug(f"Full traceback for Astro ID {recid} (SAFELY CAUGHT):\n{traceback.format_exc()}")
             return [(None, 'skipped', recid)]
 
