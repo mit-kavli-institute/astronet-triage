@@ -25,6 +25,7 @@ import traceback
 
 from astronet.preprocess import preprocess
 
+SKIPPED_TICS=[]
 
 class LCGetter(Protocol):
    def __call__(self, astro_id: int, aperture: Optional[Literal['s', 'm', 'l']] = None): ...
@@ -88,6 +89,11 @@ def _set_int64_feature(ex, name, value):
 
 
 def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, aperture_fluxes):
+  if time is None or len(time) == 0 or flux is None or len(flux) == 0:
+    logging.warning(f"Skipping TIC {tic}: empty time/flux array.")
+    SKIPPED_TICS.append(tic)
+    return None
+
   if bkspace is None:
     tag = ''
   else:
@@ -133,8 +139,17 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, f'local_std_even{tag}', std)
   _set_float_feature(ex, f'local_mask_even{tag}', mask)
 
-  (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
-  (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth)
+  try:
+      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
+      (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth)
+  except IndexError as e:
+      logging.warning(f"Skipping TIC {tic}: preprocess.secondary_view failed (IndexError).", exc_info=False)
+      time_info = f"shape {time.shape}" if hasattr(time, 'shape') else f"length {len(time)}"
+      flux_info = f"shape {flux.shape}" if hasattr(flux, 'shape') else f"length {len(flux)}"
+      logging.debug(f"  Details for failed TIC {tic}: Error='{e}', Input time info='{time_info}', Input flux info='{flux_info}'")
+      SKIPPED_TICS.append(tic)
+      return None
+
   _set_float_feature(ex, f'secondary_view{tag}', view)
   _set_float_feature(ex, f'secondary_std{tag}', std)
   _set_float_feature(ex, f'secondary_mask{tag}', mask)
@@ -155,7 +170,7 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
       tic, time[evens], flux[evens], fold_num[evens], period, duration, num_bins=61, num_transits=4, local=True)
   full_view = np.concatenate([odd_view, even_view], axis=-1)
   _set_float_feature(ex, f'sample_segments_local_view{tag}', full_view)
-  
+
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
   view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
@@ -169,12 +184,12 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   _set_float_feature(ex, f'global_view_half_period{tag}', view)
   _set_float_feature(ex, f'global_view_half_period_std{tag}', std)
   _set_float_feature(ex, f'global_view_half_period_mask{tag}', mask)
-  
+
   view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration)
   _set_float_feature(ex, f'local_view_half_period{tag}', view)
   _set_float_feature(ex, f'local_view_half_period_std{tag}', std)
   _set_float_feature(ex, f'local_view_half_period_mask{tag}', mask)
-    
+
   return fold_num
 
 
@@ -202,6 +217,9 @@ def _process_tce(
 
   for bkspace in [0.3, 5.0, None]:
     fold_num = _standard_views(ex, tce['TIC ID'], tme, flux, tce.Per, tce.Epoc, tce.Dur, bkspace, apertures)
+    if fold_num is None:
+      # We are skipping this TCE entirely
+      return None
 
   _set_int64_feature(ex, 'astro_id', [tce['Astro ID']])
 
@@ -315,16 +333,20 @@ class ProcessRecordWorker:
             # Original example: simply pass through the light curve
             def passthrough_lc_getter(astro_id, aperture=None):
                 return self.get_lightcurve(astro_id, aperture)
-            
+
             ex = self._process_tce(tce, passthrough_lc_getter, self.mode, self.training)
             examples.append((ex.SerializeToString(), 'new', recid))
 
             # Augmented examples
             # TODO: add augmentation support which modifies the lc_getter
-        except Exception:
-            logging.info(traceback.logging.info_exc())
+        except KeyboardInterrupt:
+            logging.debug("ProcessRecordWorker propagating keyboard interrupt")
+            raise
+        except Exception as e:
+            logging.warning(f"Skipping Astro ID {recid} due to error: {''.join(traceback.format_exception_only(e))}".strip())
+            logging.debug(f"Full traceback for Astro ID {recid} (SAFELY CAUGHT):\n{traceback.format_exc()}")
             return [(None, 'skipped', recid)]
-        
+
         return examples
 
 
@@ -334,24 +356,27 @@ def create(
     get_lightcurve,
     mode,
     training: bool,
-    output_dir: str, 
+    output_dir: str,
     num_processes: int = None,
 ):
     shard_name = os.path.basename(file_name)
     shard_size = len(tce_table)
     num_processes = num_processes or 1
 
-    # Read existing TFRecords
-    existing = {}
-    try:
-        tfr = tf.data.TFRecordDataset(file_name)
-        for record in tfr:
-            ex_str = record.numpy()
-            ex = tf.train.Example.FromString(ex_str)
-            astro_id = ex.features.feature['astro_id'].int64_list.value[0]
-            existing[astro_id] = ex_str
-    except Exception as e:
-        logging.debug(f"Warning: could not read existing records from {file_name}: {e}")
+  # Read existing TFRecords
+  existing = {}
+  try:
+    tfr = tf.data.TFRecordDataset(file_name)
+    for record in tfr:
+      ex_str = record.numpy()
+      ex = tf.train.Example.FromString(ex_str)
+      astro_id = ex.features.feature['astro_id'].int64_list.value[0]
+      existing[astro_id] = ex_str
+  except KeyboardInterrupt:
+    logging.debug("Propagating keyboard interrupt")
+    raise
+  except Exception as e:
+    logging.debug(f"Warning: could not read existing records from {file_name}: {e}")
     tce_dicts = tce_table.to_dict(orient='records')
     logging.info(f"[{shard_name}] Starting processing with {num_processes} processes on {len(tce_dicts)} TCEs")
 
@@ -406,6 +431,22 @@ def main(_):
         logging.info(f'{FLAGS.output_dir}')
         create(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
     logging.info("Finished processing %d total file shards", len(file_shards))
+
+  ### [ADDED] At the very end, write the problematic TICs to a file
+  if SKIPPED_TICS:
+    problematic_path = os.path.join(FLAGS.output_dir, "problematic_tics.txt")
+    with open(problematic_path, "a") as f:
+      for tic in SKIPPED_TICS:
+        f.write(f"{tic}\n")
+
+    # Print final summary
+    print("\n=======================================")
+    print("The following TICs had empty time arrays:")
+    print(SKIPPED_TICS)
+    print(f"\nA list of these TICs is also saved to:\n {problematic_path}")
+    print("=======================================\n")
+  else:
+    print("No problematic TICs found.")
 
 
 if __name__ == "__main__":
