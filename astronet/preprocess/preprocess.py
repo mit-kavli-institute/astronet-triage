@@ -421,7 +421,7 @@ def sample_segments_view(tic_id,
   if all_30min is False:
     warnings.warn(
             "sample_segments_view: all_30min=False is not implemented yet; "
-            "falling back to all_30min=True (30-min cadence).",
+            "falling back to all_30min=True (30-min cadence). In fact, this shouldn't change behavior at all",
             category=UserWarning,
             stacklevel=2,
         )
