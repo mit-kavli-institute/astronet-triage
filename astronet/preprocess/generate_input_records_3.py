@@ -442,7 +442,7 @@ def main(_):
   for start, end, file_shard in file_shards:
     logging.info(f'Starting shard {file_shard}')
     logging.info(f'{FLAGS.output_dir}')
-    create(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, False, output_dir=FLAGS.output_dir, num_processes=35)
+    create(tce_table[start:end], file_shard, get_lightcurve, FLAGS.mode, not FLAGS.not_training, output_dir=FLAGS.output_dir, num_processes=35)
   logging.info("Finished processing %d total file shards", len(file_shards))
 
   ### [ADDED] At the very end, write the problematic TICs to a file
