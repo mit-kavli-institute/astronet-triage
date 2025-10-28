@@ -2,11 +2,10 @@ from io import BytesIO
 from typing import Dict, List, Tuple
 import streamlit as st
 from PIL import Image
-from data_management.light_curve_server import PAGE_NUMBER_TO_TYPE
+from data_management.light_curve_server import PAGE_NUMBER_TO_TYPE, LightCurveServer
 
-if "df" not in st.session_state or "light_curve_server" not in st.session_state:
-    st.error("Dataset not found. Please use the landing page first.")
-    st.stop()
+if "light_curve_server" not in st.session_state:
+    st.session_state.light_curve_server = LightCurveServer()
 
 server = st.session_state.light_curve_server
 

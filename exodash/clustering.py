@@ -104,14 +104,12 @@ class Clustering:
     def __init__(
         self,
         df: pd.DataFrame,
-        data_dir: str,
         eval_files: List[str],
         config_path: str,
         view_key: str = "global_view",
         params: ClusterParams = ClusterParams(),
     ):
         self.df = df
-        self.data_dir = data_dir
         self.eval_files = eval_files
         self.config_path = config_path
         self.view_key = view_key
@@ -139,32 +137,6 @@ class Clustering:
         if self.tce_table is None:
             self.tce_table = pd.read_csv(self.tce_csv, header=0, low_memory=False)
         return self.tce_table
-
-    def _get_lightcurve(self, astro_id: int, aperture: Optional[str] = None) -> Tuple[np.ndarray, np.ndarray]:
-        """Raw light curve (time, flux) via astronet preprocess; not used for clustering directly."""
-        aperture_key_map = {
-            "s": "SAP_FLUX_SML",
-            "m": "SAP_FLUX_MID",
-            "l": "SAP_FLUX_LAG",
-            None: "SAP_FLUX",
-        }
-        matching = self.df[self.df["Astro ID"] == astro_id]
-        try:
-            _, tce = next(matching.iterrows())
-        except StopIteration as e:
-            raise ValueError(f"Astro ID not found: {astro_id}") from e
-        if "MinT" not in tce:
-            tce["MinT"] = -np.inf
-        if "MaxT" not in tce:
-            tce["MaxT"] = np.inf
-        lc = preprocess.read_and_process_light_curve(
-            self.data_dir,
-            aperture_key_map[aperture],
-            tce.File,
-            tce.MinT,
-            tce.MaxT,
-        )
-        return lc
 
     def _build_eval_set(self):
         cfg = config_util.load_config(self.config_path)
@@ -763,7 +735,7 @@ class Clustering:
 
         # Ask for extra neighbor to account for self at distance 0
         n_total = n + (0 if include_self else 1)
-        dists, idxs = self.nn_.kneighbors(self.Z[i].reshape(1, -1), n_neighbors=1000)
+        dists, idxs = self.nn_.kneighbors(self.Z[i].reshape(1, -1), n_neighbors=len(self.id_to_view))
         dists = dists[0].tolist()
         idxs = idxs[0].tolist()
 
