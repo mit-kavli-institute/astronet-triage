@@ -25,11 +25,23 @@ from streamlit_plotly_events import plotly_events
 
 FILE = '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv'
 FILE = '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings.csv'
+FILE = '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings-pablo.csv'
+FILE = '/pdo/astronet-data/data/labels/sector-87-reprocessed-p-david.csv'
+FILE = '/pdo/astronet-data/data/labels/sector-94-from-qlp.csv'
+
+file_list = [
+    '/pdo/astronet-data/data/labels/sector-94-from-qlp.csv',
+    '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings-pablo.csv',
+    '/pdo/astronet-data/data/labels/sector-87-reprocessed-p-david.csv'
+]
 
 viz_file_list = [
     '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv',
     '/pdo/astronet-data/data/labels/sector_85_to_87_analysis_with_embeddings.csv',
-    '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings.csv'
+    '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings.csv',
+    '/pdo/astronet-data/data/labels/sector-87-reprocessed-with-embeddings-pablo.csv',
+    '/pdo/astronet-data/data/labels/sector-87-reprocessed-p-david.csv',
+    '/pdo/astronet-data/data/labels/sector-94-from-qlp.csv'
 ]
 
 # --- Page Config ---
@@ -114,29 +126,49 @@ if FILE in viz_file_list:
     )
     astronet_mask = df['disp_p'] > astronet_threshold
     operator_mask = df['operator_passed'] == True
-    vetter_mask = df['vetter_passed'] == True
+    #vetter_mask = df['vetter_passed'] == True
     toi_mask = df['has_toi'] == True
 
-    toi_df = df[df['has_toi'] == True]
+    toi_df = df[toi_mask]
+    toi_disp_mask = toi_df['toi_disposition'].isin(['PC', 'CP', 'KP'])
+    toi_disp_df = toi_df[toi_disp_mask]
+
     thresholds = np.linspace(0.0, 1.0, 100)
-    recalls = []
-    for t in thresholds:
-        tp = (toi_df['disp_p'] > t).sum()  # TOIs that pass the threshold
-        fn = (toi_df['disp_p'] <= t).sum() # TOIs that fail
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-        recalls.append(recall)
+
+    # Recall for all TOIs
+    recalls = [(toi_df['disp_p'] > t).sum() / len(toi_df) for t in thresholds]
+
+    # Recall for selected dispositions
+    recalls_disp = [(toi_disp_df['disp_p'] > t).sum() / len(toi_disp_df) if len(toi_disp_df) > 0 else 0 for t in thresholds]
+
+    # Selected recall at the chosen threshold
     selected_recall = (toi_df['disp_p'] > astronet_threshold).sum() / len(toi_df)
+    selected_recall_disp = (toi_disp_df['disp_p'] > astronet_threshold).sum() / len(toi_disp_df) if len(toi_disp_df) > 0 else 0
 
-
+    # Plot
     fig, ax = plt.subplots()
 
-    ax.plot(thresholds, recalls, label='Recall vs disp_p', color='blue')
+    # Full TOI line
+    ax.plot(thresholds, recalls, label='Recall vs disp_p (all TOIs)', color='blue')
+    # Subset disposition line
+    ax.plot(thresholds, recalls_disp, label='Recall vs disp_p (PC/CP/KP)', color='green')
+
+    # Selected threshold line
     ax.axvline(astronet_threshold, color='red', linestyle='--', label=f'Selected threshold: {astronet_threshold}')
+
+    # Annotations
     ax.annotate(f"Recall: {selected_recall:.2f}",
                 xy=(astronet_threshold, selected_recall),
                 xytext=(astronet_threshold + 0.02, selected_recall - 0.1),
                 arrowprops=dict(arrowstyle="->", color='black'),
                 fontsize=10, backgroundcolor='white')
+
+    # ax.annotate(f"Recall (PC/CP/KP): {selected_recall_disp:.2f}",
+    #             xy=(astronet_threshold, selected_recall_disp),
+    #             #xytext=(astronet_threshold + 0.02, selected_recall_disp - 0.15),
+    #             #arrowprops=dict(arrowstyle="->", color='green'),
+    #             fontsize=10, backgroundcolor='white')
+
     ax.set_xlabel('Astronet disp_p Threshold')
     ax.set_ylabel('Recall on TOI list')
     ax.set_title('TOI Recall vs Astronet disp_p')
@@ -147,7 +179,7 @@ if FILE in viz_file_list:
     # Build sets of indices
     astronet = set(df[astronet_mask].index)
     operator = set(df[operator_mask].index)
-    vetter = set(df[vetter_mask].index)
+    #vetter = set(df[vetter_mask].index)
     toi = set(df[toi_mask].index)
     all_indices = set(df.index)
 
@@ -209,6 +241,11 @@ elif FILE == '/pdo/astronet-data/data/labels/sector_85_to_87_analysis.csv' or FI
     eval_files = ["test:/pdo/astronet-data/data/tfrecords/sector-85/*", "test:/pdo/astronet-data/data/tfrecords/sector-86/*", "test:/pdo/astronet-data/data/tfrecords/sector-87/*"]
     config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
     properties_csv = FILE
+elif FILE == '/pdo/astronet-data/data/labels/sector-94-from-qlp.csv':
+    data_dir = '/pdo/astronet-data/data/fits/all/'
+    eval_files = ["test:/pdo/astronet-data/data/tfrecords/sector-94/*"]
+    config_path = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
+    properties_csv = FILE
 else:
     data_dir = '/pdo/astronet-data/data/fits/sector-87-reprocessed/'
     #data_dir = '/pdo/users/dimond/mnt/tess/fits_files/'
@@ -225,8 +262,8 @@ else:
 
 
 params = ClusterParams(
-    pca_components=32, whiten=True, cosine_normalize=True,
-    min_cluster_size=10, min_samples=10, cluster_selection_epsilon=0.01,
+    pca_components=16, whiten=True, cosine_normalize=True,
+    min_cluster_size=5, min_samples=5, cluster_selection_epsilon=0.01,
     umap_n_neighbors=15, umap_min_dist=0.05,
     postassign_prob_floor=0.35,
 )
@@ -272,8 +309,11 @@ for i, astro_id in enumerate(df["astro_id"].head(5)):
 
     visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types)
     st.write(astro_id)
-    fig = clu.show_nearest_neighbors(astro_id=astro_id, df=df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(df["astro_id"]))
-    st.pyplot(fig, use_container_width=True)
+    try:
+        fig = clu.show_nearest_neighbors(astro_id=astro_id, df=df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(df["astro_id"]))
+        st.pyplot(fig, use_container_width=True)
+    except Exception:
+        st.write(f'No nearest neighbors found for Astro ID={astro_id}')
 """
 """
 
