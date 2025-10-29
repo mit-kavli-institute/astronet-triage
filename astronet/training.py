@@ -63,8 +63,25 @@ def compile_model(model, config):
   if config.hparams.optimizer != "adam":
     raise ValueError(config.hparams.optimizer)
 
+  # Optionally wrap the learning rate in a schedule.
+  lr_schedule_name = config.hparams.get("lr_schedule")
+  if lr_schedule_name == "cosine":
+    min_lr_fraction = config.hparams.get("min_lr_fraction", 0.1)
+    learning_rate = tf.keras.optimizers.schedules.CosineDecay(
+        initial_learning_rate=config.hparams.learning_rate,
+        decay_steps=config["train_steps"],
+        alpha=min_lr_fraction,
+        name="cosine_decay",
+    )
+    logging.info(
+        f"Using CosineDecay LR schedule: initial={config.hparams.learning_rate}, "
+        f"min_fraction={min_lr_fraction}, decay_steps={config['train_steps']}"
+    )
+  else:
+    learning_rate = config.hparams.learning_rate
+
   hparams = {
-      "learning_rate": config.hparams.learning_rate,
+      "learning_rate": learning_rate,
       "beta_1": 1.0 - config.hparams.one_minus_adam_beta_1,
       "beta_2": 1.0 - config.hparams.one_minus_adam_beta_2,
       "epsilon": config.hparams.adam_epsilon,
