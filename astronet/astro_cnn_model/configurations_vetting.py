@@ -741,8 +741,6 @@ def pablomer():
           "learning_rate": 1e-5,
           "clip_gradient_norm": None,
           "optimizer": "adam",
-          "lr_schedule": "cosine",
-          "min_lr_fraction": 0.1,
           "one_minus_adam_beta_1": 0.1,
           "one_minus_adam_beta_2": 0.001,
           "adam_epsilon": 1e-07,
