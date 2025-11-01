@@ -36,12 +36,12 @@ def rebin_cadence(cad, bin_indices):
     """
     cad: original CADENCENO array
     bin_indices: integer array mapping each original point to its rebinned bin
-    Returns array of rebinned CADENCENO (median per bin)
+    Returns array of rebinned CADENCENO (max per bin)
     """
     uniq_bins = np.unique(bin_indices)
     cad_rebinned = np.empty(len(uniq_bins), dtype=int)
     for i, b in enumerate(uniq_bins):
-        cad_rebinned[i] = int(np.median(cad[bin_indices == b]))
+        cad_rebinned[i] = int(np.max(cad[bin_indices == b]))
     return cad_rebinned
 
 def rebin_quality(quality, bin_indices):
@@ -166,12 +166,17 @@ def _rebin_fixed_minutes(t_days, y, yerr=None, bin_minutes=30.0, min_points_per_
     if fe is not None: fe = fe[order]
 
     dt_days = bin_minutes / 1440.0
-    t0 = np.min(t)
-    bins = np.floor((t - t0) / dt_days).astype(int)
+    bin_origin = np.floor(t[0] / dt_days) * dt_days
+    bins = np.floor((t - bin_origin) / dt_days).astype(int)
     cad_rebinned = rebin_cadence(cad, bins)
     quality_rebinned = rebin_quality(quality, bins)
     uniq = np.unique(bins)
-    t_mid = t0 + (uniq + 0.5) * dt_days
+    native_dt = np.median(np.diff(t) * 1440.0)  # in minutes
+    if np.abs(native_dt - bin_minutes) < 1e-6:
+        # Already at target cadenceif np.abs(native_dt - bin_minutes) < 1e-6:
+        return t, f, fe, cad, quality, np.ones_like(t, dtype=int)
+    else:
+        t_mid = bin_origin + (uniq + 0.5) * dt_days
 
     yb = np.empty(uniq.size); yeb = None if fe is None else np.empty(uniq.size)
     nbin = np.zeros(uniq.size, dtype=int)
@@ -245,6 +250,7 @@ def analyze_and_rebin_to_binned(bjd, mag, bin_minutes, mag_err=None, quality=Non
         quality_binned=q_binned,
         cadences_binned=c_binned,
         mag_binned=mag_binned,
+        flux_binned=f_binned,
         mag_err_binned=mag_err_binned,
         per_bin_counts=nbin
     )
@@ -325,7 +331,7 @@ def process_fits_file(fits_file, output_dir, bin_minutes):
     # Rebin all fluxes
     rebinned_fluxes = {}
     for name, f in fluxes.items():
-        mag = -2.5 * np.log10(f, where=(f > 0))
+        mag = np.where(f > 0, -2.5 * np.log10(f), np.nan)
         rebinned_fluxes[name] = analyze_and_rebin_to_binned(
             bjd, mag, bin_minutes=bin_minutes, quality=quality, cadences=cadences
         )
@@ -333,10 +339,19 @@ def process_fits_file(fits_file, output_dir, bin_minutes):
     # Write JSON stats
     stats = {'original_fits_location': str(fits_file)}
     for flux in rebinned_fluxes:
+        flux_b = np.asarray(rebinned_fluxes[flux].get("flux_binned"))
+        n_bins_invalid = int(np.sum(~np.isfinite(flux_b) | (flux_b <= 0)))
+        if n_bins_invalid > 0:
+            print(f'For {fits_file}, {n_bins_invalid} invalid bins!!!')
         stats[flux] = {
             'segments': rebinned_fluxes[flux]['segments'],
-            'per_bin_counts': list(rebinned_fluxes[flux]['per_bin_counts'])
+            'per_bin_counts': list(rebinned_fluxes[flux]['per_bin_counts']),
+            'n_bins_with_zero_or_nan': n_bins_invalid,
         }
+    #flux_arrays = [np.asarray(rebinned_fluxes[f]["flux_binned"], float) for f in rebinned_fluxes]
+    #stacked = np.vstack(flux_arrays)
+    #stats['n_bins_any_flux_zero_or_nan'] = int(np.sum(np.any(stacked <= 0, axis=0)))
+        
     stats_output_path = str(Path(output_dir) / Path(fits_file).stem) + ".json"
     with open(stats_output_path, "w") as f:
         json.dump(stats, f, indent=2, cls=NumpyEncoder)
