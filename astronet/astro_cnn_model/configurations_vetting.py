@@ -739,6 +739,10 @@ def pablomer():
       "hparams": {
           "batch_size": 512,
           "learning_rate": 1e-5,
+          "learning_rate_schedule": "constant",
+          "learning_rate_warmup_frac": 0.00,
+          "learning_rate_decay_alpha": 0.0,
+          "one_minus_momentum": 0.1,
           "clip_gradient_norm": None,
           "optimizer": "adam",
           "one_minus_adam_beta_1": 0.1,

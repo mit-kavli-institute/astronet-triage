@@ -67,6 +67,7 @@ def compile_model(model, config):
           "Learning rate warmup is not supported with constant schedule")
     learning_rate = config.hparams.learning_rate
   elif config.hparams.learning_rate_schedule == "cosine":
+    logging.info(f"Using cosine learning rate schedule")
     train_steps = config.train_steps
     warmup_frac = config.hparams.learning_rate_warmup_frac
     warmup_steps = int(warmup_frac * train_steps)
