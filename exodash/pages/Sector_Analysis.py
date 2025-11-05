@@ -1,3 +1,4 @@
+from typing import Dict, List
 from data_management.light_curve_server import ALL_PAGE_TYPES, LightCurveServer
 from exodash.utils.filter import advanced_filter_sidebar
 from exodash.utils.production_sector import ProductionSector, get_production_sector_df
@@ -11,6 +12,7 @@ import numpy as np
 from matplotlib_venn import venn3
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
+import os
 
 
 
@@ -24,9 +26,16 @@ if "light_curve_server" not in st.session_state:
 
 MODEL_CONFIG_PATH = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
 sectors = list(range(85, 95))
-available = {85: True, 86: True, 87: True, 88: False, 89: False, 90: False, 91: False, 92: False, 93: False, 94: True}
+available = {}
+for sector in sectors:
+    tfrecords_exist = os.path.isdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}') and os.listdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}')
+    properties_exist = os.path.isfile(f'/pdo/astronet-data/data/properties/tces-sector{sector}_with_labels.csv')
+    if properties_exist and tfrecords_exist:
+        available[sector] = True
+    else:
+        available[sector] = False
 
-custom_model = st.text_input("Custom model dir:")
+custom_model = st.text_input("Custom model dir (ex: /pdo/astronet-data/models/vetting/baseline/AstroCNNModelVetting_cshallue_20250429_181612/): ")
 
 cols = st.columns(len(sectors))
 
@@ -42,28 +51,41 @@ for i, astro_id in enumerate(sectors):
             type="primary" if selected else "secondary",
             use_container_width=True,
         ):
-            # Toggle selection
             if selected:
                 st.session_state.selected_sectors.remove(astro_id)
             else:
                 st.session_state.selected_sectors.add(astro_id)
+            st.rerun()
 
 
 if len(st.session_state.selected_sectors) == 0:
     st.stop()
 
-sector_to_astronet_scores_override = {
-    85: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
-    86: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
-    87: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
-}
+sector_to_astronet_scores_override = {}
+# sector_to_astronet_scores_override = {
+#     85: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
+#     86: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
+#     87: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
+# }
 
-df = get_production_sector_df(st.session_state.selected_sectors, custom_model, sector_to_astronet_scores_override=sector_to_astronet_scores_override)
+@st.cache_data(show_spinner="Loading and processing production sector data...")
+def get_cached_production_sector_df(
+    sectors: List[int],
+    custom_model: str | None,
+    sector_to_astronet_scores_override: Dict[int, str],
+) -> pd.DataFrame:
+    return get_production_sector_df(
+        sectors,
+        custom_model,
+        sector_to_astronet_scores_override=sector_to_astronet_scores_override,
+    )
+
+df = get_cached_production_sector_df(st.session_state.selected_sectors, custom_model, sector_to_astronet_scores_override=sector_to_astronet_scores_override)
 
 eval_files = []
 for sector in st.session_state.selected_sectors:
     production_sector = ProductionSector(sector)
-    eval_files.append(production_sector.eval_files)
+    eval_files.extend(production_sector.eval_files)
 
 orig_df = df.copy()
 server = st.session_state.light_curve_server

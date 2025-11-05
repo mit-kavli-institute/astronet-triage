@@ -157,7 +157,6 @@ class Clustering:
                 include_labels=False,
             )
             pairs.append((name, ds))
-        print(pairs)
         return pairs
 
     @staticmethod
@@ -575,9 +574,6 @@ class Clustering:
         hi_mask = None
         if highlight_ids:
             hi_mask = np.isin(np.asarray(self.ids), list(highlight_ids))
-
-        print(self.ids)
-        print(highlight_ids)
 
         # Build base scatter (Scattergl = WebGL; fast for 20k+ points)
         x = self.viz_[:, 0]

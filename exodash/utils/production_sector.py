@@ -4,6 +4,7 @@ from astropy.table import join, Table, vstack
 import numpy as np
 import scipy
 from typing import List, Dict
+import os
 from exodash.utils.live_evaluation import LiveEvaluation
 
 
@@ -20,13 +21,14 @@ class ProductionSector:
         self.properties_path = ASTRONET_BASE_PATH / "properties" / f"tces-sector{sector}_with_labels.csv"
 
     @property
-    def eval_files(self) -> str:
-        return f"test:{self.tfrecords_path}/*"
+    def eval_files(self) -> List[str]:
+        return [f"test:{self.tfrecords_path}/*"]
     
     @property
     def properties_df(self) -> pd.DataFrame:
         properties_df = pd.read_csv(self.properties_path, index_col=False)
-        return properties_df.loc[:, ~self.properties_df.columns.str.startswith('Unnamed')]
+        properties_df = properties_df.rename(columns={'per': 'period', 'dur': 'duration', 'epoc': 'epoch'})
+        return properties_df.loc[:, ~properties_df.columns.str.startswith('Unnamed')]
 
 
 
@@ -90,40 +92,53 @@ def read_toi_data() -> pd.DataFrame:
     )
 
 def get_production_sector_df(sectors: List[int], custom_model, sector_to_astronet_scores_override: Dict[int, Path]) -> pd.DataFrame:
-    per_sector_dfs = []
+    all_production_sectors = []
+
     for sector in sectors:
         production_sector = ProductionSector(sector)
+        all_production_sectors.append(production_sector)
+    
+    all_astronet_scores = None
+    if custom_model:
+        live_evaluation = LiveEvaluation(model_dir=custom_model)
+        all_eval_files = [f for x in all_production_sectors for f in x.eval_files]
+        all_astronet_scores = live_evaluation.evaluate(all_eval_files)
+    else:
+        per_sector_astronet_scores = []
+        for sector in all_production_sectors:
+            if sector.sector in sector_to_astronet_scores_override:
+                astronet_scores = pd.read_csv(sector_to_astronet_scores_override[sector.sector], index_col=False)
+                astronet_scores = astronet_scores.rename(columns={'Sector': 'sector', 'Astro ID': 'astro_id'})
+                per_sector_astronet_scores.append(astronet_scores)
+            else:    
+                per_sector_astronet_scores.append(get_qlp_astronet_scores(sector.sector))
+        all_astronet_scores = pd.concat(per_sector_astronet_scores, ignore_index=True)
 
-        if custom_model:
-            live_evaluation = LiveEvaluation(model_dir=custom_model)
-            astronet_scores = live_evaluation.evaluate(production_sector.eval_files)
-        elif sector in sector_to_astronet_scores_override:
-            astronet_scores = pd.read_csv(sector_to_astronet_scores_override[sector], index_col=False)
-            astronet_scores = astronet_scores.rename(columns={'Sector': 'sector', 'Astro ID': 'astro_id'})
-        else:    
-            astronet_scores = get_qlp_astronet_scores(sector)
+    disp_cols = ['disp_p', 'disp_e', 'disp_n', 'disp_j']
+    all_astronet_scores = (
+        all_astronet_scores.groupby(['astro_id', 'tic_id', 'planetno'])[disp_cols]
+        .mean()
+        .reset_index()
+    )
 
-        merged_df = pd.merge(
-            astronet_scores,
-            production_sector.properties_df,
-            on=['astro_id', 'tic_id', 'planetno'],          # column to join on
-            how='inner'             # only rows present in both DataFrames
-        )
+    all_properties = pd.concat([x.properties_df for x in all_production_sectors], ignore_index=True)
+    merged_df = pd.merge(
+        all_astronet_scores,
+        all_properties,
+        on=['astro_id', 'tic_id', 'planetno'],          # column to join on
+        how='inner'             # only rows present in both DataFrames
+    )
 
-        merged_df['operator_passed'] = merged_df['true_label'] == 'p'
-        merged_df.drop(columns=['true_label'], inplace=True)
-        merged_df = merged_df.rename(columns={'per': 'period', 'dur': 'duration', 'epoc': 'epoch'})
+    merged_df['operator_passed'] = merged_df['true_label'] == 'p'
+    merged_df.drop(columns=['true_label'], inplace=True)
 
-
-        per_sector_dfs.append(merged_df)
-    combined_df = pd.concat(per_sector_dfs, ignore_index=True)
-
-    combined_df.drop_duplicates(subset=['astro_id'], inplace=True)
+    #combined_df = pd.concat(per_sector_dfs, ignore_index=True)
+    merged_df.drop_duplicates(subset=['astro_id'], inplace=True)
 
     toi_data = read_toi_data()
     toi_data = Table.from_pandas(toi_data)
 
-    astronet_data = Table.from_pandas(combined_df)
+    astronet_data = Table.from_pandas(merged_df)
 
     matched_astronet_data = vstack(
         [
@@ -141,7 +156,7 @@ def get_production_sector_df(sectors: List[int], custom_model, sector_to_astrone
 
 
     toi_data = matched_astronet_data.to_pandas()
-    tce_data = combined_df
+    tce_data = merged_df
 
     tce_data['has_toi'] = tce_data['tic_id'].isin(toi_data['tic_id_astronet'])
 

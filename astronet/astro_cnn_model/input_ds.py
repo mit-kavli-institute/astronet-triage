@@ -102,6 +102,9 @@ class ExampleParser:
 
     parsed_features = tf.io.parse_single_example(
         serialized_example, features=data_fields)
+    
+    print(parsed_features.keys())
+    1/0
 
     features = self._extract_features(parsed_features)
 
@@ -195,7 +198,7 @@ def build_dataset(file_pattern,
                     value = tf.cast(value, tf.float32)
                 elif getattr(cfg, "scale", None) == "norm":
                     value = (value - cfg["mean"]) / cfg["std"]
-            features[name.lower()] = value
+            features[name] = value
         
         if include_labels:
             return features, labels, weights
