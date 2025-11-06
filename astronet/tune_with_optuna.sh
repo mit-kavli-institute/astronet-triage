@@ -31,8 +31,8 @@ OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_origi
 #–– Launch Optuna tuning ––#
 echo "Starting Optuna tuning for ${ENSEMBLE_NAME} (n_trials=${N_TRIALS})"
 PYTHONNOUSERSITE=1 \
-LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib:$LD_LIBRARY_PATH \
-/pdo/users/cshallue/miniconda3/envs/astronet-gpu/bin/python $CODE_DIR/astronet/tune_with_optuna.py \
+LD_LIBRARY_PATH=/pdo/users/pablomer/miniconda3/lib:$LD_LIBRARY_PATH \
+/pdo/users/pablomer/miniconda3/envs/astronet-gpu/bin/python $CODE_DIR/astronet/tune_with_optuna.py \
     --model=AstroCNNModelVetting \
     --config_name=$CONFIG_NAME \
     --config_file=$CONFIG_FILE \
