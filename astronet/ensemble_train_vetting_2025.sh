@@ -6,7 +6,7 @@ DATE=$(date +%Y%m%d)
 CONFIG_NAME=pablomer
 #CONFIG_OVERRIDES="inputs.random_reverse_time_series=true"
 # CONFIG_OVERRIDES="train_steps=1000"
-CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=true"
+CONFIG_OVERRIDES="train_steps=1000,init_from_pretrained_model=false"
 ENSEMBLE_NAME=$CONFIG_NAME
 
 
@@ -19,13 +19,14 @@ CODE_DIR=/pdo/users/pablomer/Astronet-Triage
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin/
 DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_original/
+# DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/
 # TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
 
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 
 
 # OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE/$ENSEMBLE_NAME/
-OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_original/$DATE/$ENSEMBLE_NAME-2k-pretrained/
+OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_original/$DATE/$ENSEMBLE_NAME-1k-nopretrained/
 
 
 # CONFIG_OVERRIDES="init_from_pretrained_model=true,\
