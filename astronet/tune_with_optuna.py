@@ -126,6 +126,48 @@ def sample_phase2(trial, config):
     )
 
 
+def sample_phase3(trial, config):
+    """
+    Phase 3: Cosine learning rate schedule tuning with pretrained model.
+    Always uses cosine schedule, 2000 training steps, and loads pretrained model.
+    """
+    # Fixed values
+    config["hparams"]["learning_rate_schedule"] = "cosine"
+    config["train_steps"] = 2000
+    config["init_from_pretrained_model"] = True
+
+    # Cosine scheduler hyperparameters
+    config["hparams"]["learning_rate"] = trial.suggest_float(
+        "learning_rate", 1e-5, 1e-1, log=True
+    )
+    config["hparams"]["learning_rate_warmup_frac"] = trial.suggest_float(
+        "learning_rate_warmup_frac", 0.01, 0.2, log=False
+    )
+    config["hparams"]["learning_rate_decay_alpha"] = trial.suggest_float(
+        "learning_rate_decay_alpha", 1e-4, 0.1, log=True
+    )
+
+    # Weight decay often works well with cosine schedules
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-6, 1e-2, log=True
+    )
+
+    # Adam optimizer hyperparameters (often tuned together with cosine schedules)
+    config["hparams"]["one_minus_adam_beta_1"] = trial.suggest_float(
+        "one_minus_adam_beta_1", 0.01, 0.5
+    )
+    config["hparams"]["one_minus_adam_beta_2"] = trial.suggest_float(
+        "one_minus_adam_beta_2", 1e-4, 0.1, log=True
+    )
+    config["hparams"]["adam_epsilon"] = trial.suggest_float(
+        "adam_epsilon", 1e-9, 1e-6, log=True
+    )
+
+    # Optional: dropout can help with fine-tuning
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.0, 0.5
+    )
+
 
 # Trial is a optuna.trial.Trial object
 def objective(trial):
@@ -141,15 +183,31 @@ def objective(trial):
         config["pretrain_model_dir"] = FLAGS.pretrain_model_dir
 
     # Hyperparameter sampling
-    sample_phase1(trial, config)
-    # sample_phase2(trial, config)
+    # Uncomment the phase you want to use:
+    # sample_phase1(trial, config)  # Quick sweep over high-impact knobs
+    # sample_phase2(trial, config)  # Expanded with regularization, optimizer choices
+    sample_phase3(trial, config)  # Cosine scheduler tuning with pretrained model
 
-    # 3) Build model
+    # Validate pretrained model requirements (matching train.py logic)
+    init_from_pretrained_model = config.get("init_from_pretrained_model")
+    # 1) Hard error: asked to init but no dir supplied
+    if init_from_pretrained_model and not bool(FLAGS.pretrain_model_dir):
+        logging.error(
+            "init_from_pretrained_model=%r but --pretrain_model_dir=%r is not set",
+            init_from_pretrained_model, FLAGS.pretrain_model_dir
+        )
+        raise ValueError(
+            "init_from_pretrained_model=True requires --pretrain_model_dir to be set"
+        )
+    # 2) Gentle warning: dir supplied but not using it
+    if not init_from_pretrained_model and bool(FLAGS.pretrain_model_dir):
+        logging.warning(
+            "Got --pretrain_model_dir=%r but init_from_pretrained_model=False; ignoring it.",
+            FLAGS.pretrain_model_dir
+        )
+
+    # 3) Build model class
     model_class = models.get_model_class(FLAGS.model)
-    model = model_class(config)
-
-    # 4) Compile with new hyperparameters
-    training.compile_model(model, config)
 
     # 5) Prepare datasets
     train_ds = build_train_dataset(
@@ -176,12 +234,36 @@ def objective(trial):
     n_runs = FLAGS.n_runs
     pr_scores = []
 
+    # Load and validate pretrained model once (outside the loop for efficiency)
+    # Matching train.py logic for pretrained model handling
+    pretrain_model = None
+    if init_from_pretrained_model:
+        pretrain_config = config_util.load_config(FLAGS.pretrain_model_dir)
+        config_util.validate_pretrain_config(config, pretrain_config)
+        pretrain_model = models.load_model("AstroCNNModel", FLAGS.pretrain_model_dir)
+        logging.info("Loaded pretrained model for weight initialization")
+
     for run_idx in range(n_runs):
         # reproducible seed per run
         tf.random.set_seed(run_idx)
 
         # rebuild & compile fresh model each run
         model = model_class(config)
+
+        # Load pretrained weights if specified (for each run)
+        # Matching train.py logic for weight copying
+        if pretrain_model is not None:
+            for name, block in model.ts_blocks.items():
+                pretrain_block = pretrain_model.ts_blocks.get(name)
+                if pretrain_block is not None:
+                    block.set_weights(pretrain_block.get_weights())
+                    logging.info(f"Block '{name}': set params from pretrained model")
+                    if config.get("freeze_pretrained_params", False):
+                        block.trainable = False
+                    logging.info(f"Block '{name}': set trainable={block.trainable}")
+                else:
+                    logging.info(f"Block '{name}': no such block in pretrained model")
+
         training.compile_model(model, config)
 
         # # # Original:

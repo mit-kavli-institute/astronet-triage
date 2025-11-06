@@ -7,8 +7,8 @@ CONFIG_NAME=pablomer
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 ENSEMBLE_NAME=$CONFIG_NAME
 # N_TRIALS=30
-N_TRIALS=200
-N_RUNS=5 # Runs per trial (ensemble size)
+N_TRIALS=2
+N_RUNS=1 # Runs per trial (ensemble size)
 SAMPLER=${SAMPLER:-qmc} # QMCSampler (Sobol quasi-random)
 
 # PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
