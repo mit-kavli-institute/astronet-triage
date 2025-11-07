@@ -325,6 +325,12 @@ def write_fits_rebinned(outpath: str, rebinned_fluxes: dict, cad_rebinned=None, 
 def process_fits_file(fits_file, output_dir, bin_minutes):
     print(f"Processing {fits_file} ...")
     
+    stats_output_path = Path(output_dir) / f"{fits_file.stem}.json"
+    rebinned_output_path = Path(output_dir) / fits_file.name
+    if stats_output_path.exists() and rebinned_output_path.exists():
+        print(f"Skipping {fits_file}, outputs already exist.")
+        return
+
     # Read data
     bjd, fluxes, quality, cadences = get_fits_data(fits_file)
 
