@@ -86,8 +86,85 @@ def cached_model_handler() -> Optional[pd.DataFrame]:
         return load_uploaded_df(file_path)
     return None
 
+
+def direct_path_handler() -> Optional[pd.DataFrame]:
+    """
+    Load a CSV file or combine multiple result files from a directory.
+    Persists the DataFrame in st.session_state so it's remembered across reruns.
+    """
+    st.subheader("Load from Direct Path")
+
+    # Initialize session_state keys if missing
+    if "direct_path" not in st.session_state:
+        st.session_state.direct_path = ""
+    if "direct_df" not in st.session_state:
+        st.session_state.direct_df = None
+
+    # Text input for path
+    path_input = st.text_input(
+        "Enter path to CSV file or results directory",
+        value=st.session_state.direct_path,
+        placeholder="/path/to/file.csv or /path/to/results/"
+    )
+
+    # Update stored path
+    st.session_state.direct_path = path_input
+
+    # If button clicked OR path already has a cached DataFrame, load/process
+    if st.button("Load from path") or st.session_state.direct_df is None:
+        path = os.path.expanduser(os.path.expandvars(path_input))
+
+        if not path:
+            st.warning("Please enter a path.")
+            st.session_state.direct_df = None
+        elif not os.path.exists(path):
+            st.error(f"Path not found: {path}")
+            st.session_state.direct_df = None
+        elif os.path.isfile(path):
+            if not path.lower().endswith(".csv"):
+                st.error("Only CSV files are supported.")
+                st.session_state.direct_df = None
+            else:
+                try:
+                    st.success(f"Loading single file: {path}")
+                    st.session_state.direct_df = load_uploaded_df(path)
+                except Exception as e:
+                    st.error(f"Failed to load file: {e}")
+                    st.session_state.direct_df = None
+        elif os.path.isdir(path):
+            st.info(f"Scanning directory: {path}")
+            combined_dfs = []
+            model_no = 1
+            for subdir_name in sorted(os.listdir(path)):
+                subdir_path = os.path.join(path, subdir_name)
+                if not os.path.isdir(subdir_path):
+                    continue
+                target_file = os.path.join(subdir_path, "evaluation", "test_exodash_results.csv")
+                if os.path.exists(target_file):
+                    try:
+                        df = pd.read_csv(target_file)
+                        df["model_no"] = model_no
+                        combined_dfs.append(df)
+                        model_no += 1
+                    except Exception as e:
+                        st.warning(f"Failed to load {target_file}: {e}")
+                else:
+                    st.warning(f"No test_exodash_results.csv in {subdir_path}")
+            if combined_dfs:
+                st.session_state.direct_df = pd.concat(combined_dfs, ignore_index=True)
+                st.success(f"Loaded {len(combined_dfs)} model result files.")
+            else:
+                st.error("No valid result files found in the provided directory.")
+                st.session_state.direct_df = None
+        else:
+            st.error(f"Invalid path: {path}")
+            st.session_state.direct_df = None
+
+    return st.session_state.direct_df
+
 def model_result_selector(
     allow_local_navigation: bool = True,
+    allow_direct_path: bool = True,
     allow_upload: bool = True,
     allow_cached_models: bool = True,
     local_root_dir: str = ROOT_DIR
@@ -107,6 +184,8 @@ def model_result_selector(
         loaders.append(upload_handler)
     if allow_local_navigation:
         loaders.append(local_navigation_handler)
+    if allow_direct_path:
+        loaders.append(direct_path_handler)
 
     cols = st.columns(len(loaders))
     for col, loader in zip(cols, loaders):

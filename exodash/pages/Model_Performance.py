@@ -63,7 +63,7 @@ def _find_interesting_astro_ids(ensemble_results, N=5):
     return selected_cases.to_dict(orient="records")  # Convert to list of dictionaries
 
 # --- Model result loading --- 
-individual_model_results = model_result_selector(allow_cached_models=True, allow_local_navigation=True, allow_upload=True)
+individual_model_results = model_result_selector(allow_cached_models=True, allow_local_navigation=False, allow_upload=True, allow_direct_path=True)
 if individual_model_results is None:
     st.warning("Please upload model results to continue.")
     st.stop()

@@ -22,14 +22,7 @@ def load_data(config_path: str):
     manager = DataManager(config=config)
     df = manager.get_data_frame()
     df = df.drop_duplicates(subset=["tic_id", "astro_id"])
-    return df
-
-@st.cache_data
-def load_properties(config_path: str):
-    """Load additional dataset properties."""
-    config = DatasetConfig.from_yaml(config_path)
-    manager = DataManager(config=config)
-    return manager.properties_df
+    return df, manager
 
 # --- Data Loading ---
 config_path = dataset_selector()
@@ -40,15 +33,14 @@ if config_path not in st.session_state:
 if config_path is not None:
     config = DatasetConfig.from_yaml(config_path)
     if config_path != st.session_state.config_path:
-        for key in ["df", "properties", "data_manager"]:
+        for key in ["df", "data_manager"]:
             st.session_state.pop(key, None)
 
     if "df" not in st.session_state or config_path != st.session_state.config_path:
-        data_manager = DataManager(config=config)
-        st.session_state.df = load_data(config_path)
+        #data_manager = DataManager(config=config)
+        st.session_state.df, st.session_state.data_manager = load_data(config_path)
         st.session_state.config_path = config_path
-        st.session_state.properties = load_properties(config_path)
-        st.session_state.data_manager = data_manager
+        #st.session_state.data_manager = data_manager
 
     if "light_curve_server" not in st.session_state:
         st.session_state.light_curve_server = LightCurveServer()
