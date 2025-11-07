@@ -242,6 +242,26 @@ class DataManager:
             raise Exception(f"Data not found for tic id {tic_id}")
         return data
 
+
+    def parse_tess_filename(self, fname: str) -> Tuple[str, int]:
+        """
+        Parse a TESS FITS filename to extract:
+        - source_data_type (str)
+        - sector (int)
+        
+        Example:
+        'mk_hlsp_qlp_tess_ffi-s0013-0000000101179364_tess_v01_llc.fits'
+        -> ('mk_hlsp_qlp_tess_ffi', 13)
+        """
+        fname = Path(fname).name  # remove directory
+        match = re.match(r"(?P<source>.+?)-s(?P<sector>\d+)-", fname)
+        if not match:
+            raise ValueError(f"Cannot parse sector/source from filename: {fname}")
+        
+        source_data_type = match.group("source")
+        sector = int(match.group("sector"))
+        return source_data_type, sector
+
     def get_data_frame(self) -> pd.DataFrame:
         """
         Returns a DataFrame of all AstroData objects with properties unpacked.
@@ -270,6 +290,14 @@ class DataManager:
         df = pd.DataFrame(data_list)
         filtered_dtype_dict = {col: dtype for col, dtype in dtype_dict.items() if col in df.columns}
         df = df.astype(filtered_dtype_dict)
+
+        try:
+            df[["source_data_type", "sector"]] = df['file'].apply(
+                lambda x: pd.Series(self.parse_tess_filename(x))
+            )
+            return df
+        except Exception as e:
+            print('Failed to set sector and source data type columns')
         #df = df.drop_duplicates(subset="astro_id")
         return df
 
