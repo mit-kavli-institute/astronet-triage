@@ -5,7 +5,7 @@ set -e
 DATE=$(date +%Y%m%d)
 CONFIG_NAME=pablomer
 # CONFIG_OVERRIDES="train_steps=1000"
-CONFIG_OVERRIDES="train_steps=2000"
+CONFIG_OVERRIDES="train_steps=1000"
 
 # CODE_DIR=/pdo/users/cshallue/git/astronet
 CODE_DIR=/pdo/users/pablomer/Astronet-Triage
@@ -18,7 +18,7 @@ TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 # Output directory for trained student model
 OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_30minbin_v2/$DATE/student-2k-pretrained/
 
-# Distillation hyperparameters
+# Distillation hyperparameterss
 SOFT_LABEL_WEIGHT=1.0
 HARD_LABEL_WEIGHT=0.1
 TEMPERATURE=1.0
@@ -42,7 +42,7 @@ LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib:$LD_LIBRARY_PATH \
 /pdo/users/cshallue/miniconda3/envs/astronet-gpu/bin/python $CODE_DIR/distillation/train_student.py \
     --model=AstroCNNModelVetting \
     --config_name=$CONFIG_NAME \
-    --config_overrides=$CONFIG_OVERRIDES \
+    --config_overrides="$CONFIG_OVERRIDES" \
     --model_dir="$OUTPUT_DIR" \
     --train_files="$DATA_DIR/${TFRECORD_PREFIX}-train_softlabels/*" \
     --soft_label_weight=$SOFT_LABEL_WEIGHT \

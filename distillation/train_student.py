@@ -418,6 +418,12 @@ def main():
         help='Name of the model and training configuration'
     )
     parser.add_argument(
+        '--config_overrides',
+        type=str,
+        default=None,
+        help='Overrides to the base configuration (comma-separated key=value pairs)'
+    )
+    parser.add_argument(
         '--train_files',
         type=str,
         required=True,
@@ -511,6 +517,13 @@ def main():
         logging.info(f"Loaded config from {args.config_file}")
         expt_name = args.model
 
+    # Apply config overrides
+    if args.config_overrides:
+        overrides = config_util.parse_config_str(args.config_overrides)
+        train_flags["config_overrides"] = args.config_overrides
+        config_util.update(config, overrides)
+        logging.info(f"Updated config with overrides {overrides}")
+
     # Set training steps
     if args.train_steps:
         config["train_steps"] = args.train_steps
@@ -556,8 +569,30 @@ def main():
     )
 
     # Save the base model (not the wrapper)
-    models.save_model(student_model.base_model, model_dir, args.save_format)
+    base_model = student_model.base_model
+    models.save_model(base_model, model_dir, args.save_format)
     logging.info(f"Model saved to {model_dir}")
+
+    # Compile base model for evaluation (needed for model.evaluate())
+    # Use the same loss function that would be used in standard training
+    n_labels = len(config.inputs.label_columns)
+    if n_labels > 1 and config.inputs.get("exclusive_labels", False):
+        eval_loss = tf.keras.losses.CategoricalCrossentropy(
+            label_smoothing=config.hparams.get("label_smoothing", 0.0))
+    else:
+        eval_loss = tf.keras.losses.BinaryCrossentropy()
+
+    base_model.compile(
+        optimizer=tf.keras.optimizers.Adam(),  # Dummy optimizer for evaluation
+        loss=eval_loss,
+        metrics=[
+            tf.keras.metrics.Precision(name='precision'),
+            tf.keras.metrics.Recall(name='recall'),
+            tf.keras.metrics.AUC(curve='PR', name='pr_auc'),
+            ThresholdPrecision(threshold=0.3),
+            ThresholdRecall(threshold=0.3)
+        ]
+    )
 
     # Evaluate if eval_files provided
     if args.eval_files:
@@ -577,9 +612,9 @@ def main():
             logging.info(f"Evaluating on {name} dataset")
             logging.info(f"{'='*70}")
 
-            # Use base_model for evaluation
+            # Use base_model for evaluation (now compiled)
             metrics, labels, predictions, astro_ids = evaluation.evaluate_model(
-                student_model.base_model, config.inputs, file_pattern, config.hparams.batch_size, threshold=0.215
+                base_model, config.inputs, file_pattern, config.hparams.batch_size, threshold=0.215
             )
             all_metrics[name] = metrics
 
