@@ -573,12 +573,25 @@ def main():
             else:
                 raise ValueError("Multiple evaluation datasets must be named with format 'name:file_patterns'")
 
+            logging.info(f"\n{'='*70}")
+            logging.info(f"Evaluating on {name} dataset")
+            logging.info(f"{'='*70}")
+
             # Use base_model for evaluation
             metrics, labels, predictions, astro_ids = evaluation.evaluate_model(
                 student_model.base_model, config.inputs, file_pattern, config.hparams.batch_size, threshold=0.215
             )
             all_metrics[name] = metrics
 
+            # Print metrics to console
+            logging.info(f"\nMetrics for {name}:")
+            for metric_name, metric_value in metrics.items():
+                if isinstance(metric_value, (int, float)):
+                    logging.info(f"  {metric_name}: {metric_value:.6f}")
+                else:
+                    logging.info(f"  {metric_name}: {metric_value}")
+
+            # Save numpy arrays
             labels_path = os.path.join(eval_dir, f"{name}_label.npy")
             pred_path = os.path.join(eval_dir, f"{name}_pred.npy")
             astro_ids_path = os.path.join(eval_dir, f"{name}_astro_ids.npy")
@@ -587,14 +600,61 @@ def main():
             np.save(labels_path, labels)
             np.save(pred_path, predictions)
             np.save(astro_ids_path, astro_ids)
+
+            # Export dash file (existing format)
             evaluation.export_dash_file(
                 labels=labels, predictions=predictions, astro_ids=astro_ids,
                 results_path=results_path
             )
-            logging.info(f"Saved evaluation results for {name} to {eval_dir}")
 
+            # Create detailed predictions CSV with astro_id, true labels, and predictions
+            label_cols = config.inputs.label_columns
+            pred_cols = [f"pred_{col}" for col in label_cols]
+            true_cols = [f"true_{col}" for col in label_cols]
+
+            # Create DataFrame
+            predictions_df = pd.DataFrame({
+                'astro_id': astro_ids
+            })
+
+            # Add true labels
+            for i, col in enumerate(true_cols):
+                predictions_df[col] = labels[:, i]
+
+            # Add predictions
+            for i, col in enumerate(pred_cols):
+                predictions_df[col] = predictions[:, i]
+
+            # Add predicted class (argmax)
+            predictions_df['predicted_class'] = np.argmax(predictions, axis=1)
+            predictions_df['true_class'] = np.argmax(labels, axis=1)
+
+            # Add class names if available
+            if len(label_cols) == 4:  # Standard vetting labels
+                class_names = ['Planet', 'Eclipsing Binary', 'Not Sure', 'Junk']
+                predictions_df['predicted_class_name'] = predictions_df['predicted_class'].map(
+                    lambda x: class_names[x] if x < len(class_names) else f'Class_{x}'
+                )
+                predictions_df['true_class_name'] = predictions_df['true_class'].map(
+                    lambda x: class_names[x] if x < len(class_names) else f'Class_{x}'
+                )
+
+            # Save detailed predictions CSV
+            detailed_pred_path = os.path.join(eval_dir, f"{name}_detailed_predictions.csv")
+            predictions_df.to_csv(detailed_pred_path, index=False)
+
+            logging.info(f"\nSaved evaluation results for {name}:")
+            logging.info(f"  - Labels: {labels_path}")
+            logging.info(f"  - Predictions: {pred_path}")
+            logging.info(f"  - Astro IDs: {astro_ids_path}")
+            logging.info(f"  - Dash results: {results_path}")
+            logging.info(f"  - Detailed predictions: {detailed_pred_path}")
+
+        # Save all metrics
         evaluation.save_metrics(all_metrics, eval_dir)
-        logging.info(f"Saved metrics to {eval_dir}")
+        logging.info(f"\n{'='*70}")
+        logging.info(f"All metrics saved to {eval_dir}/metrics.json")
+        logging.info(f"{'='*70}\n")
 
 
 if __name__ == "__main__":
