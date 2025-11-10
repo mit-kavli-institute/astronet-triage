@@ -5,7 +5,8 @@ Update TFRecord files with averaged predictions from ensemble models.
 This script:
 1. Loads averaged predictions from CSV
 2. Reads all TFRecord shard files from input directory
-3. Replaces disp_p, disp_e, disp_n, disp_j values with averaged predictions
+3. Adds soft label columns (disp_p_soft, disp_e_soft, disp_n_soft, disp_j_soft)
+   with averaged predictions, keeping original labels intact
 4. Writes updated TFRecords to output directory
 """
 
@@ -50,13 +51,14 @@ def load_predictions_mapping(csv_path):
 
 def update_tfrecord_file(input_file, output_file, predictions_map, label_cols):
     """
-    Update a single TFRecord file with new label values.
+    Update a single TFRecord file by adding soft label columns.
 
     Args:
         input_file: Path to input TFRecord file
         output_file: Path to output TFRecord file
-        predictions_map: Dictionary mapping astro_id to new label values
+        predictions_map: Dictionary mapping astro_id to soft label values
         label_cols: List of label column names ['disp_p', 'disp_e', 'disp_n', 'disp_j']
+                   (soft labels will be added as disp_p_soft, etc.)
 
     Returns:
         Tuple of (total_records, updated_records, missing_records)
@@ -93,15 +95,12 @@ def update_tfrecord_file(input_file, output_file, predictions_map, label_cols):
 
             # Check if we have predictions for this astro_id
             if astro_id in predictions_map:
-                # Update label values
+                # Add soft label values (keep original labels intact)
                 new_labels = predictions_map[astro_id]
                 for label_col in label_cols:
-                    if label_col in example.features.feature:
-                        # Set the new float value
-                        example.features.feature[label_col].float_list.value[:] = [new_labels[label_col]]
-                    else:
-                        # Create new feature if it doesn't exist
-                        example.features.feature[label_col].float_list.value[:] = [new_labels[label_col]]
+                    soft_label_col = f"{label_col}_soft"
+                    # Set the soft label value
+                    example.features.feature[soft_label_col].float_list.value[:] = [new_labels[label_col]]
 
                 updated_records += 1
             else:
@@ -117,13 +116,14 @@ def update_tfrecord_file(input_file, output_file, predictions_map, label_cols):
 
 def update_tfrecords(input_dir, predictions_csv, output_dir, label_cols=None):
     """
-    Update all TFRecord files in input_dir with predictions from CSV.
+    Update all TFRecord files in input_dir by adding soft label columns from CSV.
 
     Args:
         input_dir: Directory containing input TFRecord shard files
         predictions_csv: Path to ensemble_predictions_averaged.csv
         output_dir: Directory to write updated TFRecord files
         label_cols: List of label column names (default: ['disp_p', 'disp_e', 'disp_n', 'disp_j'])
+                   Original labels are preserved, soft labels added as *_soft columns
     """
     if label_cols is None:
         label_cols = ['disp_p', 'disp_e', 'disp_n', 'disp_j']
@@ -207,7 +207,7 @@ def main():
         output_tfrecord_dir = args.output_tfrecord_dir
 
     print("=" * 70)
-    print("TFRecord Updater - Replace labels with averaged predictions")
+    print("TFRecord Updater - Add soft labels (preserving original labels)")
     print("=" * 70)
     print(f"Input TFRecord directory: {args.input_tfrecord_dir}")
     print(f"Predictions CSV: {args.predictions_csv}")
