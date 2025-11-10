@@ -242,6 +242,11 @@ def generate_ensemble_predictions(ensemble_dir, data_dir, output_dir=None, outpu
     print(f"  - Predictions with true labels: {has_labels}")
     print(f"  - Predictions without true labels: {len(averaged_predictions_df) - has_labels}")
 
+    # Create version without true labels (only predictions)
+    # Select columns: astro_id + all columns starting with 'avg_'
+    avg_pred_cols = [col for col in averaged_predictions_df.columns if col.startswith('avg_')]
+    averaged_predictions_no_labels_df = averaged_predictions_df[['astro_id'] + avg_pred_cols].copy()
+
     # Set default output paths if not provided
     if output_dir is None:
         output_dir = os.path.dirname(__file__)
@@ -254,16 +259,22 @@ def generate_ensemble_predictions(ensemble_dir, data_dir, output_dir=None, outpu
     if output_avg_csv is None:
         output_avg_csv = os.path.join(output_dir, "ensemble_predictions_averaged.csv")
 
+    output_avg_no_labels_csv = os.path.join(output_dir, "ensemble_predictions_averaged_no_labels.csv")
+
     # Save to CSV files
     print(f"\nSaving all predictions to: {output_all_csv}")
     all_predictions_df.to_csv(output_all_csv, index=False)
 
-    print(f"Saving averaged predictions to: {output_avg_csv}")
+    print(f"Saving averaged predictions (with true labels) to: {output_avg_csv}")
     averaged_predictions_df.to_csv(output_avg_csv, index=False)
+
+    print(f"Saving averaged predictions (without true labels) to: {output_avg_no_labels_csv}")
+    averaged_predictions_no_labels_df.to_csv(output_avg_no_labels_csv, index=False)
 
     print("\n✅ Done!")
     print(f"  - All predictions: {len(all_predictions_df)} rows")
-    print(f"  - Averaged predictions: {len(averaged_predictions_df)} rows")
+    print(f"  - Averaged predictions (with labels): {len(averaged_predictions_df)} rows")
+    print(f"  - Averaged predictions (without labels): {len(averaged_predictions_no_labels_df)} rows")
     print(f"  - Number of models: {len(model_dirs)}")
 
     return all_predictions_df, averaged_predictions_df
