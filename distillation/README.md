@@ -11,28 +11,43 @@ The process involves:
 
 ## Step-by-Step Instructions
 
-### 1. Configure Paths
+### Option 1: Use the Automated Pipeline Script (Recommended)
 
-Edit `ensemblelabels.py` and set the following paths:
+The easiest way is to use the bash script that processes both train and validation datasets:
 
-```python
-ensemble_dir='/path/to/your/ensemble/models/directory'
-data_dir='/path/to/your/tfrecords/*'
-output_dir='/path/to/output/directory'
-```
+1. **Edit the paths in `run_softlabels_pipeline.sh`**:
+   ```bash
+   ENSEMBLE_DIR='/path/to/your/ensemble/models/directory'
+   TRAIN_DATA_DIR='/path/to/your/train/tfrecords/*'
+   VAL_DATA_DIR='/path/to/your/val/tfrecords/*'
+   BASE_OUTPUT_DIR='/path/to/output/directory'
+   ```
 
-**Details:**
-- `ensemble_dir`: Directory containing all your trained model directories (e.g., `/pdo/astronet-data/models/vetting/.../pablomer-2k-pretrained`)
-- `data_dir`: Glob pattern for TFRecord files to generate predictions on (e.g., `/pdo/astronet-data/data/tfrecords/.../train/*`)
-- `output_dir`: Directory where CSV files with predictions will be saved (e.g., `/pdo/astronet-data/data/labels/softlabels/...`)
+2. **Run the pipeline**:
+   ```bash
+   cd Astronet-Triage/distillation
+   ./run_softlabels_pipeline.sh
+   ```
 
-### 2. Generate Ensemble Predictions
+This will automatically:
+- Generate predictions for both train and validation datasets
+- Create separate output directories for each (`{BASE_OUTPUT_DIR}/train` and `{BASE_OUTPUT_DIR}/val`)
+- Update TFRecord files for both datasets
 
-Run the script to generate predictions from all models and create averaged predictions:
+### Option 2: Run Scripts Manually
+
+If you prefer to run the scripts individually:
+
+#### 1. Generate Ensemble Predictions
+
+Run the script with command-line arguments:
 
 ```bash
 cd Astronet-Triage/distillation
-python generate_ensemble_predictions.py
+python generate_ensemble_predictions.py \
+    --ensemble_dir '/path/to/your/ensemble/models/directory' \
+    --data_dir '/path/to/your/tfrecords/*' \
+    --output_dir '/path/to/output/directory'
 ```
 
 **What this does:**
@@ -48,34 +63,30 @@ python generate_ensemble_predictions.py
 - Summary statistics (number of predictions, models, etc.)
 - CSV files saved to `output_dir`
 
-### 3. Update TFRecord Files with Soft Labels
+#### 2. Update TFRecord Files with Soft Labels
 
 Run the script to replace original labels in TFRecord files with the averaged predictions:
 
 ```bash
-python update_tfrecords_with_predictions.py
+python update_tfrecords_with_predictions.py \
+    --input_tfrecord_dir '/path/to/input/tfrecords/directory' \
+    --predictions_csv '/path/to/ensemble_predictions_averaged.csv' \
+    --output_tfrecord_dir '/path/to/output/directory'  # Optional, defaults to input_dir + '_softlabels'
 ```
 
 **What this does:**
-- Loads `ensemble_predictions_averaged.csv` from `output_dir`
-- Reads all TFRecord shard files from the input directory (specified in the script)
+- Loads `ensemble_predictions_averaged.csv`
+- Reads all TFRecord shard files from the input directory
 - For each example in each TFRecord:
   - Extracts `astro_id`
   - Looks up averaged predictions (`avg_disp_p`, `avg_disp_e`, `avg_disp_n`, `avg_disp_j`)
   - Replaces original `disp_p`, `disp_e`, `disp_n`, `disp_j` values with averaged predictions
-- Writes updated TFRecords to a new directory (original directory name + `_softlabels`)
+- Writes updated TFRecords to output directory (defaults to input directory name + `_softlabels`)
 
 **Expected output:**
 - Progress bar showing which TFRecord files are being processed
 - Summary statistics (total records, updated records, missing records)
-- Updated TFRecord files in the new `_softlabels` directory
-
-**Note:** The input directory is hardcoded in the script. Currently set to:
-```
-/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-train/
-```
-
-To change this, edit the `input_tfrecord_dir` variable in the `main()` function of `update_tfrecords_with_predictions.py`.
+- Updated TFRecord files in the output directory
 
 ## Output Files
 

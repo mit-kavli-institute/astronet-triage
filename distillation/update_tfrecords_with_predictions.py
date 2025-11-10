@@ -11,29 +11,12 @@ This script:
 
 import os
 import sys
+import argparse
 import glob
 import pandas as pd
 import tensorflow as tf
 from pathlib import Path
 from tqdm import tqdm
-
-# Import paths from ensemblelabels
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, script_dir)
-try:
-    from ensemblelabels import output_dir
-except ImportError:
-    import re
-    ensemblelabels_path = os.path.join(script_dir, 'ensemblelabels.py')
-    output_dir = None
-    if os.path.exists(ensemblelabels_path):
-        with open(ensemblelabels_path, 'r') as f:
-            content = f.read()
-            output_dir_match = re.search(r"output_dir=['\"]([^'\"]+)['\"]", content)
-            if output_dir_match:
-                output_dir = output_dir_match.group(1)
-    if output_dir is None:
-        raise ValueError("Could not load output_dir from ensemblelabels.py")
 
 
 def load_predictions_mapping(csv_path):
@@ -193,31 +176,54 @@ def update_tfrecords(input_dir, predictions_csv, output_dir, label_cols=None):
 
 def main():
     """Main function."""
-    # Configuration
-    input_tfrecord_dir = '/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-train/'
-    predictions_csv = os.path.join(output_dir, 'ensemble_predictions_averaged.csv')
+    parser = argparse.ArgumentParser(
+        description='Update TFRecord files with averaged predictions'
+    )
+    parser.add_argument(
+        '--input_tfrecord_dir',
+        type=str,
+        required=True,
+        help='Directory containing input TFRecord shard files'
+    )
+    parser.add_argument(
+        '--predictions_csv',
+        type=str,
+        required=True,
+        help='Path to ensemble_predictions_averaged.csv file'
+    )
+    parser.add_argument(
+        '--output_tfrecord_dir',
+        type=str,
+        default=None,
+        help='Directory to save updated TFRecord files (default: input_dir + _softlabels)'
+    )
 
-    # Output directory for updated TFRecords (add suffix to distinguish from original)
-    output_tfrecord_dir = input_tfrecord_dir.rstrip('/') + '_softlabels'
+    args = parser.parse_args()
+
+    # Derive output directory if not provided
+    if args.output_tfrecord_dir is None:
+        output_tfrecord_dir = args.input_tfrecord_dir.rstrip('/') + '_softlabels'
+    else:
+        output_tfrecord_dir = args.output_tfrecord_dir
 
     print("=" * 70)
     print("TFRecord Updater - Replace labels with averaged predictions")
     print("=" * 70)
-    print(f"Input TFRecord directory: {input_tfrecord_dir}")
-    print(f"Predictions CSV: {predictions_csv}")
+    print(f"Input TFRecord directory: {args.input_tfrecord_dir}")
+    print(f"Predictions CSV: {args.predictions_csv}")
     print(f"Output TFRecord directory: {output_tfrecord_dir}")
     print("=" * 70)
 
-    if not os.path.exists(predictions_csv):
-        raise FileNotFoundError(f"Predictions CSV not found: {predictions_csv}")
+    if not os.path.exists(args.predictions_csv):
+        raise FileNotFoundError(f"Predictions CSV not found: {args.predictions_csv}")
 
-    if not os.path.exists(input_tfrecord_dir):
-        raise FileNotFoundError(f"Input directory not found: {input_tfrecord_dir}")
+    if not os.path.exists(args.input_tfrecord_dir):
+        raise FileNotFoundError(f"Input directory not found: {args.input_tfrecord_dir}")
 
     # Update TFRecords
     update_tfrecords(
-        input_dir=input_tfrecord_dir,
-        predictions_csv=predictions_csv,
+        input_dir=args.input_tfrecord_dir,
+        predictions_csv=args.predictions_csv,
         output_dir=output_tfrecord_dir,
         label_cols=['disp_p', 'disp_e', 'disp_n', 'disp_j']
     )

@@ -11,37 +11,11 @@ This script:
 
 import os
 import sys
+import argparse
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from pathlib import Path
-
-# Import the ensemblelabels module to get paths
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, script_dir)
-try:
-    from ensemblelabels import ensemble_dir, data_dir, output_dir
-except ImportError:
-    # Fallback: read the file directly if import fails
-    import re
-    ensemblelabels_path = os.path.join(script_dir, 'ensemblelabels.py')
-    ensemble_dir = None
-    data_dir = None
-    output_dir = None
-    if os.path.exists(ensemblelabels_path):
-        with open(ensemblelabels_path, 'r') as f:
-            content = f.read()
-            ensemble_dir_match = re.search(r"ensemble_dir=['\"]([^'\"]+)['\"]", content)
-            data_dir_match = re.search(r"data_dir=['\"]([^'\"]+)['\"]", content)
-            output_dir_match = re.search(r"output_dir=['\"]([^'\"]+)['\"]", content)
-            if ensemble_dir_match:
-                ensemble_dir = ensemble_dir_match.group(1)
-            if data_dir_match:
-                data_dir = data_dir_match.group(1)
-            if output_dir_match:
-                output_dir = output_dir_match.group(1)
-    if ensemble_dir is None or data_dir is None:
-        raise ValueError("Could not load ensemble_dir and data_dir from ensemblelabels.py")
 
 from astronet import predict
 from astronet.astro_cnn_model import input_ds
@@ -282,13 +256,37 @@ def generate_ensemble_predictions(ensemble_dir, data_dir, output_dir=None, outpu
 
 def main():
     """Main function."""
+    parser = argparse.ArgumentParser(
+        description='Generate ensemble predictions from multiple models'
+    )
+    parser.add_argument(
+        '--ensemble_dir',
+        type=str,
+        required=True,
+        help='Directory containing model directories'
+    )
+    parser.add_argument(
+        '--data_dir',
+        type=str,
+        required=True,
+        help='Path or glob pattern to TFRecord files'
+    )
+    parser.add_argument(
+        '--output_dir',
+        type=str,
+        default=None,
+        help='Directory to save output CSV files (default: script directory)'
+    )
+
+    args = parser.parse_args()
+
     print("=" * 70)
     print("Ensemble Prediction Generator")
     print("=" * 70)
-    print(f"Ensemble directory: {ensemble_dir}")
-    print(f"Data directory: {data_dir}")
-    if output_dir:
-        print(f"Output directory: {output_dir}")
+    print(f"Ensemble directory: {args.ensemble_dir}")
+    print(f"Data directory: {args.data_dir}")
+    if args.output_dir:
+        print(f"Output directory: {args.output_dir}")
     else:
         print("Output directory: (using default)")
     print("=" * 70)
@@ -296,9 +294,9 @@ def main():
     # Set default device to CPU to avoid GPU memory issues
     with tf.device('/CPU:0'):
         all_preds, avg_preds = generate_ensemble_predictions(
-            ensemble_dir=ensemble_dir,
-            data_dir=data_dir,
-            output_dir=output_dir
+            ensemble_dir=args.ensemble_dir,
+            data_dir=args.data_dir,
+            output_dir=args.output_dir
         )
 
     return all_preds, avg_preds
