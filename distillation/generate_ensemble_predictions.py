@@ -17,10 +17,35 @@ import tensorflow as tf
 from pathlib import Path
 
 # Import the ensemblelabels module to get paths
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ensemblelabels import ensemble_dir, data_dir
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
+try:
+    from ensemblelabels import ensemble_dir, data_dir, output_dir
+except ImportError:
+    # Fallback: read the file directly if import fails
+    import re
+    ensemblelabels_path = os.path.join(script_dir, 'ensemblelabels.py')
+    ensemble_dir = None
+    data_dir = None
+    output_dir = None
+    if os.path.exists(ensemblelabels_path):
+        with open(ensemblelabels_path, 'r') as f:
+            content = f.read()
+            ensemble_dir_match = re.search(r"ensemble_dir=['\"]([^'\"]+)['\"]", content)
+            data_dir_match = re.search(r"data_dir=['\"]([^'\"]+)['\"]", content)
+            output_dir_match = re.search(r"output_dir=['\"]([^'\"]+)['\"]", content)
+            if ensemble_dir_match:
+                ensemble_dir = ensemble_dir_match.group(1)
+            if data_dir_match:
+                data_dir = data_dir_match.group(1)
+            if output_dir_match:
+                output_dir = output_dir_match.group(1)
+    if ensemble_dir is None or data_dir is None:
+        raise ValueError("Could not load ensemble_dir and data_dir from ensemblelabels.py")
 
 from astronet import predict
+from astronet.astro_cnn_model import input_ds
+from astronet.util import config_util
 
 
 def find_all_model_directories(ensemble_dir):
@@ -93,21 +118,66 @@ def find_all_model_directories(ensemble_dir):
     return sorted(model_dirs)
 
 
-def generate_ensemble_predictions(ensemble_dir, data_dir, output_all_csv=None, output_avg_csv=None):
+def load_true_labels(data_dir, config):
+    """
+    Load true labels from TFRecord files.
+
+    Args:
+        data_dir: Path or glob pattern to TFRecord files
+        config: Model configuration
+
+    Returns:
+        Dictionary mapping astro_id to label array
+    """
+    print("\nLoading true labels from dataset...")
+    batch_size = config.hparams.batch_size
+
+    # Build dataset with labels
+    ds_labels = input_ds.build_eval_dataset(
+        file_pattern=data_dir,
+        input_config=config.inputs,
+        batch_size=batch_size,
+        include_identifiers=True,
+        include_labels=True
+    )
+
+    # Extract labels and IDs
+    labels_dict = {}
+    for features, labels_batch, weight_batch, id_batch in ds_labels:
+        labels_np = labels_batch.numpy()
+        ids_np = id_batch.numpy()
+
+        for i, astro_id in enumerate(ids_np):
+            labels_dict[astro_id] = labels_np[i]
+
+    print(f"Loaded labels for {len(labels_dict)} astro_ids")
+    return labels_dict
+
+
+def generate_ensemble_predictions(ensemble_dir, data_dir, output_dir=None, output_all_csv=None, output_avg_csv=None):
     """
     Generate predictions from all models in the ensemble directory.
 
     Args:
         ensemble_dir: Directory containing model directories
         data_dir: Path or glob pattern to TFRecord files
-        output_all_csv: Path to save CSV with all predictions (default: ensemble_predictions_all.csv)
-        output_avg_csv: Path to save CSV with averaged predictions (default: ensemble_predictions_averaged.csv)
+        output_dir: Directory to save output CSV files (if None, uses script directory)
+        output_all_csv: Path to save CSV with all predictions (default: output_dir/ensemble_predictions_all.csv)
+        output_avg_csv: Path to save CSV with averaged predictions (default: output_dir/ensemble_predictions_averaged.csv)
 
     Returns:
         Tuple of (all_predictions_df, averaged_predictions_df)
     """
     # Find all model directories
     model_dirs = find_all_model_directories(ensemble_dir)
+
+    # Load config from first model to get label columns (assumes all models have same config)
+    first_model_dir = model_dirs[0]
+    config = config_util.load_config(os.path.join(first_model_dir, 'config.json'))
+    label_columns = config.inputs.label_columns
+
+    # Load true labels
+    true_labels_dict = load_true_labels(data_dir, config)
 
     # Generate predictions for each model
     print(f"\nGenerating predictions for {len(model_dirs)} models...")
@@ -116,7 +186,7 @@ def generate_ensemble_predictions(ensemble_dir, data_dir, output_all_csv=None, o
     for i, model_dir in enumerate(model_dirs, 1):
         print(f"\n[{i}/{len(model_dirs)}] Processing model: {os.path.basename(model_dir)}")
         try:
-            pred_df, config = predict.predict(model_dir, data_dir)
+            pred_df, _ = predict.predict(model_dir, data_dir)
             pred_df["model_no"] = i - 1  # 0-indexed
             pred_df["model_dir"] = model_dir
             all_predictions.append(pred_df)
@@ -139,7 +209,7 @@ def generate_ensemble_predictions(ensemble_dir, data_dir, output_all_csv=None, o
                  if col not in ['astro_id', 'model_no', 'model_dir']]
     print(f"Prediction columns: {pred_cols}")
 
-    # Create averaged predictions
+    # Create averaged predictions with true labels
     print("\nComputing averaged predictions...")
     avg_predictions = []
 
@@ -147,20 +217,42 @@ def generate_ensemble_predictions(ensemble_dir, data_dir, output_all_csv=None, o
         astro_preds = all_predictions_df[all_predictions_df['astro_id'] == astro_id]
 
         # Compute mean across all models for this astro_id
+        # Use 'avg_' prefix for predictions to distinguish from true labels
         avg_row = {'astro_id': astro_id}
         for col in pred_cols:
-            avg_row[col] = astro_preds[col].mean()
+            avg_row[f'avg_{col}'] = astro_preds[col].mean()
+
+        # Add true labels using exact names from TFRecords (disp_p, disp_e, disp_n, disp_j)
+        if astro_id in true_labels_dict:
+            true_label = true_labels_dict[astro_id]
+            for i, label_col in enumerate(label_columns):
+                avg_row[label_col] = true_label[i]
+        else:
+            # If label not found, set to NaN
+            for label_col in label_columns:
+                avg_row[label_col] = np.nan
 
         avg_predictions.append(avg_row)
 
     averaged_predictions_df = pd.DataFrame(avg_predictions)
     print(f"Averaged predictions: {len(averaged_predictions_df)}")
 
+    # Count how many have true labels
+    has_labels = averaged_predictions_df[label_columns].notna().all(axis=1).sum()
+    print(f"  - Predictions with true labels: {has_labels}")
+    print(f"  - Predictions without true labels: {len(averaged_predictions_df) - has_labels}")
+
     # Set default output paths if not provided
+    if output_dir is None:
+        output_dir = os.path.dirname(__file__)
+    else:
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+
     if output_all_csv is None:
-        output_all_csv = os.path.join(os.path.dirname(__file__), "ensemble_predictions_all.csv")
+        output_all_csv = os.path.join(output_dir, "ensemble_predictions_all.csv")
     if output_avg_csv is None:
-        output_avg_csv = os.path.join(os.path.dirname(__file__), "ensemble_predictions_averaged.csv")
+        output_avg_csv = os.path.join(output_dir, "ensemble_predictions_averaged.csv")
 
     # Save to CSV files
     print(f"\nSaving all predictions to: {output_all_csv}")
@@ -184,13 +276,18 @@ def main():
     print("=" * 70)
     print(f"Ensemble directory: {ensemble_dir}")
     print(f"Data directory: {data_dir}")
+    if output_dir:
+        print(f"Output directory: {output_dir}")
+    else:
+        print("Output directory: (using default)")
     print("=" * 70)
 
     # Set default device to CPU to avoid GPU memory issues
     with tf.device('/CPU:0'):
         all_preds, avg_preds = generate_ensemble_predictions(
             ensemble_dir=ensemble_dir,
-            data_dir=data_dir
+            data_dir=data_dir,
+            output_dir=output_dir
         )
 
     return all_preds, avg_preds
