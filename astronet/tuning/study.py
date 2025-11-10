@@ -57,7 +57,7 @@ def run_trial(model_class, config, train_files, val_files, shuffle_buffer_size):
   results = {}
   for dataset, file_pattern in [("train", train_files), ("val", val_files)]:
     batch_size = config.hparams.batch_size
-    metrics, y_label, y_pred = evaluation.evaluate_model(
+    metrics, y_label, y_pred, _ = evaluation.evaluate_model(
         model, config.inputs, file_pattern, batch_size=batch_size)
     results[dataset] = metrics["loss"], y_label, y_pred
   return results
