@@ -337,8 +337,27 @@ class StudentModel(tf.keras.Model):
         x, y = data
         hard_labels, soft_labels = y
 
+        # Debug print on first step only
+        if not hasattr(self, '_first_step_printed'):
+            logging.info("\n" + "="*70)
+            logging.info("First training step - verifying labels and predictions:")
+            logging.info("="*70)
+            logging.info(f"Hard labels shape: {hard_labels.shape}, dtype: {hard_labels.dtype}")
+            logging.info(f"Soft labels shape: {soft_labels.shape}, dtype: {soft_labels.dtype}")
+            logging.info(f"First example hard label: {hard_labels[0].numpy()}")
+            logging.info(f"First example soft label: {soft_labels[0].numpy()}")
+            self._first_step_printed = True
+
         with tf.GradientTape() as tape:
             y_pred = self(x, training=True)
+
+            # Debug print on first step
+            if not hasattr(self, '_first_pred_printed'):
+                logging.info(f"Predictions shape: {y_pred.shape}, dtype: {y_pred.dtype}")
+                logging.info(f"First example prediction (logits): {y_pred[0].numpy()}")
+                logging.info("="*70 + "\n")
+                self._first_pred_printed = True
+
             loss = self.combined_loss((hard_labels, soft_labels), y_pred)
 
         # Compute gradients
@@ -366,6 +385,28 @@ def train_student(model, config, train_files, shuffle_buffer_size=2500,
         shuffle_values_buffer=shuffle_buffer_size,
         exclude_astro_ids=exclude_astro_ids
     )
+
+    # Debug: Print sample batch to verify soft labels are loaded correctly
+    logging.info("\n" + "="*70)
+    logging.info("Verifying soft labels in dataset...")
+    logging.info("="*70)
+    sample_batch = next(iter(ds))
+    features, labels_tuple = sample_batch
+    hard_labels, soft_labels = labels_tuple
+
+    logging.info(f"Batch features keys: {list(features.keys())[:5]}...")  # Show first 5 keys
+    logging.info(f"Hard labels shape: {hard_labels.shape}")
+    logging.info(f"Soft labels shape: {soft_labels.shape}")
+    logging.info(f"\nFirst 3 examples - Hard labels:")
+    for i in range(min(3, hard_labels.shape[0])):
+        logging.info(f"  Example {i}: {hard_labels[i].numpy()}")
+    logging.info(f"\nFirst 3 examples - Soft labels:")
+    for i in range(min(3, soft_labels.shape[0])):
+        logging.info(f"  Example {i}: {soft_labels[i].numpy()}")
+    logging.info(f"\nHard labels sum (should be 1.0 for one-hot): {tf.reduce_sum(hard_labels[0]).numpy():.4f}")
+    logging.info(f"Soft labels sum (should be ~1.0 for probabilities): {tf.reduce_sum(soft_labels[0]).numpy():.4f}")
+    logging.info(f"Soft labels min: {tf.reduce_min(soft_labels).numpy():.6f}, max: {tf.reduce_max(soft_labels).numpy():.6f}")
+    logging.info("="*70 + "\n")
 
     # Create combined loss
     n_labels = len(config.inputs.label_columns)
