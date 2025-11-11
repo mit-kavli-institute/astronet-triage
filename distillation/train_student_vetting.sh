@@ -48,6 +48,7 @@ LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib:$LD_LIBRARY_PATH \
     --soft_label_weight=$SOFT_LABEL_WEIGHT \
     --hard_label_weight=$HARD_LABEL_WEIGHT \
     --temperature=$TEMPERATURE \
+    --use_binary_loss_for_hard_labels \
     --eval_files="val:$EVAL_DATA_DIR/${EVAL_TFRECORD_PREFIX}-val/*" \
     --eval_files="test:$EVAL_DATA_DIR/${EVAL_TFRECORD_PREFIX}-test/*" \
     --shuffle_buffer_size=25000 \

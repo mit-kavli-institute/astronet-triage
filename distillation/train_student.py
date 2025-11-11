@@ -159,37 +159,25 @@ class CombinedDistillationLoss(tf.keras.losses.Loss):
         # Apply temperature to logits
         scaled_logits = y_pred / self.temperature
 
-        # Determine if we're using multi-class (softmax) or multi-label (sigmoid)
-        # Check the hard loss function type
-        is_categorical = isinstance(self.hard_loss_fn, tf.keras.losses.CategoricalCrossentropy)
+        # For soft labels, always use sigmoid (BinaryCrossentropy-style) regardless of hard label loss
+        # This treats each class independently, which is better for leveraging ensemble predictions
+        # Soft labels are probability distributions from ensemble, so treating them independently
+        # allows the model to learn from the full probability distribution more effectively
+        student_probs = tf.nn.sigmoid(scaled_logits)
 
-        if is_categorical:
-            # Multi-class: use softmax
-            student_probs = tf.nn.softmax(scaled_logits)
-            # KL divergence: KL(soft_labels || student_probs)
-            # = sum(soft_labels * log(soft_labels / student_probs))
-            # First term is constant, so we minimize: -sum(soft_labels * log(student_probs))
-            epsilon = 1e-8
-            kl_loss = -tf.reduce_sum(
-                soft_labels * tf.math.log(student_probs + epsilon), axis=-1
-            )
-        else:
-            # Multi-label: use sigmoid
-            student_probs = tf.nn.sigmoid(scaled_logits)
-            # For multi-label, compute KL divergence per label and sum
-            # KL(soft_labels || student_probs) = sum over labels of:
-            #   soft_labels * log(soft_labels / student_probs) +
-            #   (1 - soft_labels) * log((1 - soft_labels) / (1 - student_probs))
-            epsilon = 1e-8
-            kl_per_label = (
-                soft_labels * tf.math.log((soft_labels + epsilon) / (student_probs + epsilon)) +
-                (1 - soft_labels) * tf.math.log((1 - soft_labels + epsilon) / (1 - student_probs + epsilon))
-            )
-            kl_loss = tf.reduce_sum(kl_per_label, axis=-1)
-
+        # Compute KL divergence per label and sum
+        # KL(soft_labels || student_probs) = sum over labels of:
+        #   soft_labels * log(soft_labels / student_probs) +
+        #   (1 - soft_labels) * log((1 - soft_labels) / (1 - student_probs))
+        epsilon = 1e-8
+        kl_per_label = (
+            soft_labels * tf.math.log((soft_labels + epsilon) / (student_probs + epsilon)) +
+            (1 - soft_labels) * tf.math.log((1 - soft_labels + epsilon) / (1 - student_probs + epsilon))
+        )
+        kl_loss = tf.reduce_sum(kl_per_label, axis=-1)
         kl_loss = tf.reduce_mean(kl_loss)
 
-        # Hard label loss (standard crossentropy)
+        # Hard label loss (can be BinaryCrossentropy or CategoricalCrossentropy)
         hard_loss = self.hard_loss_fn(hard_labels, y_pred)
 
         # Combined loss
@@ -375,7 +363,7 @@ class StudentModel(tf.keras.Model):
 
 def train_student(model, config, train_files, shuffle_buffer_size=2500,
                  exclude_astro_ids=None, soft_label_weight=1.0,
-                 hard_label_weight=0.1, temperature=1.0):
+                 hard_label_weight=0.1, temperature=1.0, use_binary_loss_for_hard_labels=False):
     """Trains a student model with soft labels."""
     # Build dataset with soft labels
     ds = build_train_dataset_with_soft_labels(
@@ -409,12 +397,20 @@ def train_student(model, config, train_files, shuffle_buffer_size=2500,
     logging.info("="*70 + "\n")
 
     # Create combined loss
+    # For hard labels, use BinaryCrossentropy if explicitly requested or if labels are not exclusive
+    # BinaryCrossentropy treats each class independently, which can be better for distillation
     n_labels = len(config.inputs.label_columns)
-    if n_labels > 1 and config.inputs.get("exclusive_labels", False):
+
+    if use_binary_loss_for_hard_labels:
+        hard_loss_fn = tf.keras.losses.BinaryCrossentropy()
+        logging.info("Using BinaryCrossentropy for hard labels (overriding config)")
+    elif n_labels > 1 and config.inputs.get("exclusive_labels", False):
         hard_loss_fn = tf.keras.losses.CategoricalCrossentropy(
             label_smoothing=config.hparams.get("label_smoothing", 0.0))
+        logging.info("Using CategoricalCrossentropy for hard labels (from config)")
     else:
         hard_loss_fn = tf.keras.losses.BinaryCrossentropy()
+        logging.info("Using BinaryCrossentropy for hard labels (from config)")
 
     combined_loss = CombinedDistillationLoss(
         soft_label_weight=soft_label_weight,
@@ -493,6 +489,12 @@ def main():
         type=float,
         default=1.0,
         help='Temperature for distillation (default: 1.0, no scaling)'
+    )
+    parser.add_argument(
+        '--use_binary_loss_for_hard_labels',
+        action='store_true',
+        help='Use BinaryCrossentropy for hard labels even if config specifies CategoricalCrossentropy. '
+             'This can be better for distillation as it treats each class independently.'
     )
     parser.add_argument(
         '--train_steps',
@@ -606,7 +608,8 @@ def main():
         exclude_astro_ids=exclude_astro_ids,
         soft_label_weight=args.soft_label_weight,
         hard_label_weight=args.hard_label_weight,
-        temperature=args.temperature
+        temperature=args.temperature,
+        use_binary_loss_for_hard_labels=args.use_binary_loss_for_hard_labels
     )
 
     # Save the base model (not the wrapper)
