@@ -1,6 +1,7 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -42,4 +43,28 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
             mask |= df[feature].isna()
 
         filtered_df = filtered_df[mask]
+
+
+    # Custom filter implementations
+    filter_ebs_by_period = st.sidebar.checkbox("Filter EBs by period")
+
+    if filter_ebs_by_period:    
+        tolerance = 0.05
+
+        # Optionally, if you still want to keep the successfully filtered version:
+        def keep_highest_planet_within_tolerance(group):
+            if len(group) == 1:
+                return group
+            group = group.sort_values(by='planetno', ascending=False)
+            top_period = group.iloc[0]['period']
+            mask = np.abs(group['period'] - top_period) <= tolerance
+            return group[mask]
+
+        filtered_df = (
+            filtered_df.groupby('tic_id', group_keys=False)
+            .apply(keep_highest_planet_within_tolerance)
+            .reset_index(drop=True)
+        )
+
+
     return filtered_df
