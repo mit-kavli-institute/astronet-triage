@@ -1,18 +1,29 @@
 from exodash.utils.file_io import model_result_selector
 from exodash.utils.filter import advanced_filter_sidebar
+from exodash.utils.live_evaluation import LiveEvaluation
 from exodash.utils.model_visualization import analyze_features, plot_pr_curve, plot_prediction_score_distribution, show_all_model_performance
 from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
 import streamlit as st
 import pandas as pd
 from data_management.light_curve_server import ALL_PAGE_TYPES
 from data_management.type_mapping import HUMAN_LABEL_MAP, PREDICTION_MAPPING, PREDICTION_LABELS
-from exodash.eval_utils import REQUIRED_MODEL_COLUMNS, EvalUtils
+#from exodash.eval_utils import REQUIRED_MODEL_COLUMNS, EvalUtils
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import plotly.express as px
 
 if "df" not in st.session_state or "light_curve_server" not in st.session_state:
-    st.error("Dataset not found. Please use the landing page first.")
-    st.stop()
+    #st.error("Dataset not found. Please use the landing page first.")
+
+    tfrecord_path = "/pdo/users/dimond/tfrecord_exodash/train.tfrecord"
+    model_path = "/pdo/astronet-data/models/vetting/baseline/"
+    properties_path = "/pdo/users/dimond/tfrecord_exodash/train.csv"
+    st.session_state.properties_df = pd.read_csv(properties_path)
+    evaluation = LiveEvaluation(model_path)
+    model_results = evaluation.evaluate([tfrecord_path])
+    st.write(model_results.describe())
+    st.dataframe(model_results)
+    1/0
+
 
 properties_df = df = st.session_state.df
 server = st.session_state.light_curve_server

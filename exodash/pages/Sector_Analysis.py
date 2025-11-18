@@ -1,7 +1,7 @@
 from typing import Dict, List
 from data_management.light_curve_server import ALL_PAGE_TYPES, LightCurveServer
 from exodash.utils.filter import advanced_filter_sidebar
-from exodash.utils.production_sector import ProductionSector, get_production_sector_df
+from exodash.utils.production_sector import ProductionSector, get_production_sector_df, get_production_sector_selector
 from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
 from clustering import ClusterParams, Clustering
 from exodash.utils.tic_visualization import TICVisualizer
@@ -14,49 +14,17 @@ import plotly.express as px
 from streamlit_plotly_events import plotly_events
 import os
 
+MODEL_CONFIG_PATH = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
 
 
 st.set_page_config(page_title="ExoDash - Sector Analysis", layout="wide")
 st.title("Production Sector Analysis")
 
-if "selected_sectors" not in st.session_state:
-    st.session_state.selected_sectors = set()
 if "light_curve_server" not in st.session_state:
         st.session_state.light_curve_server = LightCurveServer()
 
-MODEL_CONFIG_PATH = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
-sectors = list(range(85, 95))
-available = {}
-for sector in sectors:
-    tfrecords_exist = os.path.isdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}') and os.listdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}')
-    properties_exist = os.path.isfile(f'/pdo/astronet-data/data/properties/tces-sector{sector}_with_labels.csv')
-    if properties_exist and tfrecords_exist:
-        available[sector] = True
-    else:
-        available[sector] = False
-
 custom_model = st.text_input("Custom model dir (ex: /pdo/astronet-data/models/vetting/baseline/AstroCNNModelVetting_cshallue_20250429_181612/): ")
-
-cols = st.columns(len(sectors))
-
-for i, astro_id in enumerate(sectors):
-    with cols[i]:
-        disabled = not available[astro_id]
-        selected = astro_id in st.session_state.selected_sectors
-
-        if st.button(
-            f"{astro_id}",
-            key=f"btn_{astro_id}",
-            disabled=disabled,
-            type="primary" if selected else "secondary",
-            use_container_width=True,
-        ):
-            if selected:
-                st.session_state.selected_sectors.remove(astro_id)
-            else:
-                st.session_state.selected_sectors.add(astro_id)
-            st.rerun()
-
+get_production_sector_selector()
 
 if len(st.session_state.selected_sectors) == 0:
     st.stop()
@@ -190,6 +158,7 @@ venn_regions = {
     'TOI': toi,
     'Operator': operator,
     'Astronet': astronet,
+    'TOIs Astronet Missed': (((all_indices - astronet) & (all_indices - operator) & toi) | (operator & (all_indices - astronet) & toi)),
     '[TOI] Astronet ∩ ~Operator': (astronet & (all_indices - operator) & toi),
     '[TOI] Operator ∩ ~Astronet': (operator & (all_indices - astronet) & toi),
     '[TOI] ~Astronet ∩ ~Operator': ((all_indices - astronet) & (all_indices - operator) & toi),
@@ -246,7 +215,7 @@ clu.fit_pca()          # PCA/HDBSCAN/UMAP + soft memberships
 # For ExoDash: get a dataframe to plot & filter
 visualizer = TICVisualizer(server=server, df=df)
 
-color_by = 'domain'
+color_by = 'sector'
 
 num_highlight = len(set(df['astro_id']))
 num_orig = len(set(orig_df['astro_id']))
@@ -273,7 +242,7 @@ if show_2d_map:
     with col1:
         color_by = st.selectbox(
             "Color by",
-            options=['domain'],#[None] + [c for c in orig_df.columns if c != "astro_id"],
+            options=['sector', 'domain'],#[None] + [c for c in orig_df.columns if c != "astro_id"],
             index=0
         )
     with col2:

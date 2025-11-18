@@ -66,8 +66,9 @@ class LiveEvaluation():
                 astro_ids = np.array(all_ids)
 
                 # Metadata columns
-                tic_ids = [int(str(x)[:-2]) for x in astro_ids]
-                planet_nos = [int(str(x)[-2:]) for x in astro_ids]
+                print(astro_ids)
+                tic_ids = [int(str(x)[:-2]) if x > 50000 else x for x in astro_ids]
+                planet_nos = [int(str(x)[-2:]) if x > 50000 else 1 for x in astro_ids]
 
                 meta_df = pd.DataFrame({
                     "dataset": [name] * len(astro_ids),

@@ -3,13 +3,65 @@ import pandas as pd
 from astropy.table import join, Table, vstack
 import numpy as np
 import scipy
-from typing import List, Dict
+from typing import List, Dict, Tuple
+import re
 import os
 from exodash.utils.live_evaluation import LiveEvaluation
+import streamlit as st
+from collections import defaultdict
 
 
 ASTRONET_BASE_PATH = Path("/pdo/astronet-data/data/")
 LATEST_TOI_DATA = Path("/pdo/astronet-data/data/toi-plus-2025-07-16.csv")
+
+if "selected_sectors" not in st.session_state:
+    st.session_state.selected_sectors = set()
+def get_production_sector_selector():
+    sectors = list(range(85, 95))
+    available = {}
+    errors = defaultdict(list)
+    for sector in sectors:
+        if sector == 85:
+            available[sector] = True
+            continue
+        tfrecords_exist = os.path.isdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}') and os.listdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}')
+        properties_exist = os.path.isfile(f'/pdo/astronet-data/data/properties/tces-sector{sector}.csv')
+        astronet_scores_exist = os.path.isfile(f'/pdo/qlp-data/sector-{sector}/ffi/run/astronet_vetting_scores_cam1.alltriage.csv')
+        qlp_delivery_exists = os.path.isfile(f'/pdo/qlp-data/tev/qlp-delivery/sector-{sector}/batch3/cand.ls')
+        if properties_exist and tfrecords_exist and astronet_scores_exist and qlp_delivery_exists:
+            available[sector] = True
+        else:
+            available[sector] = False
+        if not tfrecords_exist:
+            errors[sector].append('Missing TFRecords in /pdo/astronet-data/data/tfrecords/')
+        if not properties_exist:
+            errors[sector].append('Missing properties CSV in /pdo/astronet-data/data/properties/')
+        if not astronet_scores_exist:
+            errors[sector].append(f'Missing Astronet scores in /pdo/qlp-data/sector-{sector}/ffi/run/')
+        if not qlp_delivery_exists:
+            errors[sector].append(f'Missing QLP delivery cand.ls in /pdo/qlp-data/tev/qlp-delivery/sector-{sector}/batch3/')
+    
+    cols = st.columns(len(sectors))
+
+    for i, astro_id in enumerate(sectors):
+        with cols[i]:
+            disabled = not available[astro_id]
+            selected = astro_id in st.session_state.selected_sectors
+
+            if st.button(
+                f"{astro_id}",
+                key=f"btn_{astro_id}",
+                disabled=disabled,
+                type="primary" if selected else "secondary",
+                use_container_width=True,
+            ):
+                if selected:
+                    st.session_state.selected_sectors.remove(astro_id)
+                else:
+                    st.session_state.selected_sectors.add(astro_id)
+                st.rerun()
+    for sector in errors:
+        st.warning(f'Sector {sector} failed with errors: {errors[sector]}')
 
 class ProductionSector:
     sector: int
@@ -18,16 +70,48 @@ class ProductionSector:
         self.sector = sector
         self.fits_path = ASTRONET_BASE_PATH / "fits"
         self.tfrecords_path = ASTRONET_BASE_PATH / "tfrecords" / f"sector-{self.sector}"
-        self.properties_path = ASTRONET_BASE_PATH / "properties" / f"tces-sector{sector}_with_labels.csv"
+        self.properties_path = ASTRONET_BASE_PATH / "properties" / f"tces-sector{sector}.csv"
 
     @property
     def eval_files(self) -> List[str]:
-        return [f"test:{self.tfrecords_path}/*"]
+        return [f"sector_{self.sector}:{self.tfrecords_path}/*"]
     
+    def get_delivered_candidates(self) -> List[Tuple[int, int]]:
+        try:
+            delivery_directory = Path(f"/pdo/qlp-data/tev/qlp-delivery/sector-{self.sector}/batch3")
+            if self.sector == 85:
+                delivery_directory = Path(f"/pdo/qlp-data/tev/qlp-delivery/sector-{self.sector}")
+            cand_data = pd.read_csv(delivery_directory / "cand.ls", sep=r"\s+", header=None, names=["star_tic", "planet_planetno"]).set_index(["star_tic", "planet_planetno"])
+            if len(cand_data) == 0:
+                raise Exception("No candidates found in ls file.")
+            return list(cand_data.index.values)
+        except Exception:
+            ls_file = f"/pdo/qlp-data/sector-{self.sector}/ffi/run/cand.ls"
+            df = pd.read_csv(ls_file, sep=r"\s+", names=["tic_id", "planetno"], on_bad_lines="skip")
+            return list(df.itertuples(index=False, name=None))
+
+    def clean_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        def to_snake(name: str) -> str:
+            name = re.sub(r"[ -]+", "_", name)
+            name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+            name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name)
+            name = name.lower()
+            name = re.sub(r"[^a-z0-9_]", "", name)
+            name = re.sub(r"__+", "_", name)
+            return name.strip("_")
+        df.columns = [to_snake(col) for col in df.columns]
+        return df
+
     @property
-    def properties_df(self) -> pd.DataFrame:
+    def properties_df(self, include_labels: bool = True) -> pd.DataFrame:
         properties_df = pd.read_csv(self.properties_path, index_col=False)
+        properties_df = self.clean_columns(properties_df)
         properties_df = properties_df.rename(columns={'per': 'period', 'dur': 'duration', 'epoc': 'epoch'})
+
+        delivered_candidates = self.get_delivered_candidates()
+        were_results_delivered = properties_df.apply(lambda row: (row["tic_id"], row["planetno"]) in delivered_candidates, axis=1)
+        properties_df["true_label"] = np.where(were_results_delivered, "p", "j")
+        properties_df["sector"] = f"sector_{self.sector}"
         return properties_df.loc[:, ~properties_df.columns.str.startswith('Unnamed')]
 
 
@@ -61,10 +145,17 @@ def get_qlp_astronet_scores(sector: int) -> pd.DataFrame:
 
     for cam in [1, 2, 3, 4]:
         try:
-            csv_file = f"/pdo/qlp-data/sector-{sector}/ffi/run/astronet_vetting_scores_cam{cam}.csv"
+            csv_file = f"/pdo/qlp-data/sector-{sector}/ffi/run/astronet_vetting_scores_cam{cam}.alltriage.csv"
+            if sector == 85:
+                csv_file = f"/pdo/qlp-data/sector-{sector}/ffi/run/astronet_vetting_scores_cam{cam}_alltriage.csv"
+            df = pd.read_csv(csv_file, index_col=False)
         except Exception:
-            raise Exception(f"QLP Astronet Vetting scores not available for cam {cam}")
-        df = pd.read_csv(csv_file, index_col=False)
+            print(f"All triage QLP Astronet Vetting scores not available for cam {cam}")
+            try:
+                csv_file = f"/pdo/qlp-data/sector-{sector}/ffi/run/astronet_vetting_scores_cam{cam}.csv"
+                df = pd.read_csv(csv_file, index_col=False)
+            except Exception:
+                raise Exception(f"Could not locate Astronet scores for sector {sector}")
         dfs.append(df)
     
     combined_df = pd.concat(dfs, ignore_index=True)
