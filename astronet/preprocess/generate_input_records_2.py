@@ -64,6 +64,10 @@ parser.add_argument(
    "--not-training",
    action="store_true")
 
+parser.add_argument(
+  "--remove_random_points",
+  action="store_true"
+)
 
 def _set_float_feature(ex, name, value):
   """Sets the value of a float feature in a tensorflow.train.Example proto."""
@@ -93,6 +97,11 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     logging.warning(f"Skipping TIC {tic}: empty time/flux array.")
     SKIPPED_TICS.append(tic)
     return None
+
+  # Randomly drop a subset of the data is the flag is active
+  if FLAGS.remove_random_points:
+    time, flux = preprocess.remove_random_datapoints(time, flux, 0.1)
+
 
   if bkspace is None:
     tag = ''
@@ -407,6 +416,11 @@ def create(
   logging.info(f"[{shard_name}] Done. Total: {shard_size}, Stats: {stats}")
 
 def main(_):
+  if FLAGS.remove_random_points:
+    print("\n=======================================")
+    print('Generating augmentation tfrecords.')
+    print("\n=======================================")
+
   tf.io.gfile.makedirs(FLAGS.output_dir)
 
   global tce_table
@@ -419,13 +433,14 @@ def main(_):
   file_shards = []  # List of (tce_table_shard, file_name).
   boundaries = np.linspace(
       0, len(tce_table), FLAGS.num_shards + 1).astype(np.int)
+  suffix = "_aug" if FLAGS.remove_random_points else ""
   for i in range(FLAGS.num_shards):
     start = boundaries[i]
     end = boundaries[i + 1]
     file_shards.append((
         start,
         end,
-        os.path.join(FLAGS.output_dir, "%.5d-of-%.5d" % (i, FLAGS.num_shards))
+        os.path.join(FLAGS.output_dir, "%.5d-of-%.5d%s" % (i, FLAGS.num_shards, suffix))
     ))
 
   logging.info("Processing %d total file shards", len(file_shards))
