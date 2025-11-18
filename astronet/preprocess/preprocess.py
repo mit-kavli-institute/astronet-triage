@@ -34,6 +34,16 @@ def read_and_process_light_curve(tess_data_dir, flux_key, filename, min_t,
   assert len(all_time)
   return all_time, all_mag
 
+def remove_random_datapoints(time,flux,fraction_to_remove,seed=None):
+    """
+    Randomly select a fraction of the data points to remove.
+    """
+    rng = np.random.default_rng(seed)
+    num_to_remove = int(fraction_to_remove * len(time))
+    indices_to_remove = rng.choice(len(time), size=num_to_remove, replace=False)
+    mask = np.ones(len(time), dtype=bool)
+    mask[indices_to_remove] = False
+    return time[mask], flux[mask]
 
 def get_spline_mask(time, period, t0, tdur):
   phase, _ = util.phase_fold_time(time, period, t0)
