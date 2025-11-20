@@ -1,7 +1,7 @@
 from typing import Dict, List
 from data_management.light_curve_server import ALL_PAGE_TYPES, LightCurveServer
 from exodash.utils.filter import advanced_filter_sidebar
-from exodash.utils.production_sector import ProductionSector, get_production_sector_df
+from exodash.utils.production_sector import ProductionSector, get_production_sector_df, get_production_sector_selector
 from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
 from clustering import ClusterParams, Clustering
 from exodash.utils.tic_visualization import TICVisualizer
@@ -25,66 +25,33 @@ if "light_curve_server" not in st.session_state:
         st.session_state.light_curve_server = LightCurveServer()
 
 MODEL_CONFIG_PATH = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
-sectors = list(range(85, 95))
-available = {}
-for sector in sectors:
-    tfrecords_exist = os.path.isdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}') and os.listdir(f'/pdo/astronet-data/data/tfrecords/sector-{sector}')
-    properties_exist = os.path.isfile(f'/pdo/astronet-data/data/properties/tces-sector{sector}_with_labels.csv')
-    if properties_exist and tfrecords_exist:
-        available[sector] = True
-    else:
-        available[sector] = False
 
-custom_model = st.text_input("Custom model dir (ex: /pdo/astronet-data/models/vetting/baseline/AstroCNNModelVetting_cshallue_20250429_181612/): ")
-
-cols = st.columns(len(sectors))
-
-for i, astro_id in enumerate(sectors):
-    with cols[i]:
-        disabled = not available[astro_id]
-        selected = astro_id in st.session_state.selected_sectors
-
-        if st.button(
-            f"{astro_id}",
-            key=f"btn_{astro_id}",
-            disabled=disabled,
-            type="primary" if selected else "secondary",
-            use_container_width=True,
-        ):
-            if selected:
-                st.session_state.selected_sectors.remove(astro_id)
-            else:
-                st.session_state.selected_sectors.add(astro_id)
-            st.rerun()
-
-
+custom_model = st.text_input("Custom model dir (ex: /pdo/astronet-data/models/vetting/baseline/): ")
+tfrecord_postfix = st.text_input("Custom tfrecords postfix for /pdo/astronet-data/data/tfrecords/ (ex: cadencebin)")
+get_production_sector_selector(tfrecord_postfix)
 if len(st.session_state.selected_sectors) == 0:
     st.stop()
-
 sector_to_astronet_scores_override = {}
-# sector_to_astronet_scores_override = {
-#     85: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
-#     86: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
-#     87: '/pdo/astronet-data/models/vetting/experimental/dimond/sectors_85_to_87_with_embeddings/test_predictions.csv',
-# }
 
 @st.cache_data(show_spinner="Loading and processing production sector data...")
 def get_cached_production_sector_df(
     sectors: List[int],
     custom_model: str | None,
     sector_to_astronet_scores_override: Dict[int, str],
+    tfrecord_postfix=tfrecord_postfix,
 ) -> pd.DataFrame:
     return get_production_sector_df(
         sectors,
         custom_model,
         sector_to_astronet_scores_override=sector_to_astronet_scores_override,
+        tfrecord_postfix=tfrecord_postfix,
     )
 
-df = get_cached_production_sector_df(st.session_state.selected_sectors, custom_model, sector_to_astronet_scores_override=sector_to_astronet_scores_override)
+df = get_cached_production_sector_df(st.session_state.selected_sectors, custom_model, sector_to_astronet_scores_override=sector_to_astronet_scores_override, tfrecord_postfix=tfrecord_postfix)
 
 eval_files = []
 for sector in st.session_state.selected_sectors:
-    production_sector = ProductionSector(sector)
+    production_sector = ProductionSector(sector, tfrecord_postfix=tfrecord_postfix)
     eval_files.extend(production_sector.eval_files)
 
 orig_df = df.copy()
@@ -128,6 +95,7 @@ thresholds = np.linspace(0.0, 1.0, 100)
 
 # Recall for all TOIs
 recalls = [(toi_df['disp_p'] > t).sum() / len(toi_df) for t in thresholds]
+operator_recall = operator_mask[toi_mask].sum() / len(toi_df)
 
 # Recall for selected dispositions
 recalls_disp = [(toi_disp_df['disp_p'] > t).sum() / len(toi_disp_df) if len(toi_disp_df) > 0 else 0 for t in thresholds]
@@ -136,8 +104,27 @@ recalls_disp = [(toi_disp_df['disp_p'] > t).sum() / len(toi_disp_df) if len(toi_
 selected_recall = (toi_df['disp_p'] > astronet_threshold).sum() / len(toi_df)
 selected_recall_disp = (toi_disp_df['disp_p'] > astronet_threshold).sum() / len(toi_disp_df) if len(toi_disp_df) > 0 else 0
 
+sector_recalls_vs_threshold = {}
+
+for sector, g in toi_df.groupby('sector'):
+    if len(g) == 0:
+        continue
+    sector_recalls_vs_threshold[sector] = [
+        (g['disp_p'] > t).sum() / len(g)
+        for t in thresholds
+    ]
+
 with left_col:
     fig, ax = plt.subplots()
+
+    for sector, recalls_sector in sector_recalls_vs_threshold.items():
+        ax.plot(
+            thresholds,
+            recalls_sector,
+            linestyle='--',
+            linewidth=1,
+            alpha=0.35,
+        )
 
     # Full TOI line
     ax.plot(thresholds, recalls, label='Recall vs disp_p (all TOIs)', color='blue')
@@ -153,6 +140,14 @@ with left_col:
                 xytext=(astronet_threshold + 0.02, selected_recall - 0.1),
                 arrowprops=dict(arrowstyle="->", color='black'),
                 fontsize=10, backgroundcolor='white')
+    
+    ax.axhline(
+        operator_recall,
+        color='green',
+        linestyle=':',
+        label=f'Operator recall (constant): {operator_recall:.2f}'
+    )
+
 
     # ax.annotate(f"Recall (PC/CP/KP): {selected_recall_disp:.2f}",
     #             xy=(astronet_threshold, selected_recall_disp),
@@ -190,6 +185,7 @@ venn_regions = {
     'TOI': toi,
     'Operator': operator,
     'Astronet': astronet,
+    'TOIs Astronet Missed': (((all_indices - astronet) & (all_indices - operator) & toi) | (operator & (all_indices - astronet) & toi)),
     '[TOI] Astronet ∩ ~Operator': (astronet & (all_indices - operator) & toi),
     '[TOI] Operator ∩ ~Astronet': (operator & (all_indices - astronet) & toi),
     '[TOI] ~Astronet ∩ ~Operator': ((all_indices - astronet) & (all_indices - operator) & toi),
@@ -246,7 +242,7 @@ clu.fit_pca()          # PCA/HDBSCAN/UMAP + soft memberships
 # For ExoDash: get a dataframe to plot & filter
 visualizer = TICVisualizer(server=server, df=df)
 
-color_by = 'domain'
+color_by = 'sector'
 
 num_highlight = len(set(df['astro_id']))
 num_orig = len(set(orig_df['astro_id']))
@@ -273,7 +269,7 @@ if show_2d_map:
     with col1:
         color_by = st.selectbox(
             "Color by",
-            options=['domain'],#[None] + [c for c in orig_df.columns if c != "astro_id"],
+            options=['domain', 'sector'],#[None] + [c for c in orig_df.columns if c != "astro_id"],
             index=0
         )
     with col2:
@@ -331,12 +327,6 @@ num_viz = 0
 for astro_id in selected_ids:
     if num_viz >= num_to_visualize_2:
         break
-    # nearest_neighbors = clu.get_nearest_neighbors(astro_id=astro_id, df=df, n=10, include_self=True, filter_ids=set(df["astro_id"]))
-    # neighbors_df = nearest_neighbors.merge(
-    #     df, on="query_id", how="left"
-    # )
-    # st.write(nearest_neighbors)
-    # 1/0
     try:
         row = orig_df.loc[orig_df['astro_id'] == astro_id].iloc[0]
         tic_id = orig_df.loc[orig_df["astro_id"] == astro_id, "tic_id"].values[0]
@@ -345,8 +335,6 @@ for astro_id in selected_ids:
         st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
     except Exception:
         continue
-    #st.write(f"Disposition: {row['disposition']}, first detection: {row['is_first_detection']}")
-    #st.write(f"Notes: {row['notes']}")
 
     if astro_id < 30000:
         planet_number = 1

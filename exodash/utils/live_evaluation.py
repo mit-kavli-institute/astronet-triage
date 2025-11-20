@@ -18,6 +18,7 @@ class LiveEvaluation():
       self.ensemble_models = [os.path.join(model_dir, d) for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d))]
 
     def evaluate(self, eval_files: List[str]) -> pd.DataFrame:
+        st.write(f'Evaluating model on {eval_files}')
         result_dfs = []
 
         total_models = len(self.ensemble_models)
