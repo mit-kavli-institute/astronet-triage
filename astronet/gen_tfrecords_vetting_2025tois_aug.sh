@@ -16,4 +16,4 @@ NAME=vetting-v01-tois-triageJs-nocentroid-april2025
 # Redirect all output (stdout + stderr) to log.txt
 exec > >(tee "generate_records_${NAME}_2.log") 2>&1
 
-/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python3 astronet/preprocess/generate_input_records_2.py --input_tce_csv_file=../mnt/tess/astronet/tces-${NAME}-train.csv --tess_data_dir=${LCDIR} --output_dir=/pdo/astronet-data/data/tfrecords/oct2025_original_aug/tfrecords-${NAME}-train --mode=vetting --num_shards=50 --remove_random_points
+/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python3 astronet/preprocess/generate_input_records_3.py --input_tce_csv_file=../mnt/tess/astronet/tces-${NAME}-train.csv --tess_data_dir=${LCDIR} --output_dir=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin_aug/tfrecords-${NAME}-train --mode=vetting --num_shards=50 --remove_random_points
