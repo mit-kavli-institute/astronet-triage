@@ -21,6 +21,64 @@ import numpy as np
 
 from light_curve_util import keplersplinev2, median_filter2, tess_io, util
 
+def split_and_calculate_weights(time, flux, gap_width=2):
+    """Split the time and flux whenever there is a gap in the time array.
+    For each segment, calculate the scatter of the flux values and return
+    an array of weights where the higher scatter values have lower weights.
+
+    Args:
+        time: 1D array of time values
+        flux: 1D array of flux values
+        period: The period of the event (in days)
+        num_bins: The number of intervals to divide the time axis into
+        t_min: The inclusive leftmost value to consider on the time axis
+        t_max: The exclusive rightmost value to consider on the time axis
+        gap_width: Minimum gap size (in time units) for a split
+
+    Returns:
+        weights: Array of weights for each data point
+    """
+    import numpy as np
+    from light_curve_util.keplersplinev2 import split
+
+    # # Split the data into segments based on gaps
+    split_times, split_fluxes = split(time, flux, gap_width)
+    #instead, split every 10 points
+    # split_times = []
+    # split_fluxes = []
+    # for i in range(0, len(time), 500):
+    #     split_times.append(time[i:i+500])
+    #     split_fluxes.append(flux[i:i+500])
+
+    # Initialize weights array
+    weights = np.ones(len(time))
+
+    # Calculate scatter for each segment
+    segment_scatters = []
+    for seg_flux in split_fluxes:
+        if len(seg_flux) > 1:
+            segment_scatters.append(np.std(seg_flux))
+        else:
+            segment_scatters.append(0.0)  # Single points get scatter 0
+
+    # Calculate weights based on inverse scatter
+    if len(segment_scatters) > 1 and np.max(segment_scatters) > 0:
+        # Normalize scatters to [0, 1] range
+        max_scatter = np.max(segment_scatters)
+        normalized_scatters = np.array(segment_scatters) / max_scatter
+
+        # Weight is inversely proportional to normalized scatter
+        # Add small value to avoid division by zero
+        segment_weights = 1.0 / (normalized_scatters**2 + 1e-2)
+
+        # Apply weights to each segment
+        start_idx = 0
+        for i, (seg_time, seg_flux) in enumerate(zip(split_times, split_fluxes)):
+            end_idx = start_idx + len(seg_time)
+            weights[start_idx:end_idx] = segment_weights[i]
+            start_idx = end_idx
+
+    return weights
 
 def read_and_process_light_curve(tess_data_dir, flux_key, filename, min_t,
                                  max_t):
