@@ -112,23 +112,29 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
 
   detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
 
+  # Calculate scatter weights on detrended data (before phase folding)
+  scatter_weights_detrended = preprocess.split_and_calculate_weights(detrended_time, detrended_flux, gap_width=2)
+
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
 
   # Align raw time with folded time for raw time support
   raw_time_aligned, raw_flux_aligned = preprocess.align_raw_time(detrended_time, detrended_flux, period, epoc)
 
+  # Align scatter weights to match the phase-folded order
+  scatter_weights_aligned = preprocess.align_scatter_weights(detrended_time, period, epoc, scatter_weights_detrended)
+
   odds = ((fold_num % 2) == 1)
   evens = ((fold_num % 2) == 0)
 
-  view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned)
-  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period, all_30min=True)
+  view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned, scatter_weights=scatter_weights_aligned)
+  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period, all_30min=True, scatter_weights=scatter_weights_aligned)
   _set_float_feature(ex, f'global_view{tag}', view)
   _set_float_feature(ex, f'global_std{tag}', std)
   _set_float_feature(ex, f'global_mask{tag}', mask)
   _set_float_feature(ex, f'global_transit_mask{tag}', tr_mask)
 
-  view, std, mask, scale, depth = preprocess.local_view(tic, time, flux, period, duration, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned)
+  view, std, mask, scale, depth = preprocess.local_view(tic, time, flux, period, duration, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned, scatter_weights=scatter_weights_aligned)
   _set_float_feature(ex, f'local_view{tag}', view)
   _set_float_feature(ex, f'local_std{tag}', std)
   _set_float_feature(ex, f'local_mask{tag}', mask)
@@ -140,18 +146,22 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     _set_float_feature(ex, f'local_scale_present{tag}', [0.0])
   for k, (t, f) in aperture_fluxes.items():
     detr_t, detr_f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
+    # Calculate scatter weights for this aperture
+    aperture_scatter_weights_detrended = preprocess.split_and_calculate_weights(detr_t, detr_f, gap_width=2)
     t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(detr_t, detr_f, m, period, epoc)
     # Align raw time for aperture - use the detrended data that was phase-folded
     aperture_raw_time, aperture_raw_flux = preprocess.align_raw_time(detr_t, detr_f, period, epoc)
-    view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth, all_30min=False, raw_time=aperture_raw_time, raw_flux=aperture_raw_flux)
+    # Align scatter weights for this aperture
+    aperture_scatter_weights_aligned = preprocess.align_scatter_weights(detr_t, period, epoc, aperture_scatter_weights_detrended)
+    view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth, all_30min=False, raw_time=aperture_raw_time, raw_flux=aperture_raw_flux, scatter_weights=aperture_scatter_weights_aligned)
     _set_float_feature(ex, f'local_aperture_{k}{tag}', view)
 
-  view, std, mask, _, _ = preprocess.local_view(tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned[odds], raw_flux=raw_flux_aligned[odds])
+  view, std, mask, _, _ = preprocess.local_view(tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned[odds], raw_flux=raw_flux_aligned[odds], scatter_weights=scatter_weights_aligned[odds])
   _set_float_feature(ex, f'local_view_odd{tag}', view)
   _set_float_feature(ex, f'local_std_odd{tag}', std)
   _set_float_feature(ex, f'local_mask_odd{tag}', mask)
 
-  view, std, mask, _, _ = preprocess.local_view(tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned[evens], raw_flux=raw_flux_aligned[evens])
+  view, std, mask, _, _ = preprocess.local_view(tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned[evens], raw_flux=raw_flux_aligned[evens], scatter_weights=scatter_weights_aligned[evens])
   _set_float_feature(ex, f'local_view_even{tag}', view)
   _set_float_feature(ex, f'local_std_even{tag}', std)
   _set_float_feature(ex, f'local_mask_even{tag}', mask)
@@ -192,7 +202,9 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
   # Align raw time for double period
   raw_time_double, raw_flux_double = preprocess.align_raw_time(detrended_time, detrended_flux, period * 2, epoc - period / 2)
-  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period * 2, all_30min=False, raw_time=raw_time_double, raw_flux=raw_flux_double)
+  # Align scatter weights for double period
+  scatter_weights_double = preprocess.align_scatter_weights(detrended_time, period * 2, epoc - period / 2, scatter_weights_detrended)
+  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period * 2, all_30min=False, raw_time=raw_time_double, raw_flux=raw_flux_double, scatter_weights=scatter_weights_double)
   _set_float_feature(ex, f'global_view_double_period{tag}', view)
   _set_float_feature(ex, f'global_view_double_period_std{tag}', std)
   _set_float_feature(ex, f'global_view_double_period_mask{tag}', mask)
@@ -201,12 +213,14 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
   # Align raw time for half period
   raw_time_half, raw_flux_half = preprocess.align_raw_time(detrended_time, detrended_flux, period / 2, epoc)
-  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period / 2, all_30min=False, raw_time=raw_time_half, raw_flux=raw_flux_half)
+  # Align scatter weights for half period
+  scatter_weights_half = preprocess.align_scatter_weights(detrended_time, period / 2, epoc, scatter_weights_detrended)
+  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period / 2, all_30min=False, raw_time=raw_time_half, raw_flux=raw_flux_half, scatter_weights=scatter_weights_half)
   _set_float_feature(ex, f'global_view_half_period{tag}', view)
   _set_float_feature(ex, f'global_view_half_period_std{tag}', std)
   _set_float_feature(ex, f'global_view_half_period_mask{tag}', mask)
 
-  view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration, all_30min=False, raw_time=raw_time_half, raw_flux=raw_flux_half)
+  view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration, all_30min=False, raw_time=raw_time_half, raw_flux=raw_flux_half, scatter_weights=scatter_weights_half)
   _set_float_feature(ex, f'local_view_half_period{tag}', view)
   _set_float_feature(ex, f'local_view_half_period_std{tag}', std)
   _set_float_feature(ex, f'local_view_half_period_mask{tag}', mask)
