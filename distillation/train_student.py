@@ -177,7 +177,7 @@ class CombinedDistillationLoss(tf.keras.losses.Loss):
             # Multi-label: use sigmoid
             student_probs = tf.nn.sigmoid(scaled_logits)
             # For multi-label, compute KL divergence per label and sum
-            # KL(soft_labels || student_probs) = sum over labels of:
+            # KL(soft_labels || student_probs) = sum over labels. For each label, we have:
             #   soft_labels * log(soft_labels / student_probs) +
             #   (1 - soft_labels) * log((1 - soft_labels) / (1 - student_probs))
             epsilon = 1e-8
