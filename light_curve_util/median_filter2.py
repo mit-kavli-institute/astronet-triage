@@ -41,7 +41,7 @@ def get_overlap(hbw, t_centered, half_cadence):
     return max(0, min(hbw, t_centered + half_cadence) - max(-hbw, t_centered - half_cadence))
 
 
-def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None, all_30min=True):
+def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mean', trim_edges=False, raw_time=None, raw_flux=None, all_30min=True, scatter_weights=None):
   t = time.copy()
   # Use raw_time for cadence selection if provided, otherwise use folded time
   time_for_cadence = raw_time if raw_time is not None else t
@@ -157,8 +157,18 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
         if len(in_bin) > 1:
             # Use raw_time for cadence in get_overlap too
             # weight = [get_overlap(hbw, in_bin[j], b) / bin_width
-            weight = [get_overlap(hbw, in_bin[j], cad_in[j]) / bin_width
+            overlap_weight = [get_overlap(hbw, in_bin[j], cad_in[j]) / bin_width
                       for j in range(len(in_bin))]
+
+            # Combine overlap weights with scatter weights if provided
+            if scatter_weights is not None:
+                # Get scatter weights for points in this bin (after outlier removal)
+                scatter_w = scatter_weights[bin_mask][mask]
+                # Combine weights: multiply overlap weight by scatter weight
+                weight = [overlap_weight[j] * scatter_w[j] for j in range(len(in_bin))]
+            else:
+                weight = overlap_weight
+
             f[i] = np.average(f_x, weights=weight)
         else:
             f[i], = f_x

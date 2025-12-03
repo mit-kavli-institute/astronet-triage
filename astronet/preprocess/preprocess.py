@@ -164,6 +164,7 @@ def generate_view(
     raw_time=None,
     raw_flux=None,
     all_30min=True,
+    scatter_weights=None,
 ):
   """Generates a view of a phase-folded light curve using a median filter.
 
@@ -182,7 +183,7 @@ def generate_view(
   del tic_id  # Unused.
   if binning is None:
     view, mask, std = median_filter2.new_binning(
-        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux, all_30min=all_30min)
+        time, flux, period, num_bins, t_min, t_max, trim_edges=trim_edges, raw_time=raw_time, raw_flux=raw_flux, all_30min=all_30min, scatter_weights=scatter_weights)
   else:
     view, mask, std = median_filter2.new_binning(
         time,
@@ -195,7 +196,8 @@ def generate_view(
         trim_edges=trim_edges,
         raw_time=raw_time,
         raw_flux=raw_flux,
-        all_30min=all_30min)
+        all_30min=all_30min,
+        scatter_weights=scatter_weights)
 
   if normalize:
     # Normalization places:
@@ -223,7 +225,7 @@ def generate_view(
   return view, std, mask, scale, depth
 
 
-def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None, all_30min=True):
+def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flux=None, all_30min=True, scatter_weights=None):
   """Generates a 'global view' of a phase folded light curve.
 
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
@@ -252,10 +254,11 @@ def global_view(tic_id, time, flux, period, num_bins=201, raw_time=None, raw_flu
       t_max=period / 2,
       raw_time=raw_time,
       raw_flux=raw_flux,
-      all_30min=all_30min)
+      all_30min=all_30min,
+      scatter_weights=scatter_weights)
 
 
-def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201, all_30min=True, raw_time=None, raw_flux=None):
+def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201, all_30min=True, raw_time=None, raw_flux=None, scatter_weights=None):
   return generate_view(
       tic_id,
       time,
@@ -268,7 +271,8 @@ def tr_mask_view(tic_id, time, tr_mask, period, num_bins=201, all_30min=True, ra
       binning='max',
       raw_time=raw_time,
       raw_flux=raw_flux,
-      all_30min=all_30min)
+      all_30min=all_30min,
+      scatter_weights=scatter_weights)
 
 
 def local_view(tic_id,
@@ -282,7 +286,8 @@ def local_view(tic_id,
                depth=None,
                all_30min=True,
                raw_time=None,
-               raw_flux=None):
+               raw_flux=None,
+               scatter_weights=None):
   """Generates a 'local view' of a phase folded light curve.
   See Section 3.3 of Shallue & Vanderburg, 2018, The Astronomical Journal.
   http://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta
@@ -310,7 +315,8 @@ def local_view(tic_id,
       depth=depth,
       all_30min=all_30min,
       raw_time=raw_time,
-      raw_flux=raw_flux
+      raw_flux=raw_flux,
+      scatter_weights=scatter_weights
   )
 
 
