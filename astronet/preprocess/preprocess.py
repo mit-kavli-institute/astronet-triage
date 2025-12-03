@@ -147,6 +147,12 @@ def align_raw_time(detr_t, detr_f, period, epoch):
   raw_flux_aligned = detr_f[sort_idx]  # optional, if you also want raw_flux
   return raw_time_aligned, raw_flux_aligned
 
+def align_scatter_weights(detr_t, period, epoch, scatter_weights):
+  folded_abs_time,_ = util.phase_fold_time(detr_t, period, epoch)
+  sort_idx = np.argsort(folded_abs_time)
+  weights_aligned = scatter_weights[sort_idx]
+  return weights_aligned
+
 
 def generate_view(
     tic_id,
