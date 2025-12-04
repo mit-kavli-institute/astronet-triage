@@ -3,10 +3,12 @@
 
 set -e  # Exit on error
 
+
+
 # Configuration - EDIT THESE PATHS
-MODEL_DIR='/path/to/your/model/directory'
-DATA_FILES='/path/to/your/tfrecords/*.tfrecord'
-OUTPUT_DIR='/path/to/output/directory'
+MODEL_DIR='/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat/20251204/pablomer-2k-nopretrained/AstroCNNModelVetting_pablomer_20251204_133625/'
+DATA_FILES='/pdo/astronet-data/data/tfrecords/dec2025_cad_scat/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-val/*'
+OUTPUT_DIR='/pdo/users/pablomer/Astronet-Triage/model_analysis/extracted_backbone_features'
 BATCH_SIZE=''  # Optional: leave empty to use model config default, or set to a number like '100'
 
 # Get the script directory
