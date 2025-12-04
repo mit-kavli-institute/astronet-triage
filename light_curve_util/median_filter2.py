@@ -42,17 +42,17 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
   time_for_cadence = raw_time if raw_time is not None else t
 
   # Debug controls (non-intrusive): set ASTRONET_DEBUG_BINNING=1 to enable
-  DEBUG = os.getenv("ASTRONET_DEBUG_BINNING") == "1"
-  if DEBUG:
-    total_points_phase1 = 0
-    total_points_phase2 = 0
-    bins_all_phase1 = 0
-    bins_all_phase2 = 0
-    bins_mixed = 0
-    print('raw_time',raw_time)
-    print('t',t)
-    print('time for cadence',time_for_cadence)
-    raw_time_folded=tmod(raw_time,period,b)
+#   DEBUG = os.getenv("ASTRONET_DEBUG_BINNING") == "1"
+#   if DEBUG:
+#     total_points_phase1 = 0
+#     total_points_phase2 = 0
+#     bins_all_phase1 = 0
+#     bins_all_phase2 = 0
+#     bins_mixed = 0
+#     print('raw_time',raw_time)
+#     print('t',t)
+#     print('time for cadence',time_for_cadence)
+#     raw_time_folded=tmod(raw_time,period,b)
 
 
 
@@ -81,19 +81,19 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
 
     bin_mask = abs(t_c) <= hbw + cadence_hw
 
-    if DEBUG:
-      if np.any(bin_mask):
-        used = cadence_hw[bin_mask]
-        c1 = np.sum(used == HC_PHASE1)
-        c2 = np.sum(used == HC_PHASE2)
-        total_points_phase1 += int(c1)
-        total_points_phase2 += int(c2)
-        if c1 > 0 and c2 == 0:
-          bins_all_phase1 += 1
-        elif c2 > 0 and c1 == 0:
-          bins_all_phase2 += 1
-        elif c1 > 0 and c2 > 0:
-          bins_mixed += 1
+    # if DEBUG:
+    #   if np.any(bin_mask):
+    #     used = cadence_hw[bin_mask]
+    #     c1 = np.sum(used == HC_PHASE1)
+    #     c2 = np.sum(used == HC_PHASE2)
+    #     total_points_phase1 += int(c1)
+    #     total_points_phase2 += int(c2)
+    #     if c1 > 0 and c2 == 0:
+    #       bins_all_phase1 += 1
+    #     elif c2 > 0 and c1 == 0:
+    #       bins_all_phase2 += 1
+    #     elif c1 > 0 and c2 > 0:
+    #       bins_mixed += 1
 
     if not any(bin_mask):
         m[i] = 0.0
@@ -146,12 +146,12 @@ def new_binning(time, flux, period, num_bins, t_min, t_max, method='weighted_mea
       for i in list(clear_bins):
         m[i] = 0.0
 
-  if DEBUG:
-      print("[new_binning DEBUG] cadence selection summary:")
-      print(f"  bins all phase1: {bins_all_phase1}")
-      print(f"  bins all phase2: {bins_all_phase2}")
-      print(f"  bins mixed:      {bins_mixed}")
-      print(f"  points phase1:   {total_points_phase1}")
-      print(f"  points phase2:   {total_points_phase2}")
+#   if DEBUG:
+#       print("[new_binning DEBUG] cadence selection summary:")
+#       print(f"  bins all phase1: {bins_all_phase1}")
+#       print(f"  bins all phase2: {bins_all_phase2}")
+#       print(f"  bins mixed:      {bins_mixed}")
+#       print(f"  points phase1:   {total_points_phase1}")
+#       print(f"  points phase2:   {total_points_phase2}")
 
   return f, m, s

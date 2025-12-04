@@ -738,22 +738,22 @@ def pablomer():
         },
       "hparams": {
           "batch_size": 512,
-          "learning_rate": 0.00295,
-          "learning_rate_schedule": "cosine",
-          "learning_rate_warmup_frac": 0.05,
-          "learning_rate_decay_alpha": 0.01,
+          "learning_rate": 1e-5, #0.0027897
+          "learning_rate_schedule": "constant", #"cosine"
+          "learning_rate_warmup_frac": 0, #0.05
+          "learning_rate_decay_alpha": 0.01, #0.01
           "one_minus_momentum": 0.1,
           "clip_gradient_norm": None,
           "optimizer": "adam",
-          "one_minus_adam_beta_1": 0.1,
+          "one_minus_adam_beta_1": 0.1, #0.0843
           "one_minus_adam_beta_2": 0.001,
           "adam_epsilon": 1e-07,
-          "weight_decay": 0.005,
+          "weight_decay": 0.005, #0.2199
           "label_smoothing": 0.0,
           "use_batch_norm": True,
           "num_pre_logits_hidden_layers": 4,
           "pre_logits_hidden_layer_size": 512,
-          "pre_logits_dropout_rate": 0.2,
+          "pre_logits_dropout_rate": 0.2, #0.22457
           "aux_inputs": triage_config["hparams"]["aux_inputs"],
           "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
       },

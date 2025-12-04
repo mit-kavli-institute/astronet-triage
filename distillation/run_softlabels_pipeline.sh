@@ -4,10 +4,11 @@
 set -e  # Exit on error
 
 # Configuration - EDIT THESE PATHS
-ENSEMBLE_DIR='/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_30minbin/20251104/pablomer-2k-pretrained'
-TRAIN_DATA_DIR='/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-train/*'
-VAL_DATA_DIR='/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-val/*'
-BASE_OUTPUT_DIR='/pdo/astronet-data/data/labels/softlabels/oct2025_30minbin_v2-pablomer-2k-pretrained'
+# ENSEMBLE_DIR='/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_30minbin/20251104/pablomer-2k-pretrained'
+ENSEMBLE_DIR='/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_cadencebin/20251028/pablomer-2k-nopretrained/'
+TRAIN_DATA_DIR='/pdo/astronet-data/data/tfrecords/oct2025_cadencebin/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-train/*'
+VAL_DATA_DIR='/pdo/astronet-data/data/tfrecords/oct2025_cadencebin/tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025-val/*'
+BASE_OUTPUT_DIR='/pdo/astronet-data/data/labels/softlabels/oct2025_cadencebin_20251028_pablomer-2k-nopretrained'
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

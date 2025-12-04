@@ -159,22 +159,34 @@ class CombinedDistillationLoss(tf.keras.losses.Loss):
         # Apply temperature to logits
         scaled_logits = y_pred / self.temperature
 
-        # For soft labels, always use sigmoid (BinaryCrossentropy-style) regardless of hard label loss
-        # This treats each class independently, which is better for leveraging ensemble predictions
-        # Soft labels are probability distributions from ensemble, so treating them independently
-        # allows the model to learn from the full probability distribution more effectively
-        student_probs = tf.nn.sigmoid(scaled_logits)
+        # Determine if we're using multi-class (softmax) or multi-label (sigmoid)
+        # Check the hard loss function type
+        is_categorical = isinstance(self.hard_loss_fn, tf.keras.losses.CategoricalCrossentropy)
 
-        # Compute KL divergence per label and sum
-        # KL(soft_labels || student_probs) = sum over labels of:
-        #   soft_labels * log(soft_labels / student_probs) +
-        #   (1 - soft_labels) * log((1 - soft_labels) / (1 - student_probs))
-        epsilon = 1e-8
-        kl_per_label = (
-            soft_labels * tf.math.log((soft_labels + epsilon) / (student_probs + epsilon)) +
-            (1 - soft_labels) * tf.math.log((1 - soft_labels + epsilon) / (1 - student_probs + epsilon))
-        )
-        kl_loss = tf.reduce_sum(kl_per_label, axis=-1)
+        if is_categorical:
+            # Multi-class: use softmax
+            student_probs = tf.nn.softmax(scaled_logits)
+            # KL divergence: KL(soft_labels || student_probs)
+            # = sum(soft_labels * log(soft_labels / student_probs))
+            # First term is constant, so we minimize: -sum(soft_labels * log(student_probs))
+            epsilon = 1e-8
+            kl_loss = -tf.reduce_sum(
+                soft_labels * tf.math.log(student_probs + epsilon), axis=-1
+            )
+        else:
+            # Multi-label: use sigmoid
+            student_probs = tf.nn.sigmoid(scaled_logits)
+            # For multi-label, compute KL divergence per label and sum
+            # KL(soft_labels || student_probs) = sum over labels. For each label, we have:
+            #   soft_labels * log(soft_labels / student_probs) +
+            #   (1 - soft_labels) * log((1 - soft_labels) / (1 - student_probs))
+            epsilon = 1e-8
+            kl_per_label = (
+                soft_labels * tf.math.log((soft_labels + epsilon) / (student_probs + epsilon)) +
+                (1 - soft_labels) * tf.math.log((1 - soft_labels + epsilon) / (1 - student_probs + epsilon))
+            )
+            kl_loss = tf.reduce_sum(kl_per_label, axis=-1)
+
         kl_loss = tf.reduce_mean(kl_loss)
 
         # Hard label loss (can be BinaryCrossentropy or CategoricalCrossentropy)
