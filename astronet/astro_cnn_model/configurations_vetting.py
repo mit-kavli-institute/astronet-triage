@@ -746,7 +746,7 @@ def pablomer():
           "adam_epsilon": 1e-07,
           "weight_decay": 0.005,
           "label_smoothing": 0.0,
-          "use_batch_norm": True,
+          "use_batch_norm": False,
           "num_pre_logits_hidden_layers": 4,
           "pre_logits_hidden_layer_size": 512,
           "pre_logits_dropout_rate": 0.2,
