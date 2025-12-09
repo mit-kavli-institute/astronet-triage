@@ -115,35 +115,36 @@ def compute_gradients(head_model, features, target_class=None):
       - predictions: N x num_classes array of predictions
       - target_classes: N array of target class indices used
   """
-  features_tf = tf.constant(features, dtype=tf.float32)
+  # Compute gradients per example to avoid unconnected gradient issues when the
+  # chosen class depends on the prediction (argmax). This yields an N x D
+  # matrix of gradients aligned with the provided features.
+  gradients = []
+  predictions = []
+  target_classes = []
 
-  with tf.GradientTape(watch_entirely=False) as tape:
-    tape.watch(features_tf)
-    predictions = head_model(features_tf, training=False)
+  for feat in features:
+    feat_tf = tf.convert_to_tensor(feat[None, :], dtype=tf.float32)
+    with tf.GradientTape() as tape:
+      tape.watch(feat_tf)
+      preds = head_model(feat_tf, training=False)[0]
 
-  # Determine target class for each example
-  if target_class is None:
-    # Use predicted class (argmax)
-    target_classes = tf.argmax(predictions, axis=1)
-  else:
-    # Use specified class for all examples
-    target_classes = tf.fill([len(features)], target_class)
+      if target_class is None:
+        cls = tf.argmax(preds, axis=0, output_type=tf.int32)
+      else:
+        cls = tf.cast(target_class, tf.int32)
 
-  # Select the output for the target class
-  # Note: predictions are probabilities (after softmax/sigmoid activation)
-  # Computing gradients w.r.t. probabilities tells us how sensitive the
-  # probability is to changes in input features, which is useful for
-  # importance analysis. If logits are needed instead, the output_layer
-  # would need to be modified to expose pre-activation values.
-  batch_size = len(features)
-  target_outputs = tf.gather_nd(
-      predictions,
-      tf.stack([tf.range(batch_size), target_classes], axis=1))
+      # Scalar target for this example
+      target_output = preds[cls]
 
-  # Compute gradients of target class probability w.r.t. input features
-  gradients = tape.gradient(target_outputs, features_tf)
+    grad = tape.gradient(target_output, feat_tf)[0]
 
-  return gradients.numpy(), predictions.numpy(), target_classes.numpy()
+    gradients.append(grad.numpy())
+    predictions.append(preds.numpy())
+    target_classes.append(int(cls.numpy()))
+
+  return (np.stack(gradients, axis=0),
+          np.stack(predictions, axis=0),
+          np.array(target_classes, dtype=np.int32))
 
 
 def aggregate_by_block(gradients, feature_slices, use_grad_times_input=True, features=None):
