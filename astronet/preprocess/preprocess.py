@@ -21,6 +21,10 @@ import numpy as np
 
 from light_curve_util import keplersplinev2, median_filter2, tess_io, util
 
+def robust_std(flux):
+    ''' Calculates an estimate of the standard deviation robust to outliers'''
+    return np.median(np.abs(flux[1:]-flux[:-1]))*1.48 / np.sqrt(2)
+
 def split_and_calculate_weights(time, flux, gap_width=2):
     """Split the time and flux whenever there is a gap in the time array.
     For each segment, calculate the scatter of the flux values and return
@@ -57,7 +61,7 @@ def split_and_calculate_weights(time, flux, gap_width=2):
     segment_scatters = []
     for seg_flux in split_fluxes:
         if len(seg_flux) > 1:
-            segment_scatters.append(np.std(seg_flux))
+            segment_scatters.append(robust_std(seg_flux))
         else:
             segment_scatters.append(0.0)  # Single points get scatter 0
 
