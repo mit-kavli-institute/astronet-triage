@@ -78,6 +78,12 @@ flags.DEFINE_bool(
     "If True, log and save ts_blocks weights at start and end of training.",
 )
 
+flags.DEFINE_bool(
+    "log_training_history",
+    False,
+    "If True, log and save per-step training and validation metrics to training_history.json.",
+)
+
 FLAGS = flags.FLAGS
 
 def dump_block_weights(model, filepath):
@@ -231,29 +237,31 @@ def main(_):
       shuffle_buffer_size=FLAGS.shuffle_buffer_size,
       exclude_astro_ids=exclude_astro_ids,  # pass it here
       validation_data=validation_data,
-      validation_steps=validation_steps
+      validation_steps=validation_steps,
+      log_training_history=FLAGS.log_training_history
   )
 
-  # Save training history (per-step metrics)
-  # step_metrics is a dict mapping metric names to lists of values per training step
-  # Convert to JSON-serializable format
-  step_metrics_dict = {}
-  for metric_name, values in step_metrics.items():
-    # Values are already floats from the callback, but ensure they're serializable
-    step_metrics_dict[metric_name] = [float(v) for v in values]
+  # Save training history (per-step metrics) only if logging is enabled
+  if FLAGS.log_training_history:
+    # step_metrics is a dict mapping metric names to lists of values per training step
+    # Convert to JSON-serializable format
+    step_metrics_dict = {}
+    for metric_name, values in step_metrics.items():
+      # Values are already floats from the callback, but ensure they're serializable
+      step_metrics_dict[metric_name] = [float(v) for v in values]
 
-  # Add validation metrics if available (these are per-step, evaluated after each training step)
-  if val_step_metrics:
-    for metric_name, values in val_step_metrics.items():
-      # Add 'val_' prefix to distinguish from training metrics
-      val_key = f"val_{metric_name}"
-      step_metrics_dict[val_key] = [float(v) for v in values]
-    logging.info(f"Validation metrics collected per step: {list(val_step_metrics.keys())}")
+    # Add validation metrics if available (these are per-step, evaluated after each training step)
+    if val_step_metrics:
+      for metric_name, values in val_step_metrics.items():
+        # Add 'val_' prefix to distinguish from training metrics
+        val_key = f"val_{metric_name}"
+        step_metrics_dict[val_key] = [float(v) for v in values]
+      logging.info(f"Validation metrics collected per step: {list(val_step_metrics.keys())}")
 
-  config_util.save_config(step_metrics_dict, model_dir, basename="training_history")
-  n_train_steps = len(step_metrics_dict.get('loss', []))
-  n_val_steps = len(step_metrics_dict.get('val_loss', []))
-  logging.info(f"Saved training history ({n_train_steps} train steps, {n_val_steps} val steps) to {os.path.join(model_dir, 'training_history.json')}")
+    config_util.save_config(step_metrics_dict, model_dir, basename="training_history")
+    n_train_steps = len(step_metrics_dict.get('loss', []))
+    n_val_steps = len(step_metrics_dict.get('val_loss', []))
+    logging.info(f"Saved training history ({n_train_steps} train steps, {n_val_steps} val steps) to {os.path.join(model_dir, 'training_history.json')}")
 
   # Also save per-epoch history for reference (though it only has 1 epoch)
   epoch_history_dict = {}

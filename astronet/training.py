@@ -44,15 +44,19 @@ class ThresholdRecall(tf.keras.metrics.Metric):
 
 class PerStepMetricsCallback(tf.keras.callbacks.Callback):
     """Callback to collect metrics at each training step and validation."""
-    def __init__(self, validation_data=None, validation_steps=None):
+    def __init__(self, validation_data=None, validation_steps=None, enabled=True):
         super().__init__()
         self.step_metrics = {}
         self.val_step_metrics = {}  # Validation metrics per training step
         self.validation_data = validation_data
         self.validation_steps = validation_steps
+        self.enabled = enabled  # Whether to collect metrics
 
     def on_train_batch_end(self, batch, logs=None):
         """Called at the end of each training batch."""
+        if not self.enabled:
+            return
+
         if logs is None:
             logs = {}
         # Store training metrics for this step
@@ -185,7 +189,7 @@ def compile_model(model, config):
 
 
 def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None,
-          validation_data=None, validation_steps=None):
+          validation_data=None, validation_steps=None, log_training_history=False):
   """Trains a model.
 
   Args:
@@ -212,11 +216,12 @@ def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_id
 
   compile_model(model, config)
 
-  # Create callback to collect per-step metrics
+  # Create callback to collect per-step metrics (only if enabled)
   # Pass validation_data to callback so it can evaluate after each step
   per_step_callback = PerStepMetricsCallback(
       validation_data=validation_data,
-      validation_steps=validation_steps
+      validation_steps=validation_steps,
+      enabled=log_training_history
   )
 
   fit_kwargs = {
