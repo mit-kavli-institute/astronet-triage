@@ -202,7 +202,7 @@ def main(_):
   model.summary()
 
   # Train and save model.
-  history = training.train(
+  history, step_metrics = training.train(
       model,
       config,
       train_files=FLAGS.train_files,
@@ -210,15 +210,21 @@ def main(_):
       exclude_astro_ids=exclude_astro_ids  # pass it here
   )
 
-  # Save training history (loss curves and metrics)
-  # Convert history.history dict to JSON-serializable format
-  # history.history is a dict mapping metric names to lists of values per step
-  history_dict = {}
+  # Save training history (per-step metrics)
+  # step_metrics is a dict mapping metric names to lists of values per training step
+  # Convert to JSON-serializable format
+  step_metrics_dict = {}
+  for metric_name, values in step_metrics.items():
+    # Values are already floats from the callback, but ensure they're serializable
+    step_metrics_dict[metric_name] = [float(v) for v in values]
+  config_util.save_config(step_metrics_dict, model_dir, basename="training_history")
+  logging.info(f"Saved training history ({len(step_metrics_dict.get('loss', []))} steps) to {os.path.join(model_dir, 'training_history.json')}")
+
+  # Also save per-epoch history for reference (though it only has 1 epoch)
+  epoch_history_dict = {}
   for metric_name, values in history.history.items():
-    # Convert numpy types to Python native types for JSON serialization
-    history_dict[metric_name] = [float(v) for v in values]
-  config_util.save_config(history_dict, model_dir, basename="training_history")
-  logging.info(f"Saved training history to {os.path.join(model_dir, 'training_history.json')}")
+    epoch_history_dict[metric_name] = [float(v) for v in values]
+  config_util.save_config(epoch_history_dict, model_dir, basename="training_history_epoch")
 
   # Save the model in the specified format.
   models.save_model(model, model_dir, FLAGS.save_format)

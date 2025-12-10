@@ -1,5 +1,6 @@
 """Functions used for training an AstroNet model."""
 
+import numpy as np
 import tensorflow as tf
 from collections import Counter
 from absl import logging
@@ -39,6 +40,30 @@ class ThresholdRecall(tf.keras.metrics.Metric):
 
     def reset_state(self):
         self.recall.reset_state()
+
+
+class PerStepMetricsCallback(tf.keras.callbacks.Callback):
+    """Callback to collect metrics at each training step."""
+    def __init__(self):
+        super().__init__()
+        self.step_metrics = {}
+
+    def on_train_batch_end(self, batch, logs=None):
+        """Called at the end of each training batch."""
+        if logs is None:
+            logs = {}
+        # Store metrics for this step
+        for metric_name, value in logs.items():
+            if metric_name not in self.step_metrics:
+                self.step_metrics[metric_name] = []
+            # Convert tensor/numpy scalar to float if needed
+            if hasattr(value, 'numpy'):
+                value = float(value.numpy())
+            elif isinstance(value, (np.integer, np.floating)):
+                value = float(value)
+            else:
+                value = float(value)
+            self.step_metrics[metric_name].append(value)
 
 def compute_class_weights(dataset, num_classes, sample_size=10000):
     logging.warning("WARNING: This is an old version of compute_class_weights() and behavior might not be as expected. See David's development branch if you want to use class weighting.")
@@ -123,7 +148,12 @@ def compile_model(model, config):
 
 
 def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None):
-  """Trains a model."""
+  """Trains a model.
+
+  Returns:
+    history: Keras History object (contains per-epoch metrics)
+    step_metrics: Dictionary of per-step metrics (collected via callback)
+  """
   ds = input_ds.build_train_dataset(
       file_pattern=train_files,
       input_config=config.inputs,
@@ -133,5 +163,14 @@ def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_id
   )
 
   compile_model(model, config)
-  history = model.fit(ds, steps_per_epoch=config["train_steps"])
-  return history
+
+  # Create callback to collect per-step metrics
+  per_step_callback = PerStepMetricsCallback()
+
+  history = model.fit(
+      ds,
+      steps_per_epoch=config["train_steps"],
+      callbacks=[per_step_callback]
+  )
+
+  return history, per_step_callback.step_metrics
