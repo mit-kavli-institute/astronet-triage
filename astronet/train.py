@@ -22,6 +22,7 @@ from astronet.astro_cnn_model.astro_cnn_model import AstroCNNModel
 import pprint
 import pandas as pd
 from astronet import evaluation, models, training
+from astronet.astro_cnn_model import input_ds
 from astronet.util import config_util
 import numpy as np
 
@@ -201,13 +202,36 @@ def main(_):
   logging.info("Model summary:")
   model.summary()
 
+  # Build validation dataset if eval_files are provided
+  validation_data = None
+  validation_steps = None
+  if FLAGS.eval_files:
+    # Use the first eval dataset for validation during training
+    val_file_pattern = FLAGS.eval_files[0]
+    # Remove name prefix if present (format: "name:file_pattern")
+    if ":" in val_file_pattern:
+      _, val_file_pattern = val_file_pattern.split(":", 1)
+    logging.info(f"Building validation dataset from {val_file_pattern}")
+    validation_data = input_ds.build_eval_dataset(
+        file_pattern=val_file_pattern,
+        input_config=config.inputs,
+        batch_size=config.hparams.batch_size,
+        include_identifiers=False,
+        include_labels=True
+    )
+    # Optionally set validation_steps (None means use all validation data)
+    # You could set this to a fixed number like 100 to speed up validation
+    validation_steps = config.get("validation_steps", None)
+
   # Train and save model.
-  history, step_metrics = training.train(
+  history, step_metrics, val_step_metrics = training.train(
       model,
       config,
       train_files=FLAGS.train_files,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size,
-      exclude_astro_ids=exclude_astro_ids  # pass it here
+      exclude_astro_ids=exclude_astro_ids,  # pass it here
+      validation_data=validation_data,
+      validation_steps=validation_steps
   )
 
   # Save training history (per-step metrics)
@@ -217,8 +241,19 @@ def main(_):
   for metric_name, values in step_metrics.items():
     # Values are already floats from the callback, but ensure they're serializable
     step_metrics_dict[metric_name] = [float(v) for v in values]
+
+  # Add validation metrics if available (these are per-step, evaluated after each training step)
+  if val_step_metrics:
+    for metric_name, values in val_step_metrics.items():
+      # Add 'val_' prefix to distinguish from training metrics
+      val_key = f"val_{metric_name}"
+      step_metrics_dict[val_key] = [float(v) for v in values]
+    logging.info(f"Validation metrics collected per step: {list(val_step_metrics.keys())}")
+
   config_util.save_config(step_metrics_dict, model_dir, basename="training_history")
-  logging.info(f"Saved training history ({len(step_metrics_dict.get('loss', []))} steps) to {os.path.join(model_dir, 'training_history.json')}")
+  n_train_steps = len(step_metrics_dict.get('loss', []))
+  n_val_steps = len(step_metrics_dict.get('val_loss', []))
+  logging.info(f"Saved training history ({n_train_steps} train steps, {n_val_steps} val steps) to {os.path.join(model_dir, 'training_history.json')}")
 
   # Also save per-epoch history for reference (though it only has 1 epoch)
   epoch_history_dict = {}

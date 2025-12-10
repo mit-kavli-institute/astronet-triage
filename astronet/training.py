@@ -43,16 +43,19 @@ class ThresholdRecall(tf.keras.metrics.Metric):
 
 
 class PerStepMetricsCallback(tf.keras.callbacks.Callback):
-    """Callback to collect metrics at each training step."""
-    def __init__(self):
+    """Callback to collect metrics at each training step and validation."""
+    def __init__(self, validation_data=None, validation_steps=None):
         super().__init__()
         self.step_metrics = {}
+        self.val_step_metrics = {}  # Validation metrics per training step
+        self.validation_data = validation_data
+        self.validation_steps = validation_steps
 
     def on_train_batch_end(self, batch, logs=None):
         """Called at the end of each training batch."""
         if logs is None:
             logs = {}
-        # Store metrics for this step
+        # Store training metrics for this step
         for metric_name, value in logs.items():
             if metric_name not in self.step_metrics:
                 self.step_metrics[metric_name] = []
@@ -64,6 +67,31 @@ class PerStepMetricsCallback(tf.keras.callbacks.Callback):
             else:
                 value = float(value)
             self.step_metrics[metric_name].append(value)
+
+        # Evaluate on validation set after each training step
+        if self.validation_data is not None:
+            # Run validation evaluation
+            val_results = self.model.evaluate(
+                self.validation_data,
+                steps=self.validation_steps,
+                verbose=0,  # Don't print during evaluation
+                return_dict=True
+            )
+
+            # Store validation metrics
+            for metric_name, value in val_results.items():
+                # Remove 'val_' prefix if present (model.evaluate doesn't add it)
+                clean_name = metric_name[4:] if metric_name.startswith('val_') else metric_name
+                if clean_name not in self.val_step_metrics:
+                    self.val_step_metrics[clean_name] = []
+                # Convert to float
+                if hasattr(value, 'numpy'):
+                    value = float(value.numpy())
+                elif isinstance(value, (np.integer, np.floating)):
+                    value = float(value)
+                else:
+                    value = float(value)
+                self.val_step_metrics[clean_name].append(value)
 
 def compute_class_weights(dataset, num_classes, sample_size=10000):
     logging.warning("WARNING: This is an old version of compute_class_weights() and behavior might not be as expected. See David's development branch if you want to use class weighting.")
@@ -147,12 +175,23 @@ def compile_model(model, config):
    ])
 
 
-def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None):
+def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None,
+          validation_data=None, validation_steps=None):
   """Trains a model.
+
+  Args:
+    model: The model to train
+    config: Configuration dictionary
+    train_files: Training data file pattern
+    shuffle_buffer_size: Size of shuffle buffer
+    exclude_astro_ids: Set of Astro IDs to exclude from training
+    validation_data: Optional validation dataset
+    validation_steps: Optional number of validation steps per epoch
 
   Returns:
     history: Keras History object (contains per-epoch metrics)
-    step_metrics: Dictionary of per-step metrics (collected via callback)
+    step_metrics: Dictionary of per-step training metrics (collected via callback)
+    val_step_metrics: Dictionary of per-step validation metrics (evaluated after each training step)
   """
   ds = input_ds.build_train_dataset(
       file_pattern=train_files,
@@ -165,12 +204,22 @@ def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_id
   compile_model(model, config)
 
   # Create callback to collect per-step metrics
-  per_step_callback = PerStepMetricsCallback()
-
-  history = model.fit(
-      ds,
-      steps_per_epoch=config["train_steps"],
-      callbacks=[per_step_callback]
+  # Pass validation_data to callback so it can evaluate after each step
+  per_step_callback = PerStepMetricsCallback(
+      validation_data=validation_data,
+      validation_steps=validation_steps
   )
 
-  return history, per_step_callback.step_metrics
+  fit_kwargs = {
+      'x': ds,
+      'steps_per_epoch': config["train_steps"],
+      'callbacks': [per_step_callback]
+  }
+
+  # Note: We don't pass validation_data to model.fit() because we're evaluating
+  # manually in the callback after each step. This gives us per-step validation metrics.
+  # If you want epoch-end validation too, you can add validation_data here as well.
+
+  history = model.fit(**fit_kwargs)
+
+  return history, per_step_callback.step_metrics, per_step_callback.val_step_metrics
