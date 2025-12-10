@@ -70,9 +70,13 @@ class PerStepMetricsCallback(tf.keras.callbacks.Callback):
 
         # Evaluate on validation set after each training step
         if self.validation_data is not None:
+            # Strip sample weights from validation dataset (like evaluation.py does)
+            # This avoids the warning about weighted_metrics
+            val_ds_no_weights = self.validation_data.map(lambda x, y, w: (x, y))
+
             # Run validation evaluation
             val_results = self.model.evaluate(
-                self.validation_data,
+                val_ds_no_weights,
                 steps=self.validation_steps,
                 verbose=0,  # Don't print during evaluation
                 return_dict=True
@@ -166,13 +170,18 @@ def compile_model(model, config):
     loss = tf.keras.losses.BinaryCrossentropy()
   logging.info(f"Using '{loss.name}' loss")
 
-  model.compile(optimizer=optimizer, loss=loss, metrics=[
+  model.compile(
+      optimizer=optimizer,
+      loss=loss,
+      metrics=[
          tf.keras.metrics.Precision(name='precision'),
          tf.keras.metrics.Recall(name='recall'),
          tf.keras.metrics.AUC(curve='PR', name='pr_auc'),
          ThresholdPrecision(threshold=0.3),
          ThresholdRecall(threshold=0.3)
-   ])
+      ],
+      weighted_metrics=[]  # Silence warning about sample_weight in evaluate()
+   )
 
 
 def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None,
