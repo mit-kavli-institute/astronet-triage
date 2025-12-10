@@ -207,16 +207,17 @@ def process_example(tce: pd.Series, tce_table: pd.DataFrame, tess_data_dir: str)
 tce_table = pd.read_csv(input_tce_csv_file, header=0, low_memory=False)
 
 # Filter to only examples with disp_e=1
+disp_col = 'disp_p'
 
-if 'disp_e' in tce_table.columns:
-    filtered_table = tce_table[tce_table['disp_e'] == 1]
-    print(f"Filtered to {len(filtered_table)} examples with disp_e=1 (out of {len(tce_table)} total)")
+if disp_col in tce_table.columns:
+    filtered_table = tce_table[tce_table[disp_col] == 1]
+    print(f"Filtered to {len(filtered_table)} examples with {disp_col}=1 (out of {len(tce_table)} total)")
 else:
-    print("Warning: 'disp_e' column not found in table. Proceeding without filter.")
+    print(f"Warning: '{disp_col}' column not found in table. Proceeding without filter.")
     filtered_table = tce_table
 
 # Get all unique astro IDs from filtered table
-unique_astro_ids = filtered_table["Astro ID"].unique()[:500]
+unique_astro_ids = filtered_table["Astro ID"].unique()
 print(f"Processing {len(unique_astro_ids)} examples...")
 
 # Get TCE data for each astro ID (take first occurrence)
@@ -298,12 +299,12 @@ print(f"  empty_data errors: {error_source_counts['empty_data']}")
 print(f"  other errors: {error_source_counts['other']}")
 
 # Save results
-np.save('/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/view_differences_disp_e.npy', results, allow_pickle=True)
+np.save(f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/view_differences_{disp_col}.npy', results, allow_pickle=True)
 
 # Save problematic IDs to CSV
 if problematic_ids:
     problematic_df = pd.DataFrame(problematic_ids)
-    problematic_csv_path = '/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/problematic_ids_disp_e.csv'
+    problematic_csv_path = f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/problematic_ids_{disp_col}.csv'
     problematic_df.to_csv(problematic_csv_path, index=False)
     print(f"\nSaved {len(problematic_ids)} problematic IDs to: {problematic_csv_path}")
 else:
@@ -311,7 +312,7 @@ else:
 
 # Save error log to text file
 if error_log:
-    error_log_path = '/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/error_log_disp_e.txt'
+    error_log_path = f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/error_log_{disp_col}.txt'
     with open(error_log_path, 'w') as f:
         f.write(f"Error Log for View Differences Processing\n")
         f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
