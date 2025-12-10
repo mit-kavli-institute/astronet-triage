@@ -48,12 +48,12 @@ FLAGS = flags.FLAGS
 def predict(model_dir: str, data_files: str) -> tuple[pd.DataFrame, ConfigDict]:
   """
   Run model predictions.
-  
+
   Args:
     model_dir: Path to directory containing model config and weights.
     data_files: Path or glob pattern to match files containing records to run
       predictions on.
-    
+
   Returns:
     A tuple `(predictions, config)` where
     - `predictions` is a dataframe containing the model predictions, in which
@@ -92,7 +92,7 @@ def predict(model_dir: str, data_files: str) -> tuple[pd.DataFrame, ConfigDict]:
 def _is_model_directory(dir: str) -> bool:
   """
   Check if a directory contains a model compatible with `predict`.
-  
+
   This requires a `config.json` file and a `train_flags.json` file.
   """
   return (os.path.isfile(os.path.join(dir, "config.json")) and
@@ -111,7 +111,7 @@ def get_model_directories(models_dir: str) -> list[str]:
     config.json
     train_flags.json
     model_weights.h5
-  
+
   /ensemble_dir/
     model_1/
       config.json
@@ -145,7 +145,7 @@ def batch_predict(models_dir: str, data_files: str) -> pd.DataFrame:
       or contains many model subdirectories for an ensemble.
     data_files: Path or glob pattern of paths to files with records to run
       predictions on.
-  
+
   Returns:
     A dataframe with model predictions from each model. Has an `astro_id` column
     with identifiers for the records and a `model_no` column identifying which
@@ -185,7 +185,7 @@ def main(_):
 
   series = []
   for features, identifiers in tqdm(ds, unit="records"):
-    preds = model(features)
+    preds = model(features, training=False)
 
     row = {}
     row["astro_id"] = identifiers.numpy().item()
