@@ -7,8 +7,8 @@ CONFIG_NAME=pablomer
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 ENSEMBLE_NAME=$CONFIG_NAME
 # N_TRIALS=30
-N_TRIALS=2
-N_RUNS=2 # Runs per trial (ensemble size)
+N_TRIALS=200
+N_RUNS=5 # Runs per trial (ensemble size)
 SAMPLER=${SAMPLER:-qmc} # QMCSampler (Sobol quasi-random)
 
 # PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
@@ -29,7 +29,7 @@ OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_
 
 # CONFIG_OVERRIDES (Phase 1: quick sweep over high-impact knobs)
 # CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=true"
-CONFIG_OVERRIDES="train_steps=50,init_from_pretrained_model=false"
+CONFIG_OVERRIDES="train_steps=3000,init_from_pretrained_model=false"
 
 #–– Launch Optuna tuning ––#
 echo "Starting Optuna tuning for ${ENSEMBLE_NAME} (n_trials=${N_TRIALS})"
