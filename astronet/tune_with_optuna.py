@@ -47,7 +47,7 @@ FLAGS = flags.FLAGS
 #Helper functions that define the parameters and ranges to tune
 def sample_phase1(trial, config):
     """
-    Phase 1: quick sweep over the highest‐impact knobs.
+    Phase 1: quick sweep over the highest-impact knobs.
     """
     # toggle data augmentation by light curve reversal
     config["inputs"]["random_reverse_time_series"] = trial.suggest_categorical(
@@ -67,7 +67,7 @@ def sample_phase1(trial, config):
 
 
     config["hparams"]["weight_decay"] = trial.suggest_float(
-        "weight_decay", 1e-3, 0.5, log=True
+        "weight_decay", 1e-3, 0.5
     )
     config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
         "pre_logits_dropout_rate", 0.0, 0.4

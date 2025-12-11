@@ -7,8 +7,8 @@ CONFIG_NAME=pablomer
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 ENSEMBLE_NAME=$CONFIG_NAME
 # N_TRIALS=30
-N_TRIALS=3
-N_RUNS=1 # Runs per trial (ensemble size)
+N_TRIALS=2
+N_RUNS=2 # Runs per trial (ensemble size)
 SAMPLER=${SAMPLER:-qmc} # QMCSampler (Sobol quasi-random)
 
 # PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
@@ -24,20 +24,23 @@ DATA_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v2/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/s
 
 # OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_optuna_${DATE}
-OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_original/${DATE}-optuna/${ENSEMBLE_NAME}-phase1/
+# OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v2/${DATE}-optuna/${ENSEMBLE_NAME}-phase1/
+OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_optuna_${DATE}
 
 # CONFIG_OVERRIDES (Phase 1: quick sweep over high-impact knobs)
 # CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=true"
-CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=false"
+CONFIG_OVERRIDES="train_steps=50,init_from_pretrained_model=false"
 
 #–– Launch Optuna tuning ––#
 echo "Starting Optuna tuning for ${ENSEMBLE_NAME} (n_trials=${N_TRIALS})"
-PYTHONNOUSERSITE=1 \
-LD_LIBRARY_PATH=/pdo/users/pablomer/miniconda3/lib:$LD_LIBRARY_PATH \
-/pdo/users/pablomer/miniconda3/envs/astronet-gpu/bin/python $CODE_DIR/astronet/tune_with_optuna.py \
+# PYTHONNOUSERSITE=1 \
+# LD_LIBRARY_PATH=/pdo/users/pablomer/miniconda3/lib:$LD_LIBRARY_PATH \
+# /pdo/users/pablomer/miniconda3/envs/astronet-gpu/bin/python $CODE_DIR/astronet/tune_with_optuna.py \
+/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python $CODE_DIR/astronet/tune_with_optuna.py \
     --model=AstroCNNModelVetting \
     --config_name=$CONFIG_NAME \
     --config_file=$CONFIG_FILE \
+    --config_overrides=$CONFIG_OVERRIDES \
     --pretrain_model_dir=$PRETRAIN_MODEL_DIR \
     --train_files="${DATA_DIR}${TFRECORD_PREFIX}-train/*" \
     --eval_files="${DATA_DIR}${TFRECORD_PREFIX}-val/*" \
