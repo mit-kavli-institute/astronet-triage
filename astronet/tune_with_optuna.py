@@ -49,10 +49,22 @@ def sample_phase1(trial, config):
     """
     Phase 1: quick sweep over the highest-impact knobs.
     """
-    # toggle data augmentation by light curve reversal
-    config["inputs"]["random_reverse_time_series"] = trial.suggest_categorical(
-        "random_reverse_time_series", [True, False]
+    # # toggle data augmentation by light curve reversal
+    # config["inputs"]["random_reverse_time_series"] = trial.suggest_categorical(
+    #     "random_reverse_time_series", [True, False]
+    # )
+
+    # # toggle pretrain/no pretrain
+    # config["init_from_pretrained_model"] = trial.suggest_categorical(
+    #     "init_from_pretrained_model", [True, False]
+    # )
+
+        # batch‐norm toggle
+    config["hparams"]["use_batch_norm"] = trial.suggest_categorical(
+        "use_batch_norm", [True, False]
     )
+
+
     # optimizer hyperparams
     # config["hparams"]["learning_rate"] = trial.suggest_float(
     #     "learning_rate", 1e-6, 1e-4, log=True
