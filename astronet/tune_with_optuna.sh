@@ -7,7 +7,7 @@ CONFIG_NAME=pablomer
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 ENSEMBLE_NAME=$CONFIG_NAME
 # N_TRIALS=30
-N_TRIALS=2
+N_TRIALS=3
 N_RUNS=1 # Runs per trial (ensemble size)
 SAMPLER=${SAMPLER:-qmc} # QMCSampler (Sobol quasi-random)
 
@@ -19,14 +19,16 @@ CODE_DIR=/pdo/users/pablomer/Astronet-Triage
 # DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin/
-DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_original/
-# DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/
+# DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_original/
+DATA_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v2/
+# DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/s
 
 # OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_optuna_${DATE}
-OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_original/${DATE}-optuna/${ENSEMBLE_NAME}-2k-pretrained-cosine/
+OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_original/${DATE}-optuna/${ENSEMBLE_NAME}-phase1/
 
-# CONFIG_OVERRIDES (Phase 3 sets these automatically, but keeping for consistency)
+# CONFIG_OVERRIDES (Phase 1: quick sweep over high-impact knobs)
 # CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=true"
+CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=false"
 
 #–– Launch Optuna tuning ––#
 echo "Starting Optuna tuning for ${ENSEMBLE_NAME} (n_trials=${N_TRIALS})"

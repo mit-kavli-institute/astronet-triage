@@ -49,24 +49,37 @@ def sample_phase1(trial, config):
     """
     Phase 1: quick sweep over the highest‐impact knobs.
     """
-    # core optimizer hyperparams
-    config["hparams"]["learning_rate"] = trial.suggest_float(
-        "learning_rate", 1e-6, 1e-2, log=True
+    # toggle data augmentation by light curve reversal
+    config["inputs"]["random_reverse_time_series"] = trial.suggest_categorical(
+        "random_reverse_time_series", [True, False]
     )
-    config["hparams"]["weight_decay"] = trial.suggest_float(
-        "weight_decay", 1e-6, 1e-1, log=True
-    )
-    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
-        "pre_logits_dropout_rate", 0.0, 0.5
+    # optimizer hyperparams
+    # config["hparams"]["learning_rate"] = trial.suggest_float(
+    #     "learning_rate", 1e-6, 1e-4, log=True
+    # )
+
+    base_lr = 1e-5
+    lr_factors = [0.25, 0.5, 1.0, 2.0, 4.0]  # octave-ish around base
+    config["hparams"]["learning_rate"] = trial.suggest_categorical(
+        "learning_rate",
+        [base_lr * f for f in lr_factors]
     )
 
-    # dense head size/depth
-    config["hparams"]["num_pre_logits_hidden_layers"] = trial.suggest_int(
-        "num_pre_logits_hidden_layers", 1, 6
+
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-3, 0.5, log=True
     )
-    config["hparams"]["pre_logits_hidden_layer_size"] = trial.suggest_categorical(
-        "pre_logits_hidden_layer_size", [128, 256, 512, 1024]
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.0, 0.4
     )
+
+    # # dense head size/depth
+    # config["hparams"]["num_pre_logits_hidden_layers"] = trial.suggest_int(
+    #     "num_pre_logits_hidden_layers", 1, 6
+    # )
+    # config["hparams"]["pre_logits_hidden_layer_size"] = trial.suggest_categorical(
+    #     "pre_logits_hidden_layer_size", [128, 256, 512, 1024]
+    # )
 
     # # warm‐start switches
     # config["init_from_pretrained_model"] = trial.suggest_categorical(
@@ -184,9 +197,9 @@ def objective(trial):
 
     # Hyperparameter sampling
     # Uncomment the phase you want to use:
-    # sample_phase1(trial, config)  # Quick sweep over high-impact knobs
+    sample_phase1(trial, config)  # Quick sweep over high-impact knobs
     # sample_phase2(trial, config)  # Expanded with regularization, optimizer choices
-    sample_phase3(trial, config)  # Cosine scheduler tuning with pretrained model
+    # sample_phase3(trial, config)  # Cosine scheduler tuning with pretrained model
 
     # Validate pretrained model requirements (matching train.py logic)
     init_from_pretrained_model = config.get("init_from_pretrained_model")
