@@ -356,16 +356,16 @@ class PeriodicSaveCallback:
         """Called after each trial completes."""
         # Save every save_interval trials
         if (trial.number + 1) % self.save_interval == 0:
-            self._save_results(study)
+            self._save_results(study, trial.number + 1)
 
-    def _save_results(self, study):
+    def _save_results(self, study, trial_number):
         """Save current study results to files."""
-        logging.info(f"Saving partial results after {len(study.trials)} trials...")
+        logging.info(f"Saving partial results after {trial_number} trials...")
 
         # Save best hyperparameters
         if study.best_trial:
             best = study.best_trial
-            best_json = os.path.join(self.model_dir, "best_params.json")
+            best_json = os.path.join(self.model_dir, f"best_params_trial_{trial_number}.json")
             with open(best_json, "w") as f:
                 json.dump({"value": best.value, "params": best.params}, f, indent=2)
             logging.info(f"Saved best params to {best_json}")
@@ -377,7 +377,7 @@ class PeriodicSaveCallback:
             row.update(t.params)
             rows.append(row)
         df = pd.DataFrame(rows)
-        trials_csv = os.path.join(self.model_dir, "optuna_trials.csv")
+        trials_csv = os.path.join(self.model_dir, f"optuna_trials_trial_{trial_number}.csv")
         df.to_csv(trials_csv, index=False)
         logging.info(f"Saved {len(rows)} trials to {trials_csv}")
 
@@ -386,7 +386,7 @@ class PeriodicSaveCallback:
         if len(completed_trials) >= 2:  # Need at least 2 completed trials for importances
             try:
                 fig = vis.plot_param_importances(study)
-                outpath = os.path.join(self.model_dir, "param_importances.html")
+                outpath = os.path.join(self.model_dir, f"param_importances_trial_{trial_number}.html")
                 fig.write_html(outpath)
                 logging.info(f"Saved param importances to {outpath}")
             except Exception as e:
@@ -413,7 +413,7 @@ def main(_):
     )
 
     # Create callback to save results periodically
-    save_callback = PeriodicSaveCallback(FLAGS.model_dir, save_interval=20)
+    save_callback = PeriodicSaveCallback(FLAGS.model_dir, save_interval=10)
 
     study.optimize(objective, n_trials=FLAGS.n_trials, callbacks=[save_callback])
 
