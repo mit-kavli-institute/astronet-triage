@@ -343,7 +343,7 @@ def objective(trial):
 
 class PeriodicSaveCallback:
     """Callback to save Optuna study results periodically."""
-    def __init__(self, model_dir, save_interval=20):
+    def __init__(self, model_dir, save_interval=10):
         self.model_dir = model_dir
         self.save_interval = save_interval
 

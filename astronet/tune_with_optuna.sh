@@ -7,7 +7,7 @@ CONFIG_NAME=pablomer
 TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
 ENSEMBLE_NAME=$CONFIG_NAME
 # N_TRIALS=30
-N_TRIALS=200
+N_TRIALS=150
 N_RUNS=5 # Runs per trial (ensemble size)
 SAMPLER=${SAMPLER:-qmc} # QMCSampler (Sobol quasi-random)
 
