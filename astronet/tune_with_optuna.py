@@ -223,10 +223,13 @@ def objective(trial):
     model_class = models.get_model_class(FLAGS.model)
 
     # 5) Prepare datasets
+    # Use same shuffle buffer size as train.py (25000 default)
+    shuffle_buffer_size = 25000
     train_ds = build_train_dataset(
         FLAGS.train_files,
         config["inputs"],
-        batch_size=config["hparams"]["batch_size"]
+        batch_size=config["hparams"]["batch_size"],
+        shuffle_values_buffer=shuffle_buffer_size
     )
     eval_ds = build_eval_dataset(
         FLAGS.eval_files,
@@ -318,23 +321,25 @@ def objective(trial):
             update_freq=10,       # or an integer like 10 to log every 10 batches, or 'batch' to update every batch
         )
 
+        # Train without validation during training (faster, matches train.py default behavior)
+        # We'll evaluate after training to get the PR AUC
         model.fit(
             train_ds,
-            validation_data=eval_ds,
             steps_per_epoch=config["train_steps"],
             epochs=1,
             callbacks=[tensorboard_cb, pruning_cb],
-            validation_steps=100,
+            # Don't pass validation_data here - it's slower and we evaluate after anyway
         )
 
-
-
-        # evaluate
-        metrics = model.evaluate(eval_ds, return_dict=True)
+        # Evaluate after training to get PR AUC (matches train.py evaluation approach)
+        metrics = model.evaluate(eval_ds, return_dict=True, verbose=0)
         pr = metrics.get("pr_auc")
         if pr is None:
-            # fallback if key isn’t there
-            pr = model.history.history["pr_auc"][-1]
+            # fallback if key isn't there
+            pr = model.history.history.get("pr_auc", [None])[-1]
+        if pr is None:
+            logging.warning("Could not find pr_auc in metrics or history")
+            pr = 0.0  # Fallback value
         pr_scores.append(pr)
 
     # 8) return the average across runs
