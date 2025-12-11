@@ -341,6 +341,53 @@ def objective(trial):
     return sum(pr_scores) / len(pr_scores)
 
 
+class PeriodicSaveCallback:
+    """Callback to save Optuna study results periodically."""
+    def __init__(self, model_dir, save_interval=20):
+        self.model_dir = model_dir
+        self.save_interval = save_interval
+
+    def __call__(self, study, trial):
+        """Called after each trial completes."""
+        # Save every save_interval trials
+        if (trial.number + 1) % self.save_interval == 0:
+            self._save_results(study)
+
+    def _save_results(self, study):
+        """Save current study results to files."""
+        logging.info(f"Saving partial results after {len(study.trials)} trials...")
+
+        # Save best hyperparameters
+        if study.best_trial:
+            best = study.best_trial
+            best_json = os.path.join(self.model_dir, "best_params.json")
+            with open(best_json, "w") as f:
+                json.dump({"value": best.value, "params": best.params}, f, indent=2)
+            logging.info(f"Saved best params to {best_json}")
+
+        # Save all trials to CSV
+        rows = []
+        for t in study.trials:
+            row = {"trial_number": t.number, "value": t.value, "state": t.state.name}
+            row.update(t.params)
+            rows.append(row)
+        df = pd.DataFrame(rows)
+        trials_csv = os.path.join(self.model_dir, "optuna_trials.csv")
+        df.to_csv(trials_csv, index=False)
+        logging.info(f"Saved {len(rows)} trials to {trials_csv}")
+
+        # Save hyperparameter importances (only if we have enough completed trials)
+        completed_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+        if len(completed_trials) >= 2:  # Need at least 2 completed trials for importances
+            try:
+                fig = vis.plot_param_importances(study)
+                outpath = os.path.join(self.model_dir, "param_importances.html")
+                fig.write_html(outpath)
+                logging.info(f"Saved param importances to {outpath}")
+            except Exception as e:
+                logging.warning(f"Could not generate param importances: {e}")
+
+
 def main(_):
     logging.info("Starting Optuna tuning with %d trials", FLAGS.n_trials)
 
@@ -359,7 +406,11 @@ def main(_):
         sampler=sampler,
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=5)
     )
-    study.optimize(objective, n_trials=FLAGS.n_trials)
+
+    # Create callback to save results periodically
+    save_callback = PeriodicSaveCallback(FLAGS.model_dir, save_interval=20)
+
+    study.optimize(objective, n_trials=FLAGS.n_trials, callbacks=[save_callback])
 
     # Save best hyperparameters
     best = study.best_trial
