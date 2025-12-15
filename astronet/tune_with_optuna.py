@@ -71,7 +71,7 @@ def sample_phase1(trial, config):
     # )
 
     base_lr = 1e-5
-    lr_factors = [0.25, 0.5, 1.0, 2.0, 4.0]  # octave-ish around base
+    lr_factors = [0.25, 0.5, 1.0, 2.0, 4.0]  # multiples of 2 or 1/2
     config["hparams"]["learning_rate"] = trial.suggest_categorical(
         "learning_rate",
         [base_lr * f for f in lr_factors]
