@@ -122,9 +122,24 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
                        fixed_bkspace):
   del tic_id  # Unused.
   input_mask = get_spline_mask(time, period, epoch, duration)
-  spline_flux = keplersplinev2.choosekeplersplinev2(
-      time, flux, input_mask=input_mask, fixed_bkspace=fixed_bkspace)
-  detrended_flux = flux / spline_flux
+  # spline_flux = keplersplinev2.choosekeplersplinev2(
+  #     time, flux, input_mask=input_mask, fixed_bkspace=fixed_bkspace)
+  # detrended_flux = flux / spline_flux
+
+  spline_flux, metadata = keplersplinev2.choosekeplersplinev2(
+      time, flux, input_mask=input_mask, fixed_bkspace=fixed_bkspace, return_metadata=True)
+
+  x = time
+  y = spline_flux.copy()
+
+  mask_from_spline = metadata.light_curve_mask
+  # bad = ~input_mask
+  bad = ~mask_from_spline
+  y[bad] = np.interp(x[bad], x[~bad], y[~bad])  # fill bad points from neighbors
+
+  spline_flux_filled = y
+  detrended_flux = flux / spline_flux_filled
+
   return filter_outliers(time, detrended_flux, input_mask)
 
 
