@@ -132,13 +132,13 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
   x = time
   y = spline_flux.copy()
 
+  mask_from_spline = metadata.light_curve_mask
   # Check if spline_flux contains NaN values (spline fitting may have failed)
-  if np.any(np.isnan(y)):
+  if np.any(np.isnan(y[mask_from_spline])):
     # If spline failed, return empty arrays
     #raise a warning with the tic_id
-    warnings.warn(f"Spline fitting failed for TIC {tic_id}. Returning empty arrays.")
+    warnings.warn(f"Warning: Spline contains NaNs for TIC {tic_id}.")
 
-  mask_from_spline = metadata.light_curve_mask
   # bad = ~input_mask
   bad = ~mask_from_spline
 
@@ -146,10 +146,14 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
   if np.sum(~bad) >= 2 and np.any(bad):
     y[bad] = np.interp(x[bad], x[~bad], y[~bad])  # fill bad points from neighbors
   elif np.sum(~bad) < 2:
+    # warnings.warn(f"Warning: Too few points in mask_from_spline for TIC {tic_id}. Falling back to input_mask.")
     # If too few points in mask_from_spline, fall back to input_mask
     bad = ~input_mask
     if np.sum(~bad) >= 2 and np.any(bad):
+
       y[bad] = np.interp(x[bad], x[~bad], y[~bad])
+    else:
+      warnings.warn(f"Warning: Too few points in input mask for TIC {tic_id}.")
 
   spline_flux_filled = y
   detrended_flux = flux / spline_flux_filled
