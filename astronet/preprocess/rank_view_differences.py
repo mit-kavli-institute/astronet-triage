@@ -299,7 +299,7 @@ print(f"  empty_data errors: {error_source_counts['empty_data']}")
 print(f"  other errors: {error_source_counts['other']}")
 
 # Save results
-np.save(f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/view_differences_{disp_col}.npy', results, allow_pickle=True)
+np.save(f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/view_differences_{disp_col}_interpolation.npy', results, allow_pickle=True)
 
 # Save problematic IDs to CSV
 if problematic_ids:
