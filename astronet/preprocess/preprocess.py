@@ -120,7 +120,7 @@ def filter_outliers(time, flux, mask):
 
 def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
                        fixed_bkspace):
-  del tic_id  # Unused.
+  # del tic_id  # Unused.
   input_mask = get_spline_mask(time, period, epoch, duration)
   # spline_flux = keplersplinev2.choosekeplersplinev2(
   #     time, flux, input_mask=input_mask, fixed_bkspace=fixed_bkspace)
@@ -132,10 +132,24 @@ def detrend_and_filter(tic_id, time, flux, period, epoch, duration,
   x = time
   y = spline_flux.copy()
 
+  # Check if spline_flux contains NaN values (spline fitting may have failed)
+  if np.any(np.isnan(y)):
+    # If spline failed, return empty arrays
+    #raise a warning with the tic_id
+    warnings.warn(f"Spline fitting failed for TIC {tic_id}. Returning empty arrays.")
+
   mask_from_spline = metadata.light_curve_mask
   # bad = ~input_mask
   bad = ~mask_from_spline
-  y[bad] = np.interp(x[bad], x[~bad], y[~bad])  # fill bad points from neighbors
+
+  # Only interpolate if there are enough good points (np.interp needs at least 2 points)
+  if np.sum(~bad) >= 2 and np.any(bad):
+    y[bad] = np.interp(x[bad], x[~bad], y[~bad])  # fill bad points from neighbors
+  elif np.sum(~bad) < 2:
+    # If too few points in mask_from_spline, fall back to input_mask
+    bad = ~input_mask
+    if np.sum(~bad) >= 2 and np.any(bad):
+      y[bad] = np.interp(x[bad], x[~bad], y[~bad])
 
   spline_flux_filled = y
   detrended_flux = flux / spline_flux_filled
