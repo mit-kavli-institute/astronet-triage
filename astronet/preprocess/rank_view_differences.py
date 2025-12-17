@@ -9,7 +9,8 @@ from typing import Optional, Tuple
 from tqdm import tqdm
 
 # Adjust paths as needed
-input_tce_csv_file = "/pdo/users/pablomer/mnt/tess/astronet/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv"
+# input_tce_csv_file = "/pdo/users/pablomer/mnt/tess/astronet/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all.csv"
+input_tce_csv_file = "/pdo/users/pablomer/mnt/tess/astronet/tces-vetting-v01-tois-triageJs-nocentroid-dec2025-all.csv"
 tess_data_dir = '/pdo/users/pablomer/mnt/tess/april2025_dataset_fits_files'
 
 # Change to Astronet-Triage directory if needed
@@ -299,7 +300,7 @@ print(f"  empty_data errors: {error_source_counts['empty_data']}")
 print(f"  other errors: {error_source_counts['other']}")
 
 # Save results
-np.save(f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/view_differences_{disp_col}_interpolation.npy', results, allow_pickle=True)
+np.save(f'/pdo/users/pablomer/Astronet-Triage/astronet/preprocess/view_differences_{disp_col}_dur24_interpolation.npy', results, allow_pickle=True)
 
 # Save problematic IDs to CSV
 if problematic_ids:
