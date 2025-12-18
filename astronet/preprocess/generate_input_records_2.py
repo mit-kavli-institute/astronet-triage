@@ -69,6 +69,12 @@ parser.add_argument(
   action="store_true"
 )
 
+parser.add_argument(
+    "--file_suffix",
+    type=str,
+    default="",
+    help="Optional suffix appended to each TFRecord shard filename.")
+
 def _set_float_feature(ex, name, value):
   """Sets the value of a float feature in a tensorflow.train.Example proto."""
   assert name not in ex.features.feature, "Duplicate feature: %s" % name
@@ -440,14 +446,15 @@ def main(_):
   file_shards = []  # List of (tce_table_shard, file_name).
   boundaries = np.linspace(
       0, len(tce_table), FLAGS.num_shards + 1).astype(np.int)
-  suffix = "_aug" if FLAGS.remove_random_points else ""
+  base_suffix = "_aug" if FLAGS.remove_random_points else ""
+  file_suffix = FLAGS.file_suffix or ""
   for i in range(FLAGS.num_shards):
     start = boundaries[i]
     end = boundaries[i + 1]
     file_shards.append((
         start,
         end,
-        os.path.join(FLAGS.output_dir, "%.5d-of-%.5d%s" % (i, FLAGS.num_shards, suffix))
+        os.path.join(FLAGS.output_dir, "%.5d-of-%.5d%s%s" % (i, FLAGS.num_shards, base_suffix, file_suffix))
     ))
 
   logging.info("Processing %d total file shards", len(file_shards))

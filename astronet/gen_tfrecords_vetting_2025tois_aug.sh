@@ -16,19 +16,36 @@ NAME=vetting-v01-tois-triageJs-nocentroid-dec2025
 
 # Augmentation config
 AUGMENT_TIMES=10          # number of augmented copies per TCE
-TAG=10x_0p1               # matches AUGMENT_TIMES and 10% random drop
+TAG=10x_0p1               # base tag: 10x augmentation, 10% random drop
 
 
-# Redirect all output (stdout + stderr) to log.txt
+# Redirect all output (stdout + stderr) to a log file
 exec > >(tee "generate_records_${NAME}_aug_${TAG}.log") 2>&1
 
+OUT_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin_aug/${TAG}/tfrecords-${NAME}-train
 
-/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python3 \
-  astronet/preprocess/generate_input_records_3.py \
-  --input_tce_csv_file=../mnt/tess/astronet/tces-${NAME}-train.csv \
-  --tess_data_dir=${LCDIR} \
-  --output_dir=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin_aug/${TAG}/tfrecords-${NAME}-train \
-  --mode=vetting \
-  --num_shards=50 \
-  --remove_random_points \
-  --augment_times=${AUGMENT_TIMES}
+mkdir -p "${OUT_DIR}"
+
+# Run the TFRecord generation script AUGMENT_TIMES times with different file suffixes
+for i in $(seq 1 "${AUGMENT_TIMES}"); do
+  FILE_SUFFIX="_rep${i}"
+  FIRST_SHARD=$(printf "%s/%05d-of-%05d_aug%s" "${OUT_DIR}" 0 50 "${FILE_SUFFIX}")
+
+  # Avoid overwriting an existing augmentation replica
+  if [ -f "${FIRST_SHARD}" ]; then
+    echo "Skipping augmentation run ${i}/${AUGMENT_TIMES}: first shard ${FIRST_SHARD} already exists."
+    continue
+  fi
+
+  echo "Starting augmentation run ${i}/${AUGMENT_TIMES} with suffix ${FILE_SUFFIX}"
+
+  /pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python3 \
+    astronet/preprocess/generate_input_records_3.py \
+    --input_tce_csv_file=../mnt/tess/astronet/tces-${NAME}-train.csv \
+    --tess_data_dir="${LCDIR}" \
+    --output_dir="${OUT_DIR}" \
+    --mode=vetting \
+    --num_shards=50 \
+    --remove_random_points \
+    --file_suffix="${FILE_SUFFIX}"
+done
