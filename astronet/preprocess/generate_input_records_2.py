@@ -98,9 +98,9 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     SKIPPED_TICS.append(tic)
     return None
 
-  # Randomly drop a subset of the data is the flag is active
-  if FLAGS.remove_random_points:
-    time, flux = preprocess.remove_random_datapoints(time, flux, 0.1)
+  # # Randomly drop a subset of the data is the flag is active
+  # if FLAGS.remove_random_points:
+  #   time, flux = preprocess.remove_random_datapoints(time, flux, 0.1)
 
 
   if bkspace is None:
@@ -108,7 +108,14 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   else:
     tag = f'_{bkspace}'
 
-  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
+  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(
+      tic, time, flux, period, epoc, duration, bkspace)
+
+  # Randomly drop a subset of the data if the flag is active (after detrending)
+  if FLAGS.remove_random_points:
+    detrended_time, detrended_flux, mask_removal = preprocess.remove_random_datapoints(
+        detrended_time, detrended_flux, 0.1)
+    transit_mask = transit_mask[mask_removal]
 
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
