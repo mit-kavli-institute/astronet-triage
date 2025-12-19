@@ -122,11 +122,11 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   scatter_weights_detrended = preprocess.split_and_calculate_weights(detrended_time, detrended_flux, gap_width=2)
 
   if FLAGS.remove_random_points:
-    print('DEBUG: detrended time size before removal',detrended_time.shape)
+    # print('DEBUG: detrended time size before removal',detrended_time.shape)
     detrended_time, detrended_flux, mask_removal = preprocess.remove_random_datapoints(detrended_time, detrended_flux, 0.1)
     scatter_weights_detrended = scatter_weights_detrended[mask_removal]
     transit_mask = transit_mask[mask_removal]
-    print('DEBUG: detrended time size after removal',detrended_time.shape)
+    # print('DEBUG: detrended time size after removal',detrended_time.shape)
 
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
