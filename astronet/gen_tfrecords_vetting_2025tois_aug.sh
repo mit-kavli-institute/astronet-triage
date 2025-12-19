@@ -15,29 +15,32 @@ LCDIR=/pdo/astronet-data/data/fits/oct2025_dataset_all_fits_files/
 NAME=vetting-v01-tois-triageJs-nocentroid-dec2025
 
 # Augmentation config
-AUGMENT_TIMES=10          # number of augmented copies per TCE
+AUGMENT_TIMES=3       # number of augmented copies per TCE
 TAG=10x_0p1               # base tag: 10x augmentation, 10% random drop
 
 
 # Redirect all output (stdout + stderr) to a log file
 exec > >(tee "generate_records_${NAME}_aug_${TAG}.log") 2>&1
 
-OUT_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin_aug/${TAG}/tfrecords-${NAME}-train
+OUT_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v5_aug/${TAG}/tfrecords-${NAME}-train
 
 mkdir -p "${OUT_DIR}"
 
+OFFSET=7
+
 # Run the TFRecord generation script AUGMENT_TIMES times with different file suffixes
 for i in $(seq 1 "${AUGMENT_TIMES}"); do
-  FILE_SUFFIX="_rep${i}"
+  REP_IDX=$((i + OFFSET))
+  FILE_SUFFIX="_rep${REP_IDX}"
   FIRST_SHARD=$(printf "%s/%05d-of-%05d_aug%s" "${OUT_DIR}" 0 50 "${FILE_SUFFIX}")
 
   # Avoid overwriting an existing augmentation replica
   if [ -f "${FIRST_SHARD}" ]; then
-    echo "Skipping augmentation run ${i}/${AUGMENT_TIMES}: first shard ${FIRST_SHARD} already exists."
+    echo "Skipping augmentation run ${REP_IDX}/${AUGMENT_TIMES}: first shard ${FIRST_SHARD} already exists."
     continue
   fi
 
-  echo "Starting augmentation run ${i}/${AUGMENT_TIMES} with suffix ${FILE_SUFFIX}"
+  echo "Starting augmentation run ${REP_IDX}/${AUGMENT_TIMES} with suffix ${FILE_SUFFIX}"
 
   /pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python3 \
     astronet/preprocess/generate_input_records_3.py \
