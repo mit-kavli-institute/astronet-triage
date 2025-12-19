@@ -55,14 +55,14 @@ def sample_phase1(trial, config):
     # )
 
     # # toggle pretrain/no pretrain
-    # config["init_from_pretrained_model"] = trial.suggest_categorical(
-    #     "init_from_pretrained_model", [True, False]
-    # )
-
-        # batch‐norm toggle
-    config["hparams"]["use_batch_norm"] = trial.suggest_categorical(
-        "use_batch_norm", [True, False]
+    config["init_from_pretrained_model"] = trial.suggest_categorical(
+        "init_from_pretrained_model", [True, False]
     )
+
+    #     # batch‐norm toggle
+    # config["hparams"]["use_batch_norm"] = trial.suggest_categorical(
+    #     "use_batch_norm", [True, False]
+    # )
 
 
     # optimizer hyperparams
@@ -71,7 +71,7 @@ def sample_phase1(trial, config):
     # )
 
     base_lr = 1e-5
-    lr_factors = [0.25, 0.5, 1.0, 2.0, 4.0]  # multiples of 2 or 1/2
+    lr_factors = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]  # multiples of 2 or 1/2
     config["hparams"]["learning_rate"] = trial.suggest_categorical(
         "learning_rate",
         [base_lr * f for f in lr_factors]
@@ -79,7 +79,7 @@ def sample_phase1(trial, config):
 
 
     config["hparams"]["weight_decay"] = trial.suggest_float(
-        "weight_decay", 1e-3, 0.5
+        "weight_decay", 1e-3, 0.5, log=True
     )
     config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
         "pre_logits_dropout_rate", 0.0, 0.4
