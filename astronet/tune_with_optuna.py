@@ -358,6 +358,25 @@ def objective(trial):
     return sum(pr_scores) / len(pr_scores)
 
 
+class DatabaseBackupCallback:
+    """Callback to backup the Optuna study database periodically."""
+    def __init__(self, db_path, backup_interval=25):
+        self.db_path = db_path
+        self.backup_interval = backup_interval
+
+    def __call__(self, study, trial):
+        """Called after each trial completes."""
+        # Backup database every backup_interval trials
+        if (trial.number + 1) % self.backup_interval == 0 and os.path.exists(self.db_path):
+            import shutil
+            backup_path = f"{self.db_path}.backup_trial_{trial.number + 1}"
+            try:
+                shutil.copy2(self.db_path, backup_path)
+                logging.info("Created database backup: %s", backup_path)
+            except Exception as e:
+                logging.warning("Failed to create database backup: %s", e)
+
+
 class PeriodicSaveCallback:
     """Callback to save Optuna study results periodically."""
     def __init__(self, model_dir, save_interval=10):
@@ -406,7 +425,16 @@ class PeriodicSaveCallback:
 
 
 def main(_):
+    # Ensure model_dir exists
+    os.makedirs(FLAGS.model_dir, exist_ok=True)
+
+    # Path to SQLite database for persisting study
+    study_db_path = os.path.join(FLAGS.model_dir, "optuna_study.db")
+    study_name = "optuna_study"
+    storage_url = f"sqlite:///{study_db_path}"
+
     logging.info("Starting Optuna tuning with %d trials", FLAGS.n_trials)
+    logging.info("Study database will be saved to: %s", study_db_path)
 
     # Select sampler based on flag
     if FLAGS.sampler == "random":
@@ -417,17 +445,21 @@ def main(_):
         sampler = TPESampler()
     logging.info("Using sampler: %s", sampler.__class__.__name__)
 
-
+    # Create study with persistent storage
     study = optuna.create_study(
+        study_name=study_name,
+        storage=storage_url,
         direction="maximize",
         sampler=sampler,
-        pruner=optuna.pruners.MedianPruner(n_warmup_steps=5)
+        pruner=optuna.pruners.MedianPruner(n_warmup_steps=5),
+        load_if_exists=True  # Load if exists, create if not
     )
 
-    # Create callback to save results periodically
+    # Create callbacks
     save_callback = PeriodicSaveCallback(FLAGS.model_dir, save_interval=10)
+    db_backup_callback = DatabaseBackupCallback(study_db_path, backup_interval=25)
 
-    study.optimize(objective, n_trials=FLAGS.n_trials, callbacks=[save_callback])
+    study.optimize(objective, n_trials=FLAGS.n_trials, callbacks=[save_callback, db_backup_callback])
 
     # Save best hyperparameters
     best = study.best_trial
