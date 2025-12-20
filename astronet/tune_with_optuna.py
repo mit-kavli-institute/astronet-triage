@@ -27,6 +27,7 @@ flags.DEFINE_string("config_name", None, "Name of the model configuration.", req
 flags.DEFINE_string("config_file", None, "File containing the model configuration.")
 flags.DEFINE_string("config_overrides", None, "Overrides to the base configuration.")
 flags.DEFINE_string("train_files", None, "TFRecord patterns for training.", required=True)
+flags.DEFINE_string("train_files_aug", None, "TFRecord patterns for augmented training data (optional).")
 flags.DEFINE_string("eval_files", None, "TFRecord patterns for evaluation.", required=True)
 flags.DEFINE_string("model_dir", "./optuna_tuning", "Directory to save tuning results.")
 flags.DEFINE_integer("n_trials", 20, "Number of Optuna trials to run.")
@@ -54,10 +55,16 @@ def sample_phase1(trial, config):
     #     "random_reverse_time_series", [True, False]
     # )
 
-    # # toggle pretrain/no pretrain
-    config["init_from_pretrained_model"] = trial.suggest_categorical(
-        "init_from_pretrained_model", [True, False]
+    # # # toggle pretrain/no pretrain
+    # config["init_from_pretrained_model"] = trial.suggest_categorical(
+    #     "init_from_pretrained_model", [True, False]
+    # )
+
+        # Toggle use of augmented training data
+    config["use_augmentation"] = trial.suggest_categorical(
+        "use_augmentation", [True, False]
     )
+
 
     #     # batch‐norm toggle
     # config["hparams"]["use_batch_norm"] = trial.suggest_categorical(
@@ -84,6 +91,7 @@ def sample_phase1(trial, config):
     config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
         "pre_logits_dropout_rate", 0.0, 0.4
     )
+
 
     # # dense head size/depth
     # config["hparams"]["num_pre_logits_hidden_layers"] = trial.suggest_int(
@@ -234,11 +242,25 @@ def objective(trial):
     # 3) Build model class
     model_class = models.get_model_class(FLAGS.model)
 
+    # 4) Select training files based on augmentation parameter
+    use_augmentation = config.get("use_augmentation", False)
+    if use_augmentation:
+        if not FLAGS.train_files_aug:
+            raise ValueError(
+                "use_augmentation=True but --train_files_aug was not provided. "
+                "Please provide --train_files_aug when using augmentation."
+            )
+        train_files_pattern = FLAGS.train_files_aug
+        logging.info("Using augmented training data: %s", train_files_pattern)
+    else:
+        train_files_pattern = FLAGS.train_files
+        logging.info("Using regular training data: %s", train_files_pattern)
+
     # 5) Prepare datasets
     # Use same shuffle buffer size as train.py (25000 default)
     shuffle_buffer_size = 25000
     train_ds = build_train_dataset(
-        FLAGS.train_files,
+        train_files_pattern,
         config["inputs"],
         batch_size=config["hparams"]["batch_size"],
         shuffle_values_buffer=shuffle_buffer_size

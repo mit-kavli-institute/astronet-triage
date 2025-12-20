@@ -21,6 +21,7 @@ CODE_DIR=/pdo/users/pablomer/Astronet-Triage
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_original/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v2/
+DATA_DIR_AUG=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v5_aug/10x_0p1/
 DATA_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v5_duration24/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/s
 
@@ -47,6 +48,7 @@ echo "Starting Optuna tuning for ${ENSEMBLE_NAME} (n_trials=${N_TRIALS})"
     --config_overrides=$CONFIG_OVERRIDES \
     --pretrain_model_dir=$PRETRAIN_MODEL_DIR \
     --train_files="${DATA_DIR}${TFRECORD_PREFIX}-train/*" \
+    --train_files_aug="${DATA_DIR_AUG}${TFRECORD_PREFIX}-train/*" \
     --eval_files="${DATA_DIR}${TFRECORD_PREFIX}-val/*" \
     --model_dir="${OUTPUT_DIR}" \
     --n_trials=${N_TRIALS} \
