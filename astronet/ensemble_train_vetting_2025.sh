@@ -18,15 +18,17 @@ CODE_DIR=/pdo/users/pablomer/Astronet-Triage
 # DATA_DIR=/pdo/users/pablomer/mnt/tess/astronet/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin/
-DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin_aug/
+# DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_cadencebin_aug/
+DATA_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v5_aug/10x_0p1/
 # DATA_DIR=/pdo/astronet-data/data/tfrecords/oct2025_30minbin_v2/
 # TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-newTOIs2025-v3-noreshufle
 
-TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
+# TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-april2025
+TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-dec2025
 
 
 # OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE/$ENSEMBLE_NAME/
-OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/oct2025_cadencebin_aug/$DATE/$ENSEMBLE_NAME-2k-nopretrained-aug/
+OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/$DATE/$ENSEMBLE_NAME-2k-nopretrained-aug-2/
 
 
 # CONFIG_OVERRIDES="init_from_pretrained_model=true,\
