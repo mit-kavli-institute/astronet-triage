@@ -11,7 +11,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
     """
     filtered_df = df.copy()
 
-    numeric_features = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    numeric_features = df.select_dtypes(include=['int', 'float']).columns.tolist()
     categorical_features = df.select_dtypes(include=["object", "bool", "string[python]"]).columns.tolist()
 
     # Manually specify which numeric fields should use text/number input instead of slider
@@ -66,5 +66,17 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
             .reset_index(drop=True)
         )
 
+    filter_tois_by_qlp_only = st.sidebar.checkbox("Filter TOIs by QLP detection only?")
+    if filter_tois_by_qlp_only:
+        if 'detection_pipeline' in filtered_df.columns:
+            filtered_df = filtered_df[
+                filtered_df['detection_pipeline'].isna() |
+                (filtered_df['detection_pipeline'].str.upper() == 'QLP') |
+                (filtered_df['detection_pipeline'].str.upper() == 'SPOC/QLP')
+            ].reset_index(drop=True)
+        else:
+            st.sidebar.warning(
+                "Column 'detection_pipeline' not found — QLP filter not applied."
+            )
 
     return filtered_df

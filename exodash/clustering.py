@@ -23,6 +23,9 @@ from astronet.util import config_util
 from astronet.astro_cnn_model import input_ds
 from astronet.preprocess import preprocess
 import streamlit as st
+from joblib import Memory
+
+memory = Memory(".cache/joblib", verbose=0)
 
 def robust_z(x: np.ndarray) -> np.ndarray:
     """Median/MAD z-score; stable against outliers."""
@@ -65,14 +68,14 @@ def params_to_key(params) -> tuple:
             isinstance(getattr(params, k), (int, float, str, bool, type(None)))}
     return tuple(sorted(d.items()))
 
-@st.cache_data(show_spinner=True, max_entries=6)
+@memory.cache
 def cached_l2_normalize(Z: np.ndarray, cosine_normalize: bool) -> np.ndarray:
     if not cosine_normalize:
         return Z
     from sklearn.preprocessing import normalize
     return normalize(Z, norm="l2", axis=1)
 
-@st.cache_resource(show_spinner=True, max_entries=3)
+@memory.cache
 def cached_hdbscan_fit(Z_cos: np.ndarray, hdb_key: tuple):
     import hdbscan
     # reconstruct kwargs from key
@@ -80,12 +83,12 @@ def cached_hdbscan_fit(Z_cos: np.ndarray, hdb_key: tuple):
     cl = hdbscan.HDBSCAN(**hdb_kwargs).fit(Z_cos)
     return cl  # resource (fitted model)
 
-@st.cache_data(show_spinner=True, max_entries=6)
+@memory.cache
 def cached_membership_vectors(_clusterer) -> np.ndarray:
     import hdbscan
     return hdbscan.all_points_membership_vectors(_clusterer)
 
-@st.cache_data(show_spinner=True, max_entries=6)
+@memory.cache
 def cached_umap(Z_cos: np.ndarray, umap_key: tuple, seed: int = 0) -> np.ndarray:
     import umap
     u = umap.UMAP(random_state=seed, **dict(umap_key))
@@ -731,22 +734,23 @@ class Clustering:
 
         # Ask for extra neighbor to account for self at distance 0
         n_total = n + (0 if include_self else 1)
-        dists, idxs = self.nn_.kneighbors(self.Z[i].reshape(1, -1), n_neighbors=len(self.id_to_view))
+        dists, idxs = self.nn_.kneighbors(self.Z[i].reshape(1, -1), n_neighbors=len(self.X))
         dists = dists[0].tolist()
         idxs = idxs[0].tolist()
 
         neighbors: List[Tuple[int, float]] = []
         for j, d in zip(idxs, dists):
             nid = self.ids[j]
-            if filter_ids and nid not in filter_ids:
-                continue
+            # if filter_ids and nid not in filter_ids:
+            #     continue
             if include_self or nid != astro_id:
                 neighbors.append((nid, float(d)))
             if len(neighbors) == n:
                 break
 
         if not neighbors:
-            raise ValueError("No neighbors found (check n/include_self settings).")
+            st.error(f"No neighbors for Astro ID {astro_id} found (check n/include_self settings).")
+            return
         assert self.id_to_view, "Call load_views() first."
 
         # Helper: make a single panel for one neighbor with distance in title
@@ -756,13 +760,15 @@ class Clustering:
             disp_e = df.loc[df["astro_id"] == nid, "disp_e"].iloc[0]
             disp_j = df.loc[df["astro_id"] == nid, "disp_j"].iloc[0]
             tmag = df.loc[df["astro_id"] == nid, "tmag"].iloc[0]
+            has_toi = df.loc[df["astro_id"] == nid, "has_toi"].iloc[0]
             period = df.loc[df["astro_id"] == nid, "period"].iloc[0]
             duration = df.loc[df["astro_id"] == nid, "duration"].iloc[0]
             #sector = df.loc[df["astro_id"] == nid, "sector"].iloc[0]
             phase = np.linspace(0, 1, len(view), endpoint=False)
             ax.plot(phase, view, marker='.', linestyle='-')
+            toi_tag = "[TOI] " if has_toi else ""
             ax.set_title(
-                f"ID {nid} (d={dist:.3f})\n"
+                f"{toi_tag}ID {nid} (d={dist:.3f})\n"
                 f"disp_p={disp_p:.2f}, disp_e={disp_e:.2f}, disp_j={disp_j:.2f}\n"
                 f"tmag={tmag:.2f}, period={period:.2f}, duration={duration:.2f}",
                 fontsize=10

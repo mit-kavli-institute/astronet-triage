@@ -15,12 +15,29 @@ PAGE_NUMBER_TO_TYPE: dict = {
     9: "Full Detrended LC",
     20: "TFRecord Global View",
     21: "TFRecord Local View",
-    22: "TFrecord Props",
-    23: "TFRecord Secondary View",
-    24: "TFRecord Segments"
+    22: "TFRecord Local View Odd",
+    23: "TFRecord Local View Even",
+    24: "TFRecord Secondary View",
+    25: "TFRecord Secondary Phase",
+    26: "TFRecord Segment View",
+    27: "TFRecord Segment Local View",
+}
+
+PAGE_TYPE_TO_TFRECORD_KEY: dict = {
+    'TFRecord Global View': 'global_view',
+    'TFRecord Local View': 'local_view',
+    'TFRecord Local View Odd': 'local_view_odd',
+    'TFRecord Local View Even': 'local_view_even',
+    'TFRecord Secondary View': 'secondary_view',
+    'TFRecord Secondary Phase': 'secondary_phase',
+    'TFRecord Segment View': 'sample_segments_view',
+    'TFRecord Segment Local View': 'sample_segments_local_view',
+
+
 }
 
 LOCAL_PAGE_TO_FILENAME = {
+    #0: "_summary.png",
     20: "_global.png",
     21: "_local.png",
     22: "_props.png",
@@ -33,7 +50,7 @@ ALL_PAGE_TYPES = [v for _, v in sorted(PAGE_NUMBER_TO_TYPE.items())]
 class LightCurveServer:
     def __init__(self, server_url: str = f"http://localhost:5001"):
         self.server_url = server_url
-        self.reports_dir = "/pdo/astronet-data/data/tfrecord_reports/"
+        self.reports_dir = "/pdo/astronet-data/data/reports/"
 
     def get_report_pages(self, tic_id: int, planet_number: int) -> list:
         """

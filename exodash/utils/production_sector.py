@@ -90,6 +90,7 @@ class ProductionSector:
         if tfrecord_postfix:
             self.tfrecords_path = Path(str(self.tfrecords_path) + f'-{tfrecord_postfix}')
         self.properties_path = ASTRONET_BASE_PATH / "properties" / f"tces-sector{sector}.csv"
+        self.qlp_properties_path = ASTRONET_BASE_PATH / "properties" / f"tces-sector{sector}-qlp.csv"
 
     @property
     def eval_files(self) -> List[str]:
@@ -144,6 +145,16 @@ class ProductionSector:
         properties_df = pd.read_csv(self.properties_path, index_col=False)
         properties_df = self.clean_columns(properties_df)
         properties_df = properties_df.rename(columns={'per': 'period', 'dur': 'duration', 'epoc': 'epoch'})
+
+        qlp_properties_df = pd.read_csv(self.qlp_properties_path, index_col=False)
+        qlp_properties_df = self.clean_columns(qlp_properties_df)
+
+        properties_df = properties_df.merge(
+            qlp_properties_df,
+            on='astro_id',
+            how='left',
+            suffixes=('', '_qlp')
+        )
 
         delivered_candidates = self.get_delivered_candidates()
         were_results_delivered = properties_df.apply(lambda row: (row["tic_id"], row["planetno"]) in delivered_candidates, axis=1)
@@ -243,6 +254,8 @@ def get_production_sector_df(sectors: List[int], custom_model, sector_to_astrone
         all_astronet_scores = pd.concat(per_sector_astronet_scores, ignore_index=True)
 
     disp_cols = ['disp_p', 'disp_e', 'disp_n', 'disp_j']
+    fc_cols = [c for c in all_astronet_scores.columns if c.startswith('fc_')]
+    disp_cols.extend(fc_cols)
     all_astronet_scores = (
         all_astronet_scores.groupby(['astro_id', 'tic_id', 'planetno'])[disp_cols]
         .mean()

@@ -102,9 +102,6 @@ class ExampleParser:
 
     parsed_features = tf.io.parse_single_example(
         serialized_example, features=data_fields)
-    
-    print(parsed_features.keys())
-    1/0
 
     features = self._extract_features(parsed_features)
 
@@ -149,7 +146,9 @@ def build_dataset(file_pattern,
                   shuffle_filenames=False,
                   shuffle_values_buffer=0,
                   repeat=1,
-                  include_identifiers=False):
+                  include_identifiers=False,
+                  weight_table=None,
+                  upsample_table=None):
 
     def parse_example(serialized_example):
         """Parses a single tf.Example into feature and label tensors."""
@@ -179,6 +178,14 @@ def build_dataset(file_pattern,
             if labels[input_config.primary_class] < 1:
                 weights /= 2.0
 
+            if (weight_table is not None) and (astro_id is not None):
+                # lookup returns -1.0 for "no override"
+                extra_weight = weight_table.lookup(astro_id)
+                # if extra_weight > 0, use it; otherwise fall back to base_weight
+                weights = tf.where(extra_weight > 0.0, extra_weight, base_weight)
+            else:
+                weights = base_weight
+
         if include_identifiers:
             identifiers = parsed_features.pop("astro_id")
         else:
@@ -201,7 +208,11 @@ def build_dataset(file_pattern,
             features[name] = value
         
         if include_labels:
-            return features, labels, weights
+            if (upsample_table is not None) and (astro_id is not None):
+                up_factor = upsample_table.lookup(astro_id)
+            else:
+                up_factor = tf.constant(1, tf.int32)
+            return features, labels, weights, up_factor
         elif include_identifiers:
             return features, identifiers
         return features
@@ -211,6 +222,17 @@ def build_dataset(file_pattern,
     ds = tf.data.Dataset.from_tensor_slices(filenames)
     ds = ds.flat_map(tf.data.TFRecordDataset)
     ds = ds.map(parse_example)
+
+    if include_labels and (upsample_table is not None):
+        # expand each example into `up_factor` copies
+        def expand(features, labels, weights, up_factor):
+            single = tf.data.Dataset.from_tensors((features, labels, weights))
+            # ensure up_factor >= 1
+            up_factor = tf.maximum(up_factor, 1)
+            return single.repeat(up_factor)
+
+        ds = ds.flat_map(expand)
+
     if repeat != 1:
         ds = ds.cache()
 
@@ -222,6 +244,20 @@ def build_dataset(file_pattern,
     ds = ds.prefetch(10)
 
     return ds
+
+def build_train_dataset(file_pattern,
+                        input_config,
+                        batch_size,
+                        shuffle_values_buffer=2500):
+  """Builds a dataset for training."""
+  return build_dataset(
+      file_pattern,
+      input_config,
+      batch_size,
+      shuffle_values_buffer=shuffle_values_buffer,
+      repeat=None,
+      use_cache=True,
+      apply_data_augmentation=True)
 
 def build_eval_dataset(file_pattern, input_config, batch_size, include_identifiers, include_labels):
   """Builds a dataset for evaluation."""

@@ -30,7 +30,12 @@ class LiveEvaluation():
             progress_bar.progress((model_no + 1) / total_models)
 
             config = config_util.load_config(model_path)
+            
+            model_class = models.get_model_class(MODEL)
+            model = model_class(config, return_embeddings=True)
             model = models.load_model(MODEL, model_path)
+            if True:
+                setattr(model, "return_embeddings", True)
 
             # Build named datasets
             eval_datasets = []
@@ -52,18 +57,30 @@ class LiveEvaluation():
                     include_labels=False,
                 )
 
-                all_preds = []
+                all_logits = []
+                all_embeddings = []
                 all_ids = []
                 for batch in dataset:
                     x, identifiers = batch
-                    out = model(x, training=False).numpy()
-                    all_preds.append(out)
+                    out = model(x, training=False)
+                    logits, emb = out
+                    all_logits.append(logits.numpy())
+                    all_embeddings.append(emb.numpy())
                     all_ids.extend([int(x_id) for x_id in identifiers.numpy()])
 
-                if not all_preds:
+                if not all_logits:
                     continue
 
-                preds = np.concatenate(all_preds, axis=0)
+                # Concatenate predictions/embeddings
+                preds = np.concatenate(all_logits, axis=0)
+                if all_embeddings:
+                    embeddings = np.concatenate(all_embeddings, axis=0)
+                    # L2-normalize for cosine/Euclidean distance work
+                    embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+                else:
+                    # Shouldn't happen with return_embeddings=True, but guard anyway
+                    raise RuntimeError("Embeddings were not returned by the model. "
+                                    "Ensure return_embeddings=True in the model and loader.")
                 astro_ids = np.array(all_ids)
 
                 # Metadata columns
@@ -82,7 +99,10 @@ class LiveEvaluation():
                     preds, columns=["disp_p", "disp_e", "disp_n", "disp_j"]
                 )
 
-                df = pd.concat([meta_df, pred_df], axis=1)
+                emb_cols = [f"fc_{i}" for i in range(embeddings.shape[1])]
+                emb_df = pd.DataFrame(embeddings, columns=emb_cols)
+
+                df = pd.concat([meta_df, pred_df, emb_df], axis=1)
                 result_dfs.append(df)
 
         progress_bar.progress(1.0)

@@ -1,8 +1,10 @@
 from typing import Dict, List
 from data_management.light_curve_server import ALL_PAGE_TYPES, LightCurveServer
+from exodash.utils.annotation import AnnotationHandler
 from exodash.utils.filter import advanced_filter_sidebar
 from exodash.utils.production_sector import ProductionSector, get_production_sector_df, get_production_sector_selector
 from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
+from exodash.utils.reports_tfrecords import TFRecordReports
 from clustering import ClusterParams, Clustering
 from exodash.utils.tic_visualization import TICVisualizer
 import streamlit as st
@@ -13,6 +15,7 @@ from matplotlib_venn import venn3
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
 import os
+from joblib import Memory
 
 
 
@@ -24,6 +27,9 @@ if "selected_sectors" not in st.session_state:
 if "light_curve_server" not in st.session_state:
         st.session_state.light_curve_server = LightCurveServer()
 
+
+memory = Memory(".cache/joblib", verbose=0)
+
 MODEL_CONFIG_PATH = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
 
 custom_model = st.text_input("Custom model dir (ex: /pdo/astronet-data/models/vetting/baseline/): ")
@@ -33,7 +39,7 @@ if len(st.session_state.selected_sectors) == 0:
     st.stop()
 sector_to_astronet_scores_override = {}
 
-@st.cache_data(show_spinner="Loading and processing production sector data...")
+@memory.cache
 def get_cached_production_sector_df(
     sectors: List[int],
     custom_model: str | None,
@@ -53,9 +59,13 @@ eval_files = []
 for sector in st.session_state.selected_sectors:
     production_sector = ProductionSector(sector, tfrecord_postfix=tfrecord_postfix)
     eval_files.extend(production_sector.eval_files)
+tfrecord_reports = TFRecordReports(eval_files=eval_files, model_config_path=MODEL_CONFIG_PATH)
 
 orig_df = df.copy()
 server = st.session_state.light_curve_server
+
+# For ExoDash: get a dataframe to plot & filter
+visualizer = TICVisualizer(server=server, df=df)
 
 # Dataset summary
 st.header("Dataset Statistics")
@@ -64,20 +74,79 @@ st.write(f"**Total Features:** {df.shape[1]}")
 
 st.subheader("Summary Statistics")
 st.write(df.describe())
-st.divider() 
+
 orig_df['domain'] = 'sector'
 df['domain'] = 'sector'
 df = advanced_filter_sidebar(df)
+
+
+st.subheader("Feature Distribution")
+features = df.columns[1:]
+hist_feature = st.selectbox("Select Feature", features)
+nbins = st.slider("Number of Bins", 5, 100, 50, step=5)
+
 categorical_features = df.select_dtypes(include=["object", "bool", "string[python]"]).columns.tolist()
-selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images'])
+color_options = ["None"] + categorical_features
+default_col = "true_label"
+color_col = st.selectbox("Color By", color_options, index=color_options.index(default_col) if default_col in color_options else 0)
+
+if pd.api.types.is_numeric_dtype(df[hist_feature]):
+    filtered_df = df.dropna(subset=[hist_feature])
+    fig_hist = px.histogram(
+        filtered_df,
+        x=hist_feature,
+        color=color_col if color_col != "None" else None,
+        nbins=nbins,
+        barmode="stack", 
+        title=f"Distribution of {hist_feature}"
+    )
+else:
+    filtered_df = df.dropna(subset=[hist_feature])
+    fig_hist = px.histogram(
+        filtered_df,
+        x=hist_feature,
+        barmode="stack", 
+        color=color_col if color_col != "None" else None,
+        title=f"Categorical Distribution of {hist_feature}",
+    )
+st.plotly_chart(fig_hist, use_container_width=True)
+
+st.subheader("Scatter Plot")
+log_x = st.checkbox("Log scale X-axis", value=False)
+
+x_options = filtered_df.columns[1:]
+default_x = "tic_id"
+default_y = "per"
+
+x_col = st.selectbox("X-axis", filtered_df.columns[1:], index=x_options.get_loc(default_x) if default_x in x_options else 0)
+y_col = st.selectbox("Y-axis", filtered_df.columns[1:], index=x_options.get_loc(default_y) if default_y in x_options else 0)
+
+# drop na for x col and y col
+filtered_df = filtered_df.dropna(subset=[x_col, y_col])
+
+fig_scatter = px.scatter(
+    filtered_df,
+    x=x_col,
+    y=y_col,
+    color=color_col if color_col != "None" else None,
+    title="Feature Correlation",
+    hover_data=["astro_id"]
+)
+if log_x:
+    fig_scatter.update_xaxes(type="log")
+st.plotly_chart(fig_scatter, use_container_width=True)
+
+st.divider() 
+selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images', 'TFRecord Global View'])
 
 
+#astronet_threshold = float(st.text_input("Astronet Threshold (disp_p)", 0.75))
 astronet_threshold = st.slider(
     label='Astronet Threshold (disp_p)',
     min_value=0.0,
     max_value=1.0,
     value=0.75,  # default
-    step=0.01
+    step=0.001
 )
 
 left_col, right_col = st.columns(2)
@@ -185,6 +254,7 @@ venn_regions = {
     'TOI': toi,
     'Operator': operator,
     'Astronet': astronet,
+    'Astronet ∩ ~Operator ∩ ~TOI': (astronet & (all_indices - operator) & (all_indices - toi)),
     'TOIs Astronet Missed': (((all_indices - astronet) & (all_indices - operator) & toi) | (operator & (all_indices - astronet) & toi)),
     '[TOI] Astronet ∩ ~Operator': (astronet & (all_indices - operator) & toi),
     '[TOI] Operator ∩ ~Astronet': (operator & (all_indices - astronet) & toi),
@@ -200,6 +270,7 @@ subset_df = subset_df.loc[:, ~subset_df.columns.str.startswith("fc_")]
 num_to_visualize = st.slider("# of Astro IDs to Visualize", 0, 25, 1)
 st.write(f'Showing {len(subset_df)} reports')
 i = 0
+annotate = True
 for idx, row in subset_df.iterrows():
     if i >= num_to_visualize:
         break
@@ -208,11 +279,14 @@ for idx, row in subset_df.iterrows():
     astro_id = row['astro_id']
     st.subheader(f'Astro ID: {astro_id} ({i} / {len(subset_df)}), TOI Disposition: {row["toi_disposition"]}')
     st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
-
+    st.dataframe(row.T)
 
     planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
-    pages = server.get_report_pages(tic_id, planet_number=planet_number)
-    generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types)
+    visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types, tfrecord_reports=tfrecord_reports)
+    #pages = server.get_report_pages(tic_id, planet_number=planet_number)
+    #generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types, tfrecord_reports=tfrecord_reports)
+    # if annotate:
+    #     handler = AnnotationHandler(subset_df, tic_id)
 
 df = subset_df
 
@@ -238,10 +312,6 @@ data_source = 'embeddings' if use_embeddings else 'tfrecords'
 clu.load_views(data_source=data_source)#ids_to_filter=set(df["astro_id"]))   # TFRecords -> id_to_view -> X
 clu.fit_pca()          # PCA/HDBSCAN/UMAP + soft memberships
 
-
-# For ExoDash: get a dataframe to plot & filter
-visualizer = TICVisualizer(server=server, df=df)
-
 color_by = 'sector'
 
 num_highlight = len(set(df['astro_id']))
@@ -252,6 +322,12 @@ if num_highlight <= 0.8 * num_orig:
     highlight_ids = set(df['astro_id'])
 
 show_2d_map = st.checkbox("Show 2D clustering projection?", value=True)
+
+highlighted_only = st.checkbox("Filter to only highlighted points (NOT WORKING)?")
+if highlighted_only:
+    selected_df = df
+else:
+    selected_df = orig_df
 
 with st.form("cluster_controls"):
     # (build widgets bound to your params object)
@@ -279,7 +355,7 @@ if show_2d_map:
 
     # build interactive fig
     fig, to_ids = clu.plot_interactive(
-        df=orig_df,
+        df=selected_df,
         color_by=color_by,
         select_mode=select_mode,
         # optionally pass your existing highlight_ids for a bold overlay:
@@ -300,9 +376,8 @@ if show_2d_map:
 
     st.caption(f"Selected: {len(selected_ids)} points")
     if selected_ids:
-        # show a peek of the selected rows
         st.dataframe(
-            orig_df.loc[orig_df["astro_id"].isin(selected_ids)].head(100),
+            selected_df.loc[selected_df["astro_id"].isin(selected_ids)].head(100),
             use_container_width=True
         )
 
@@ -328,8 +403,8 @@ for astro_id in selected_ids:
     if num_viz >= num_to_visualize_2:
         break
     try:
-        row = orig_df.loc[orig_df['astro_id'] == astro_id].iloc[0]
-        tic_id = orig_df.loc[orig_df["astro_id"] == astro_id, "tic_id"].values[0]
+        row = selected_df.loc[selected_df['astro_id'] == astro_id].iloc[0]
+        tic_id = selected_df.loc[selected_df["astro_id"] == astro_id, "tic_id"].values[0]
         planet_number = int(str(astro_id)[-2:])
         st.write(f'Astro ID: {astro_id}')
         st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
@@ -339,59 +414,9 @@ for astro_id in selected_ids:
     if astro_id < 30000:
         planet_number = 1
 
-    visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types)
+    visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types, tfrecord_reports=tfrecord_reports)
     st.write(astro_id)
-    fig = clu.show_nearest_neighbors(astro_id=astro_id, df=df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(df["astro_id"]))
+    # TODO fix nearest neighbors
+    fig = clu.show_nearest_neighbors(astro_id=astro_id, df=selected_df, n=8, layout="grid", cols=4, include_self=True, filter_ids=set(selected_df["astro_id"]))
     st.pyplot(fig, use_container_width=True)
     num_viz += 1
-
-st.subheader("Feature Distribution")
-features = df.columns[1:]
-hist_feature = st.selectbox("Select Feature", features)
-nbins = st.slider("Number of Bins", 5, 100, 50, step=5)
-
-
-color_options = ["None"] + categorical_features
-default_col = "true_label"
-color_col = st.selectbox("Color By", color_options, index=color_options.index(default_col) if default_col in color_options else 0)
-
-if pd.api.types.is_numeric_dtype(df[hist_feature]):
-    filtered_df = df.dropna(subset=[hist_feature])
-    fig_hist = px.histogram(
-        filtered_df,
-        x=hist_feature,
-        color=color_col if color_col is not "None" else None,
-        nbins=nbins,
-        title=f"Distribution of {hist_feature}"
-    )
-else:
-    filtered_df = df.dropna(subset=[hist_feature])
-    fig_hist = px.histogram(
-        filtered_df,
-        x=hist_feature,
-        color=color_col,
-        title=f"Categorical Distribution of {hist_feature}"
-    )
-
-st.plotly_chart(fig_hist, use_container_width=True)
-
-st.subheader("Scatter Plot")
-
-x_options = filtered_df.columns[1:]
-default_x = "tic_id"
-default_y = "per"
-
-x_col = st.selectbox("X-axis", filtered_df.columns[1:], index=x_options.get_loc(default_x) if default_x in x_options else 0)
-y_col = st.selectbox("Y-axis", filtered_df.columns[1:], index=x_options.get_loc(default_y) if default_y in x_options else 0)
-
-# drop na for x col and y col
-filtered_df = filtered_df.dropna(subset=[x_col, y_col])
-
-fig_scatter = px.scatter(
-    filtered_df,
-    x=x_col,
-    y=y_col,
-    color=color_col if color_col != "None" else None,
-    title="Feature Correlation"
-)
-st.plotly_chart(fig_scatter, use_container_width=True)
