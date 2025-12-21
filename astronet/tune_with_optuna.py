@@ -110,6 +110,33 @@ def sample_phase1(trial, config):
     #     "freeze_pretrained_params", [True, False]
     # )
 
+#Helper functions that define the parameters and ranges to tune
+def sample_phase2_batchnorm(trial, config):
+    """
+    Phase 2 batch norm: finer range of learning rate and weight decay
+    """
+
+        # batch‐norm toggle
+    config["hparams"]["use_batch_norm"] = trial.suggest_categorical(
+        "use_batch_norm", [True, False]
+    )
+
+
+    # optimizer hyperparams
+    config["hparams"]["learning_rate"] = trial.suggest_float(
+        "learning_rate", 1.25e-6, 2e-5, log=True
+    )
+
+
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-3, 5e-2, log=True
+    )
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.0, 0.4
+    )
+
+
+
 def sample_phase2(trial, config):
     """
     Phase 2: expand to include regularization, optimizer choices, etc.
