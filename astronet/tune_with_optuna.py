@@ -4,10 +4,26 @@ from optuna.integration import TFKerasPruningCallback
 from optuna.samplers import TPESampler, RandomSampler, QMCSampler
 import datetime
 import os
+import gc
 
 import tensorflow as tf
 from tensorboard.plugins.hparams import api as hp
 from absl import app, flags, logging
+
+# Configure TensorFlow to limit thread usage and prevent thread exhaustion
+# This is critical when running multiple trials in sequence
+# Set these BEFORE importing other TensorFlow modules if possible
+os.environ.setdefault('TF_NUM_INTEROP_THREADS', '2')
+os.environ.setdefault('TF_NUM_INTRAOP_THREADS', '2')
+os.environ.setdefault('TF_DATASET_NUM_PARALLEL_CALLS', '2')
+
+# Configure TensorFlow threading after import
+try:
+    tf.config.threading.set_inter_op_parallelism_threads(2)
+    tf.config.threading.set_intra_op_parallelism_threads(2)
+except RuntimeError:
+    # Already configured, ignore
+    pass
 
 from astronet.astro_cnn_model.astro_cnn_model import AstroCNNModel
 from astronet import models, training, evaluation
@@ -293,11 +309,17 @@ def objective(trial):
         batch_size=config["hparams"]["batch_size"],
         shuffle_values_buffer=shuffle_buffer_size
     )
+    # Limit dataset parallelism to prevent thread pool exhaustion
+    # Use a small fixed number instead of AUTOTUNE to prevent thread creation
+    train_ds = train_ds.prefetch(buffer_size=1)
+
     eval_ds = build_eval_dataset(
         FLAGS.eval_files,
         config["inputs"],
         batch_size=config["hparams"]["batch_size"]
     )
+    # Limit dataset parallelism for evaluation
+    eval_ds = eval_ds.prefetch(buffer_size=1)
 
     # 6) Set up callbacks: TensorBoard + pruning
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -394,15 +416,29 @@ def objective(trial):
         )
 
         # Evaluate after training to get PR AUC (matches train.py evaluation approach)
-        metrics = model.evaluate(eval_ds, return_dict=True, verbose=0)
-        pr = metrics.get("pr_auc")
-        if pr is None:
-            # fallback if key isn't there
-            pr = model.history.history.get("pr_auc", [None])[-1]
-        if pr is None:
-            logging.warning("Could not find pr_auc in metrics or history")
-            pr = 0.0  # Fallback value
+        # Wrap in try-except to handle thread exhaustion gracefully
+        try:
+            metrics = model.evaluate(eval_ds, return_dict=True, verbose=0)
+            pr = metrics.get("pr_auc")
+            if pr is None:
+                # fallback if key isn't there
+                pr = model.history.history.get("pr_auc", [None])[-1]
+            if pr is None:
+                logging.warning("Could not find pr_auc in metrics or history")
+                pr = 0.0  # Fallback value
+        except Exception as e:
+            logging.error(f"Error during evaluation (likely thread exhaustion): {e}")
+            # Try to get PR AUC from training history as fallback
+            pr = model.history.history.get("pr_auc", [0.0])[-1] if hasattr(model, 'history') else 0.0
+            logging.warning(f"Using fallback PR AUC value: {pr}")
+
         pr_scores.append(pr)
+
+        # Clean up model and datasets after each run to free resources
+        del model
+        # Clear Keras backend to free threads
+        tf.keras.backend.clear_session()
+        gc.collect()
 
     # 8) Log hyperparameters and metrics to TensorBoard HParams plugin
     avg_pr_auc = sum(pr_scores) / len(pr_scores)
@@ -411,6 +447,15 @@ def objective(trial):
         hp.hparams(trial.params, trial_id=str(trial.number))
         # Log the final PR AUC metric
         tf.summary.scalar("pr_auc", avg_pr_auc, step=config["train_steps"])
+
+    # Clean up datasets and pretrained model after trial
+    del train_ds, eval_ds
+    if pretrain_model is not None:
+        del pretrain_model
+    gc.collect()
+
+    # Clear TensorFlow session state to free threads
+    tf.keras.backend.clear_session()
 
     # 9) return the average across runs
     return avg_pr_auc
