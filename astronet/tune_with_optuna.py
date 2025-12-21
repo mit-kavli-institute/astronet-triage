@@ -6,6 +6,7 @@ import datetime
 import os
 
 import tensorflow as tf
+from tensorboard.plugins.hparams import api as hp
 from absl import app, flags, logging
 
 from astronet.astro_cnn_model.astro_cnn_model import AstroCNNModel
@@ -376,8 +377,16 @@ def objective(trial):
             pr = 0.0  # Fallback value
         pr_scores.append(pr)
 
-    # 8) return the average across runs
-    return sum(pr_scores) / len(pr_scores)
+    # 8) Log hyperparameters and metrics to TensorBoard HParams plugin
+    avg_pr_auc = sum(pr_scores) / len(pr_scores)
+    with tf.summary.create_file_writer(trial_dir).as_default():
+        # Log hyperparameters
+        hp.hparams(trial.params, trial_id=str(trial.number))
+        # Log the final PR AUC metric
+        tf.summary.scalar("pr_auc", avg_pr_auc, step=config["train_steps"])
+
+    # 9) return the average across runs
+    return avg_pr_auc
 
 
 class DatabaseBackupCallback:
