@@ -140,16 +140,90 @@ def sample_phase2_batchnorm(trial, config):
 
     # optimizer hyperparams
     config["hparams"]["learning_rate"] = trial.suggest_float(
-        "learning_rate", 1.25e-6, 2e-5, log=True
+        "learning_rate", 2.5e-6, 2e-5, log=True
     )
 
 
     config["hparams"]["weight_decay"] = trial.suggest_float(
-        "weight_decay", 1e-3, 5e-2, log=True
+        "weight_decay", 1e-3, 0.1, log=True
     )
     config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
-        "pre_logits_dropout_rate", 0.0, 0.4
+        "pre_logits_dropout_rate", 0.0, 0.35
     )
+
+def sample_phase2_pretrain(trial, config):
+    """
+    Phase 2 pretrain: finer range of learning rate and weight decay
+    """
+
+        # batch‐norm toggle
+    config["init_from_pretrained_model"] = trial.suggest_categorical(
+        "init_from_pretrained_model", [True, False]
+    )
+
+
+    # optimizer hyperparams
+    config["hparams"]["learning_rate"] = trial.suggest_float(
+        "learning_rate", 2.5e-6, 1e-5, log=True
+    )
+
+
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-3, 0.0127, log=True
+    )
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.2, 0.4
+    )
+
+def sample_phase2_reverse(trial, config):
+    """
+    Phase 2 reverse: time series reversal
+    """
+
+        # batch‐norm toggle
+    config["inputs"]["random_reverse_time_series"] = trial.suggest_categorical(
+        "random_reverse_time_series", [True, False]
+    )
+
+
+    # optimizer hyperparams
+    config["hparams"]["learning_rate"] = trial.suggest_float(
+        "learning_rate", 5e-6, 2e-5, log=True
+    )
+
+
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-3, 8e-2, log=True
+    )
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.2, 0.4
+    )
+
+def sample_phase2_augmentation(trial, config):
+    """
+    Phase 2 augmentation: time series augmentation
+    """
+
+        # batch‐norm toggle
+    config["use_augmentation"] = trial.suggest_categorical(
+        "use_augmentation", [True, False]
+    )
+
+
+    # optimizer hyperparams
+    config["hparams"]["learning_rate"] = trial.suggest_float(
+        "learning_rate", 2.5e-6, 1e-5, log=True
+    )
+
+
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-3, 8e-3, log=True
+    )
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.1, 0.325
+    )
+
+
 
 
 
@@ -261,7 +335,11 @@ def objective(trial):
 
     # Hyperparameter sampling
     # Uncomment the phase you want to use:
-    sample_phase1(trial, config)  # Quick sweep over high-impact knobs
+    # sample_phase1(trial, config)  # Quick sweep over high-impact knobs
+    # sample_phase2_batchnorm(trial, config)  # Expanded with regularization, optimizer choices
+    # sample_phase2_pretrain(trial, config)  # Expanded with regularization, optimizer choices
+    sample_phase2_augmentation(trial, config)  # Expanded with regularization, optimizer choices
+    # sample_phase2_reverse(trial, config)  # Expanded with regularization, optimizer choices
     # sample_phase2(trial, config)  # Expanded with regularization, optimizer choices
     # sample_phase3(trial, config)  # Cosine scheduler tuning with pretrained model
 

@@ -27,7 +27,7 @@ DATA_DIR=/pdo/astronet-data/data/tfrecords/dec2025_cad_scat_v5_duration24/
 
 # OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}/${ENSEMBLE_NAME}_optuna_${DATE}
 # OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v2/${DATE}-optuna/${ENSEMBLE_NAME}-phase1/
-OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}-batchnorm-phase2-study/${ENSEMBLE_NAME}_optuna_${DATE}
+OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/${DATE}-augmentation-phase2-study/${ENSEMBLE_NAME}_optuna_${DATE}
 
 # CONFIG_OVERRIDES (Phase 1: quick sweep over high-impact knobs)
 # CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=true"
