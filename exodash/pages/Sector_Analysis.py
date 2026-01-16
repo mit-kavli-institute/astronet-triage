@@ -1,5 +1,6 @@
 from typing import Dict, List
 from data_management.light_curve_server import ALL_PAGE_TYPES, LightCurveServer
+from data_management.live_report_generator import LiveReportGenerator
 from exodash.utils.annotation import AnnotationHandler
 from exodash.utils.filter import advanced_filter_sidebar
 from exodash.utils.production_sector import ProductionSector, get_production_sector_df, get_production_sector_selector
@@ -16,7 +17,6 @@ import plotly.express as px
 from streamlit_plotly_events import plotly_events
 import os
 from joblib import Memory
-
 
 
 st.set_page_config(page_title="ExoDash - Sector Analysis", layout="wide")
@@ -54,6 +54,13 @@ def get_cached_production_sector_df(
     )
 
 df = get_cached_production_sector_df(st.session_state.selected_sectors, custom_model, sector_to_astronet_scores_override=sector_to_astronet_scores_override, tfrecord_postfix=tfrecord_postfix)
+eps = 1e-12
+prob_cols = ["disp_p", "disp_e", "disp_n", "disp_j"]  # adjust if disp_n name differs
+if all(c in df.columns for c in prob_cols):
+    probs = df[prob_cols].clip(eps, 1.0).astype(float)
+    probs = probs.div(probs.sum(axis=1), axis=0)  # normalize just in case
+    df["pred_entropy"] = -(probs * np.log(probs)).sum(axis=1)
+    df["pred_margin"] = df["disp_p"] - probs.drop(columns=["disp_p"]).max(axis=1)
 
 eval_files = []
 for sector in st.session_state.selected_sectors:
@@ -63,6 +70,7 @@ tfrecord_reports = TFRecordReports(eval_files=eval_files, model_config_path=MODE
 
 orig_df = df.copy()
 server = st.session_state.light_curve_server
+live_report_generator = LiveReportGenerator()
 
 # For ExoDash: get a dataframe to plot & filter
 visualizer = TICVisualizer(server=server, df=df)
@@ -267,8 +275,36 @@ subset_df = df.loc[list(indices)]
 
 subset_df = subset_df.loc[:, ~subset_df.columns.str.startswith("fc_")]
 
+sortable_cols = subset_df.select_dtypes(
+    include=["number", "bool"]
+).columns.tolist()
+
+sort_col = st.selectbox(
+    "Sort by column",
+    options=["(none)"] + sortable_cols,
+    index=0
+)
+
+sort_ascending = st.radio(
+    "Sort order",
+    options=["Descending", "Ascending"],
+    horizontal=True,
+    index=0
+)
+if sort_col != "(none)":
+    subset_df = subset_df.sort_values(
+        by=sort_col,
+        ascending=(sort_ascending == "Ascending"),
+        na_position="last"
+    )
+
 num_to_visualize = st.slider("# of Astro IDs to Visualize", 0, 25, 1)
 st.write(f'Showing {len(subset_df)} reports')
+if sort_col != "(none)":
+    st.caption(
+        f"Showing top {num_to_visualize} rows sorted by "
+        f"{sort_col} ({sort_ascending.lower()})"
+    )
 i = 0
 annotate = True
 for idx, row in subset_df.iterrows():
@@ -283,6 +319,11 @@ for idx, row in subset_df.iterrows():
 
     planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
     visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types, tfrecord_reports=tfrecord_reports)
+    try:
+        img_path = live_report_generator.generate_summary(tic_id=row['tic_id'], planetno=row['planetno'], ccd=row['ccd'], cam=row['cam'], sector=row['sector'])
+        st.image(img_path)
+    except Exception as e:
+        st.warning('Failed to generate summary page')
     #pages = server.get_report_pages(tic_id, planet_number=planet_number)
     #generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types, tfrecord_reports=tfrecord_reports)
     # if annotate:
