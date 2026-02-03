@@ -121,6 +121,16 @@ class AstroCNNModel(tf.keras.Model):
     y = self.dense_block(features, training)
     return self.output_layer(y)
 
+  def get_embeddings(self, inputs, training=False):
+      """Returns the latent space embeddings (output of dense block)."""
+      # 1. Get the concatenated features (CNN + Aux)
+      backbone_feats = self.backbone(inputs, training=training)
+
+      # 2. Pass through the dense block (The Fusion/Mixing happen here)
+      embeddings = self.dense_block(backbone_feats, training=training)
+
+      return embeddings
+
   def call(self, inputs, training):
     y = self.backbone(inputs, training)
     return self.head(y, training)
