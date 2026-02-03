@@ -1,6 +1,7 @@
 """Functions for loading trained AstroNet models."""
 
 import os
+import numpy as np
 import tensorflow as tf
 from absl import logging
 
@@ -94,24 +95,47 @@ if __name__ == "__main__":
         include_labels=False,  # Not needed for inference
     )
 
+    # Collect all embeddings and astro_ids
+    logging.info("Extracting embeddings for all examples...")
+    all_embeddings = []
+    all_astro_ids = []
+
+    batch_count = 0
     for batch in ds:
         # When include_identifiers=True and include_labels=False, batch is (features, astro_id)
         # features is a dict of tensors, astro_id is a tensor
         features, astro_ids = batch
 
-        print('Batch structure:')
-        print(f'  Features (dict keys): {list(features.keys())}')
-        print(f'  Astro IDs shape: {astro_ids.shape}')
-        print(f'  Astro IDs (first 5): {astro_ids[:5].numpy()}')
-
-        # Print shape of first feature as example
-        first_feature_key = list(features.keys())[0]
-        print(f'  First feature "{first_feature_key}" shape: {features[first_feature_key].shape}')
+        # Print batch info for first batch only
+        if batch_count == 0:
+            logging.info('Batch structure:')
+            logging.info(f'  Features (dict keys): {list(features.keys())}')
+            logging.info(f'  Astro IDs shape: {astro_ids.shape}')
+            first_feature_key = list(features.keys())[0]
+            logging.info(f'  First feature "{first_feature_key}" shape: {features[first_feature_key].shape}')
 
         # Pass features dict to get_embeddings (not the whole batch tuple)
         embeddings = model.get_embeddings(features, training=False)
-        print('Embeddings shape:')
-        print(embeddings.shape)
-        print('Embeddings[0] (first example):')
-        print(embeddings[0].numpy())
-        break
+
+        # Store embeddings and astro_ids (convert to numpy for storage)
+        all_embeddings.append(embeddings.numpy())
+        all_astro_ids.append(astro_ids.numpy())
+
+        batch_count += 1
+        if batch_count % 10 == 0:
+            logging.info(f"Processed {batch_count} batches...")
+
+    # Concatenate all batches
+    logging.info(f"Concatenating {batch_count} batches...")
+    embeddings_array = np.concatenate(all_embeddings, axis=0)
+    astro_ids_array = np.concatenate(all_astro_ids, axis=0)
+
+    logging.info(f"Extracted embeddings for {len(astro_ids_array)} examples")
+    logging.info(f"Embeddings shape: {embeddings_array.shape}")
+    logging.info(f"Astro IDs shape: {astro_ids_array.shape}")
+
+    # Save embeddings to file
+    output_path = "embeddings.npz"
+    logging.info(f"Saving embeddings to {output_path}")
+    np.savez(output_path, embeddings=embeddings_array, astro_ids=astro_ids_array)
+    logging.info(f"✅ Saved embeddings for {len(astro_ids_array)} examples to {output_path}")
