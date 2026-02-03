@@ -81,13 +81,37 @@ if __name__ == "__main__":
     print(config)
 
     files = "/pdo/astronet-data/data/tfrecords/sector-82mini-scatter/*"
-    ds = input_ds.build_dataset(
-    file_pattern=files,
-    input_config=config.inputs,
-    batch_size=32,
-    shuffle_values_buffer=10000,
-    exclude_astro_ids=[])
+    # Use build_eval_dataset for inference (matches predict.py pattern)
+    # - No shuffling (shuffle_values_buffer=0 by default)
+    # - No data augmentation
+    # - No repeat (single pass through data)
+    # Set include_identifiers=True if you need astro_ids, include_labels=False for inference
+    ds = input_ds.build_eval_dataset(
+        file_pattern=files,
+        input_config=config.inputs,
+        batch_size=config.hparams.batch_size,  # Use config batch size instead of hardcoded
+        include_identifiers=True,  # Include astro_ids to track predictions
+        include_labels=False,  # Not needed for inference
+    )
 
     for batch in ds:
-        print(batch)
+        # When include_identifiers=True and include_labels=False, batch is (features, astro_id)
+        # features is a dict of tensors, astro_id is a tensor
+        features, astro_ids = batch
+
+        print('Batch structure:')
+        print(f'  Features (dict keys): {list(features.keys())}')
+        print(f'  Astro IDs shape: {astro_ids.shape}')
+        print(f'  Astro IDs (first 5): {astro_ids[:5].numpy()}')
+
+        # Print shape of first feature as example
+        first_feature_key = list(features.keys())[0]
+        print(f'  First feature "{first_feature_key}" shape: {features[first_feature_key].shape}')
+
+        # Pass features dict to get_embeddings (not the whole batch tuple)
+        embeddings = model.get_embeddings(features, training=False)
+        print('Embeddings shape:')
+        print(embeddings.shape)
+        print('Embeddings[0] (first example):')
+        print(embeddings[0].numpy())
         break
