@@ -7,7 +7,7 @@ from absl import logging
 from astronet import models
 from astronet.util import config_util
 from astronet.util.configdict import ConfigDict
-
+from astronet.astro_cnn_model import input_ds
 
 def load_model_from_checkpoint(model_dir: str, compile_model: bool = True) -> tuple[tf.keras.Model, ConfigDict]:
     """
@@ -72,3 +72,22 @@ def load_model_from_checkpoint(model_dir: str, compile_model: bool = True) -> tu
 
     logging.info("Model loaded successfully")
     return model, config
+
+
+if __name__ == "__main__":
+    path = "/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20251217/pablomer-2k-nopretrained/AstroCNNModelVetting_pablomer_20251217_134151/"
+    model, config = load_model_from_checkpoint(path)
+    print(model)
+    print(config)
+
+    files = "/pdo/astronet-data/data/tfrecords/sector-82mini-scatter/*"
+    ds = input_ds.build_dataset(
+    file_pattern=files,
+    input_config=config.inputs,
+    batch_size=32,
+    shuffle_values_buffer=10000,
+    exclude_astro_ids=[])
+
+    for batch in ds:
+        print(batch)
+        break
