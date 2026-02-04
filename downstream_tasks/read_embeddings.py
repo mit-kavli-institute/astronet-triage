@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 # 1. Load the npz file
 z_dim = 64
 data = np.load(f'embeddings_zdim{z_dim}.npz')
+target_idx = 1448
 
 # 2. Extract the array (replace 'my_array' with your actual key)
 # If you don't know the key, use data.files to see them
@@ -58,14 +59,14 @@ X_normalized = normalize(X, norm='l2', axis=1)
 nbrs = NearestNeighbors(n_neighbors=6, algorithm='brute', metric='euclidean')
 nbrs.fit(X_normalized)
 
-# 4. Select your target vector (Index 26)
-target_vector = X_normalized[26].reshape(1, -1)
+# 4. Select your target vector (Target Index)
+target_vector = X_normalized[target_idx].reshape(1, -1)
 
 # 5. Find Neighbors
 distances, indices = nbrs.kneighbors(target_vector)
 
 # Output results and collect astro_ids for plotting
-print(f"Target Index: 26")
+print(f"Target Index: {target_idx}")
 print("-" * 30)
 neighbor_astro_ids = []
 neighbor_info = []
@@ -79,7 +80,7 @@ for i in range(len(indices[0])):
     # Similarity = 1 - (dist^2) / 2
     cosine_sim = 1 - (dist**2) / 2
 
-    if idx == 26:
+    if idx == target_idx:
         print(f"Match {i}: Index {idx} (The query item itself) | Astro ID: {astro_id}")
     else:
         print(f"Match {i}: Index {idx} | Euclidean Dist: {dist:.4f} | Cosine Sim: {cosine_sim:.4f} | Astro ID: {astro_id}")
@@ -90,7 +91,7 @@ for i in range(len(indices[0])):
         'astro_id': int(astro_id),
         'distance': dist,
         'cosine_sim': cosine_sim,
-        'is_query': (idx == 26)
+        'is_query': (idx == target_idx)
     })
 
 # Now retrieve and plot global views for all neighbors
@@ -99,7 +100,7 @@ print("Retrieving global views from TFRecord files...")
 print("=" * 50)
 
 # TFRecord path - adjust this to match your actual path
-tfrecord_path = os.path.expanduser("/pdo/astronet-data/data/tfrecords/sector-82mini-scatter/000*-of-00050")
+tfrecord_path = os.path.expanduser("/pdo/astronet-data/data/tfrecords/sector-82-scatter/000*-of-00050")
 tfrecord_files = sorted(glob.glob(tfrecord_path))
 
 if not tfrecord_files:
@@ -176,3 +177,45 @@ else:
         plt.show()
     else:
         print("No global views found for any of the neighbors.")
+
+
+
+# 1. Set the number of neighbors to 501
+# (500 neighbors + 1 for the target item itself)
+print('Now making the plot for the top 500 neighbors')
+n_neighbors_to_find = 501
+nbrs_500 = NearestNeighbors(n_neighbors=n_neighbors_to_find, algorithm='brute', metric='euclidean')
+nbrs_500.fit(X_normalized)
+
+# 2. Find neighbors for your target index
+distances, indices = nbrs_500.kneighbors(target_vector)
+
+# 3. Extract distances, excluding the first one (which is the query point itself, dist=0)
+# We flatten distances[0] which is of shape (1, 501) to (501,)
+neighbor_distances = distances[0][1:]
+
+# 4. Create the visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# --- Plot 1: Histogram ---
+ax1.hist(neighbor_distances, bins=30, color='skyblue', edgecolor='black', alpha=0.7)
+ax1.set_title(f'Distribution of Distances (Top 500 NNs)\nTarget Index: {target_idx}')
+ax1.set_xlabel('Euclidean Distance')
+ax1.set_ylabel('Frequency')
+ax1.grid(axis='y', linestyle='--', alpha=0.6)
+
+# --- Plot 2: Distance vs Rank ---
+ax2.plot(range(1, 501), neighbor_distances, marker='o', markersize=2, linestyle='-', color='teal')
+ax2.set_title('Distance to Neighbor by Rank')
+ax2.set_xlabel('Neighbor Rank (1st to 500th)')
+ax2.set_ylabel('Euclidean Distance')
+ax2.grid(True, linestyle='--', alpha=0.6)
+
+plt.tight_layout()
+plt.savefig(f'distance_distribution_zdim{z_dim}_idx{target_idx}.png', dpi=150)
+print(f"Saved plot to: distance_distribution_zdim{z_dim}_idx{target_idx}.png")
+# plt.show()
+
+print(f"Mean distance to top 500: {np.mean(neighbor_distances):.4f}")
+print(f"Closest (rank 1): {neighbor_distances[0]:.4f}")
+print(f"Furthest (rank 500): {neighbor_distances[-1]:.4f}")
