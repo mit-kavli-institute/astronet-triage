@@ -6,7 +6,8 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 # 1. Load the npz file
-data = np.load('embeddings.npz')
+z_dim = 64
+data = np.load(f'embeddings_zdim{z_dim}.npz')
 
 # 2. Extract the array (replace 'my_array' with your actual key)
 # If you don't know the key, use data.files to see them
@@ -98,7 +99,7 @@ print("Retrieving global views from TFRecord files...")
 print("=" * 50)
 
 # TFRecord path - adjust this to match your actual path
-tfrecord_path = os.path.expanduser("~/Downloads/sector-82mini-scatter/000*-of-00050")
+tfrecord_path = os.path.expanduser("/pdo/astronet-data/data/tfrecords/sector-82mini-scatter/000*-of-00050")
 tfrecord_files = sorted(glob.glob(tfrecord_path))
 
 if not tfrecord_files:
@@ -122,7 +123,7 @@ else:
     for raw in ds:
         ex = tf.io.parse_single_example(raw, feature_spec)
         astro_id = int(ex["astro_id"][0].numpy())
-        print(f"Astro ID from TFRecord: {astro_id} | Neighbor Astro IDs: {neighbor_astro_ids}")
+        # print(f"Astro ID from TFRecord: {astro_id} | Neighbor Astro IDs: {neighbor_astro_ids}")
         if astro_id in neighbor_astro_ids:
             gv = ex["global_view"].numpy()
             global_views[astro_id] = gv
@@ -170,8 +171,8 @@ else:
             axes[row, col].axis('off')
 
         plt.tight_layout()
-        plt.savefig('nearest_neighbors_global_views.png', dpi=150, bbox_inches='tight')
-        print(f"\nSaved plot to: nearest_neighbors_global_views.png")
+        plt.savefig(f'nearest_neighbors_global_views_zdim{z_dim}.png', dpi=150, bbox_inches='tight')
+        print(f"\nSaved plot to: nearest_neighbors_global_views_zdim{z_dim}.png")
         plt.show()
     else:
         print("No global views found for any of the neighbors.")

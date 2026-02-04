@@ -76,7 +76,12 @@ def load_model_from_checkpoint(model_dir: str, compile_model: bool = True) -> tu
 
 
 if __name__ == "__main__":
-    path = "/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20251217/pablomer-2k-nopretrained/AstroCNNModelVetting_pablomer_20251217_134151/"
+    # path = "/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20251217/pablomer-2k-nopretrained/AstroCNNModelVetting_pablomer_20251217_134151/" #512
+    # path = '/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20260203/pablomer-2k-nopretrained-z_dim32/AstroCNNModelVetting_pablomer_20260203_193940/' #32
+    path = '/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20260203/pablomer-2k-nopretrained-z_dim64/AstroCNNModelVetting_pablomer_20260203_194912/' #64
+
+
+    z_dim = 64
     model, config = load_model_from_checkpoint(path)
     print(model)
     print(config)
@@ -135,7 +140,7 @@ if __name__ == "__main__":
     logging.info(f"Astro IDs shape: {astro_ids_array.shape}")
 
     # Save embeddings to file
-    output_path = "embeddings.npz"
+    output_path = f"embeddings_zdim{z_dim}.npz"
     logging.info(f"Saving embeddings to {output_path}")
     np.savez(output_path, embeddings=embeddings_array, astro_ids=astro_ids_array)
     logging.info(f"✅ Saved embeddings for {len(astro_ids_array)} examples to {output_path}")
