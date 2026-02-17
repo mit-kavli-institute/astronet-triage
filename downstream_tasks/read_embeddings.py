@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 # 1. Load the npz file
 z_dim = 64
 data = np.load(f'embeddings_zdim{z_dim}.npz')
-target_idx = 1448
+n_neighbors_global_views = 20 # 11 neighbors plus the target itself
+# target_idx = 1448
 
 # 2. Extract the array (replace 'my_array' with your actual key)
 # If you don't know the key, use data.files to see them
@@ -37,8 +38,10 @@ for index, astro_id in df['astro_id'].items():
         print(f"Embedding values (first 10): {df.iloc[index].drop('astro_id').values[:10]}")
         print(f"Full row data:")
         print(df.iloc[index])
+        target_idx = index
         break
 
+print(f"Target Index: {target_idx}")
 
 
 import numpy as np
@@ -52,11 +55,13 @@ X = embeddings
 # 2. PRE-PROCESSING (Crucial for Embeddings)
 # L2-normalize the vectors so Euclidean distance = Cosine Similarity
 X_normalized = normalize(X, norm='l2', axis=1)
+# X_normalized = X
+
 
 # 3. Initialize and Fit the Model
 # 'brute' is often faster for high dimensions (512) than tree-based methods
 # n_neighbors=6 because the closest neighbor will be the point itself (distance 0)
-nbrs = NearestNeighbors(n_neighbors=6, algorithm='brute', metric='euclidean')
+nbrs = NearestNeighbors(n_neighbors=(n_neighbors_global_views+1), algorithm='brute', metric='euclidean')
 nbrs.fit(X_normalized)
 
 # 4. Select your target vector (Target Index)
@@ -100,8 +105,16 @@ print("Retrieving global views from TFRecord files...")
 print("=" * 50)
 
 # TFRecord path - adjust this to match your actual path
-tfrecord_path = os.path.expanduser("/pdo/astronet-data/data/tfrecords/sector-82-scatter/000*-of-00050")
-tfrecord_files = sorted(glob.glob(tfrecord_path))
+# tfrecord_path = os.path.expanduser("/pdo/astronet-data/data/tfrecords/sector-82-scatter/000*-of-00050")
+# tfrecord_files = sorted(glob.glob(tfrecord_path))
+tfrecord_files = []
+for s in range(73, 84):
+    path_pattern = f"/pdo/astronet-data/data/tfrecords/sector-{s}-scatter/*"
+    # Find files for this specific sector and add them to our master list
+    tfrecord_files.extend(glob.glob(path_pattern))
+
+tfrecord_files = sorted(tfrecord_files)
+
 
 if not tfrecord_files:
     print("Warning: No TFRecord files found at the specified path.")

@@ -12,7 +12,9 @@ CODE_DIR=/pdo/users/pablomer/Astronet-Triage
 
 # Path to the specific script you want to run
 # SCRIPT_PATH=$CODE_DIR/downstream_tasks/load_model.py
-SCRIPT_PATH=$CODE_DIR/downstream_tasks/read_embeddings.py
+# SCRIPT_PATH=$CODE_DIR/downstream_tasks/read_embeddings.py
+# SCRIPT_PATH=$CODE_DIR/downstream_tasks/global_view.py
+SCRIPT_PATH=$CODE_DIR/downstream_tasks/global_view_AE.py
 
 # --- Set up Environment Variables ---
 # This ensures that 'import astronet' etc. works correctly

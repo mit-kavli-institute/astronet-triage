@@ -79,18 +79,20 @@ if __name__ == "__main__":
     logging.set_verbosity(logging.INFO)
     logging.set_stderrthreshold(logging.INFO)
 
-    # path = "/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20251217/pablomer-2k-nopretrained/AstroCNNModelVetting_pablomer_20251217_134151/" #512
+    path = "/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20251217/pablomer-2k-nopretrained/AstroCNNModelVetting_pablomer_20251217_134151/" #512
     # path = '/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20260203/pablomer-2k-nopretrained-z_dim32/AstroCNNModelVetting_pablomer_20260203_193940/' #32
-    path = '/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20260203/pablomer-2k-nopretrained-z_dim64/AstroCNNModelVetting_pablomer_20260203_194912/' #64
+    # path = '/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/20260203/pablomer-2k-nopretrained-z_dim64/AstroCNNModelVetting_pablomer_20260203_194912/' #64
 
 
-    z_dim = 64
+    z_dim = 512
     model, config = load_model_from_checkpoint(path)
     # print(model)
     # print(config)
     print('Loaded model from ', path)
 
-    files = "/pdo/astronet-data/data/tfrecords/sector-82-scatter/*"
+    # files = "/pdo/astronet-data/data/tfrecords/sector-82-scatter/*"
+    sectors = range(73, 84)  # 84 is exclusive, so this gives 73-83
+    files = [f"/pdo/astronet-data/data/tfrecords/sector-{s}-scatter/*" for s in sectors]
     # Use build_eval_dataset for inference (matches predict.py pattern)
     # - No shuffling (shuffle_values_buffer=0 by default)
     # - No data augmentation
