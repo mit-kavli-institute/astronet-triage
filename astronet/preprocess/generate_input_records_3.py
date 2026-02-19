@@ -116,6 +116,9 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   else:
     tag = f'_{bkspace}'
 
+  # New: add Gaussian noise to the light curve
+  # TODO:
+
   detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
 
   # Calculate scatter weights on detrended data (before phase folding)
@@ -464,6 +467,10 @@ def main(_):
 
   global tce_table
   tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
+  # TODO: Remove this - just temporary to study the desintegrating exoplanet
+  tce_table = tce_table[tce_table["Astro ID"]==46637608501]
+  print("Modified tce table now has length", len(tce_table))
+  add_noise = True
 
   num_tces = len(tce_table)
   logging.info("Read %d TCEs", num_tces)
