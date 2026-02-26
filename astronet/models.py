@@ -19,7 +19,9 @@ import tensorflow as tf
 from absl import logging
 
 from astronet.astro_cnn_model import (astro_cnn_model, configurations,
-                                      configurations_vetting)
+                                      configurations_vetting,
+                                      configurations_vetting_global_local_ablation,
+                                      astro_cnn_model_global_local_ablation)
 from astronet.util import config_util, configdict
 
 # Filename used when saving model weights.
@@ -30,6 +32,11 @@ _MODELS = {
     "AstroCNNModel": (astro_cnn_model.AstroCNNModel, configurations),
     "AstroCNNModelVetting":
         (astro_cnn_model.AstroCNNModel, configurations_vetting),
+    "AstroCNNModelVettingGlobalLocalAblation":
+        (
+            astro_cnn_model_global_local_ablation.AstroCNNModelGlobalLocalAblation,
+            configurations_vetting_global_local_ablation,
+        ),
 }
 
 
