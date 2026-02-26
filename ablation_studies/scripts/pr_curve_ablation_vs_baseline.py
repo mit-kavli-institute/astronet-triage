@@ -18,6 +18,7 @@ def parse_args():
   parser.add_argument("--output_png", required=True)
   parser.add_argument("--output_csv", default=None)
   parser.add_argument("--title", default=None)
+  parser.add_argument("--ablation_label", default="Ablation")
   parser.add_argument("--x_min", type=float, default=0.0)
   parser.add_argument("--x_max", type=float, default=1.0)
   parser.add_argument("--y_min", type=float, default=0.0)
@@ -66,7 +67,7 @@ def main():
 
   fig, ax = plt.subplots(figsize=(10.5, 8))
   ax.plot(rec_bl, prec_bl, color="#264653", lw=3.0, label=f"Baseline (AP={ap_bl:.4f})")
-  ax.plot(rec_ab, prec_ab, color="#e76f51", lw=3.0, linestyle="--", label=f"Ablation G+L (AP={ap_ab:.4f})")
+  ax.plot(rec_ab, prec_ab, color="#e76f51", lw=3.0, linestyle="--", label=f"{args.ablation_label} (AP={ap_ab:.4f})")
   if args.show_prevalence:
     ax.axhline(prevalence, color="#8d99ae", lw=1.8, linestyle=":", label=f"Prevalence={prevalence:.4f}")
 

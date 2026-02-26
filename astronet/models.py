@@ -22,8 +22,10 @@ from astronet.astro_cnn_model import (astro_cnn_model, configurations,
                                       configurations_vetting)
 from ablation_studies.models import (
     astro_cnn_model_global_local_ablation,
+    astro_cnn_model_mixed_ablation,
     astro_cnn_model_scalar_ablation,
     configurations_vetting_global_local_ablation,
+    configurations_vetting_mixed_ablation,
     configurations_vetting_scalar_ablation,
 )
 from astronet.util import config_util, configdict
@@ -45,6 +47,11 @@ _MODELS = {
         (
             astro_cnn_model_scalar_ablation.AstroCNNModelScalarAblation,
             configurations_vetting_scalar_ablation,
+        ),
+    "AstroCNNModelVettingMixedAblation":
+        (
+            astro_cnn_model_mixed_ablation.AstroCNNModelMixedAblation,
+            configurations_vetting_mixed_ablation,
         ),
 }
 
