@@ -79,6 +79,7 @@ class AstroCNNModelVetting(astro_cnn_model.AstroCNNModel):
   def __init__(self, config, triage_model):
     super().__init__(config)
     self.triage_model = triage_model
+    self.output_rp = bool(config.get("output_rp", False))
 
   def call(self, inputs, training=None):
     y = self.triage_model.apply_ts_blocks(inputs, training)

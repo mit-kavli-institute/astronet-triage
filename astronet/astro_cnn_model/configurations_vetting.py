@@ -724,6 +724,7 @@ def pablomer():
       "train_steps": 1000,
       "init_from_pretrained_model": True,
       "freeze_pretrained_params": False,
+      "output_rp": True,
       "inputs": {
           "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
         #   "label_columns": ["disp_p", "disp_e", "disp_j"],
