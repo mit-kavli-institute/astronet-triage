@@ -2,3 +2,6 @@
 .pylintrc.swp
 *.png
 config.yaml
+
+# rp_filter generated tables
+rp_filter/*.csv
