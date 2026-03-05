@@ -1,13 +1,13 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 DATE=$(date +%Y%m%d)
 CONFIG_NAME=pablomer
 #CONFIG_OVERRIDES="inputs.random_reverse_time_series=true"
 # CONFIG_OVERRIDES="train_steps=1000"
-CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=false, hparams.pre_logits_hidden_layer_size=64"
-ENSEMBLE_NAME=$CONFIG_NAME
+CONFIG_OVERRIDES="train_steps=2000,init_from_pretrained_model=false,hparams.pre_logits_hidden_layer_size=512"
+ENSEMBLE_NAME="${CONFIG_NAME}-baseline-fresh"
 
 
 # PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
@@ -29,24 +29,22 @@ TFRECORD_PREFIX=tfrecords-vetting-v01-tois-triageJs-nocentroid-dec2025
 
 
 # OUTPUT_DIR=/pdo/users/pablomer/mnt/tess/models/vetting/$DATE/$ENSEMBLE_NAME/
-OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/$DATE/$ENSEMBLE_NAME-2k-nopretrained-z_dim64/
+OUTPUT_DIR=/pdo/astronet-data/models/vetting/experimental/pablomer/dec2025_cad_scat_v5_duration24/$DATE/$ENSEMBLE_NAME-2k-nopretrained-z_dim512/
 
 
 # CONFIG_OVERRIDES="init_from_pretrained_model=true,\
 # freeze_pretrained_params=true"
 
-for i in {1..2}
+for i in {1..1}
 do
     echo "Training model ${i}"
     # PYTHONPATH=$CODE_DIR LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib python $CODE_DIR/astronet/train.py \
     # PYTHONPATH=$CODE_DIR_chris LD_LIBRARY_PATH=/pdo/users/cshallue/miniconda3/lib python $CODE_DIR/astronet/train.py \
     # /pdo/users/dmuth/miniconda3/envs/tf/bin/python $CODE_DIR/astronet/train.py \
-    /pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python $CODE_DIR/astronet/train.py \
+    PYTHONPATH="$CODE_DIR" /pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python $CODE_DIR/astronet/train.py \
         --model=AstroCNNModelVetting \
         --config_name=$CONFIG_NAME \
-        --config_file=$CONFIG_FILE \
         --config_overrides=$CONFIG_OVERRIDES \
-        --pretrain_model_dir=$PRETRAIN_MODEL_DIR \
         --model_dir="$OUTPUT_DIR" \
         --train_files="$DATA_DIR/$TFRECORD_PREFIX-train/*" \
         --eval_files="val:$DATA_DIR/$TFRECORD_PREFIX-val/*" \
@@ -56,6 +54,6 @@ done
 
 # After training loop, generate a csv with the combined predictions
 echo "All models trained. Now generating combined predictions..."
-/pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python \
+PYTHONPATH="$CODE_DIR" /pdo/users/pablomer/miniconda3/envs/daniel_env_cloned_v2/bin/python \
     /pdo/users/pablomer/Astronet-Triage/astronet/combine_model_results.py \
     --base_path="$OUTPUT_DIR"

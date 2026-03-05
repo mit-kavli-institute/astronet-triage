@@ -59,6 +59,27 @@ flags.DEFINE_enum(
     "`random` (uniform random search),\n"
     "`qmc` (Sobol quasi-random via QMCSampler)."
 )
+flags.DEFINE_enum(
+    "use_augmentation",
+    "auto",
+    ["auto", "true", "false"],
+    "Force augmented training usage. 'auto' keeps behavior from config/search space."
+)
+flags.DEFINE_enum(
+    "search_space",
+    "final",
+    [
+        "phase1",
+        "phase2",
+        "phase2_batchnorm",
+        "phase2_pretrain",
+        "phase2_reverse",
+        "phase2_augmentation",
+        "phase3",
+        "final",
+    ],
+    "Which hyperparameter search space to use."
+)
 FLAGS = flags.FLAGS
 
 
@@ -223,10 +244,6 @@ def sample_phase2_augmentation(trial, config):
         "pre_logits_dropout_rate", 0.1, 0.325
     )
 
-
-
-
-
 def sample_phase2(trial, config):
     """
     Phase 2: expand to include regularization, optimizer choices, etc.
@@ -276,7 +293,6 @@ def sample_phase2(trial, config):
         "random_reverse_time_series", [True, False]
     )
 
-
 def sample_phase3(trial, config):
     """
     Phase 3: Cosine learning rate schedule tuning with pretrained model.
@@ -319,6 +335,38 @@ def sample_phase3(trial, config):
         "pre_logits_dropout_rate", 0.0, 0.5
     )
 
+def sample_final(trial,config):
+    config["hparams"]["learning_rate"] = trial.suggest_float(
+        "learning_rate", 1e-6, 1e-4, log=True
+    )
+    config["hparams"]["weight_decay"] = trial.suggest_float(
+        "weight_decay", 1e-3, 0.5, log=True
+    )
+    config["hparams"]["pre_logits_dropout_rate"] = trial.suggest_float(
+        "pre_logits_dropout_rate", 0.0, 0.4
+    )
+
+
+def apply_search_space(trial, config, search_space):
+    if search_space == "phase1":
+        sample_phase1(trial, config)
+    elif search_space == "phase2":
+        sample_phase2(trial, config)
+    elif search_space == "phase2_batchnorm":
+        sample_phase2_batchnorm(trial, config)
+    elif search_space == "phase2_pretrain":
+        sample_phase2_pretrain(trial, config)
+    elif search_space == "phase2_reverse":
+        sample_phase2_reverse(trial, config)
+    elif search_space == "phase2_augmentation":
+        sample_phase2_augmentation(trial, config)
+    elif search_space == "phase3":
+        sample_phase3(trial, config)
+    elif search_space == "final":
+        sample_final(trial, config)
+    else:
+        raise ValueError(f"Unsupported search_space: {search_space}")
+
 
 # Trial is a optuna.trial.Trial object
 def objective(trial):
@@ -333,15 +381,10 @@ def objective(trial):
     if FLAGS.pretrain_model_dir:
         config["pretrain_model_dir"] = FLAGS.pretrain_model_dir
 
-    # Hyperparameter sampling
-    # Uncomment the phase you want to use:
-    # sample_phase1(trial, config)  # Quick sweep over high-impact knobs
-    # sample_phase2_batchnorm(trial, config)  # Expanded with regularization, optimizer choices
-    # sample_phase2_pretrain(trial, config)  # Expanded with regularization, optimizer choices
-    sample_phase2_augmentation(trial, config)  # Expanded with regularization, optimizer choices
-    # sample_phase2_reverse(trial, config)  # Expanded with regularization, optimizer choices
-    # sample_phase2(trial, config)  # Expanded with regularization, optimizer choices
-    # sample_phase3(trial, config)  # Cosine scheduler tuning with pretrained model
+    # Hyperparameter sampling selected by CLI flag.
+    apply_search_space(trial, config, FLAGS.search_space)
+    if FLAGS.use_augmentation != "auto":
+        config["use_augmentation"] = FLAGS.use_augmentation == "true"
 
     # Validate pretrained model requirements (matching train.py logic)
     init_from_pretrained_model = config.get("init_from_pretrained_model")
@@ -616,6 +659,7 @@ def main(_):
 
     logging.info("Starting Optuna tuning with %d trials", FLAGS.n_trials)
     logging.info("Study database will be saved to: %s", study_db_path)
+    logging.info("Using search space: %s", FLAGS.search_space)
 
     # Select sampler based on flag
     if FLAGS.sampler == "random":
