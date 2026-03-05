@@ -25,7 +25,8 @@ do
     --train_files="$DATA_DIR/$TFRECORD_PREFIX-train/*" \
     --eval_files="val:$DATA_DIR/$TFRECORD_PREFIX-val/*" \
     --eval_files="test:$DATA_DIR/$TFRECORD_PREFIX-test/*" \
-    --dump_block_weights=false
+    --dump_block_weights=false \
+    --early_stopping_patience=20
 done
 
 echo "All mixed-ablation models trained. Generating combined predictions..."

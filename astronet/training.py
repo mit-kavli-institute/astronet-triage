@@ -43,37 +43,52 @@ class ThresholdRecall(tf.keras.metrics.Metric):
 
 
 class PerStepMetricsCallback(tf.keras.callbacks.Callback):
-    """Callback to collect metrics at each training step and validation."""
-    def __init__(self, validation_data=None, validation_steps=None, enabled=True):
+    """Callback to collect per-step metrics and optional early stopping."""
+    def __init__(
+        self,
+        validation_data=None,
+        validation_steps=None,
+        collect_metrics=True,
+        early_stopping_patience=None,
+        early_stopping_min_delta=0.0,
+    ):
         super().__init__()
         self.step_metrics = {}
         self.val_step_metrics = {}  # Validation metrics per training step
         self.validation_data = validation_data
         self.validation_steps = validation_steps
-        self.enabled = enabled  # Whether to collect metrics
+        self.collect_metrics = collect_metrics
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_min_delta = early_stopping_min_delta
+        self.best_val_loss = None
+        self.steps_without_improvement = 0
+
+    def _should_run_validation(self):
+        return self.validation_data is not None and (
+            self.collect_metrics or self.early_stopping_patience is not None
+        )
 
     def on_train_batch_end(self, batch, logs=None):
         """Called at the end of each training batch."""
-        if not self.enabled:
-            return
-
         if logs is None:
             logs = {}
-        # Store training metrics for this step
-        for metric_name, value in logs.items():
-            if metric_name not in self.step_metrics:
-                self.step_metrics[metric_name] = []
-            # Convert tensor/numpy scalar to float if needed
-            if hasattr(value, 'numpy'):
-                value = float(value.numpy())
-            elif isinstance(value, (np.integer, np.floating)):
-                value = float(value)
-            else:
-                value = float(value)
-            self.step_metrics[metric_name].append(value)
 
-        # Evaluate on validation set after each training step
-        if self.validation_data is not None:
+        if self.collect_metrics:
+            # Store training metrics for this step
+            for metric_name, value in logs.items():
+                if metric_name not in self.step_metrics:
+                    self.step_metrics[metric_name] = []
+                # Convert tensor/numpy scalar to float if needed
+                if hasattr(value, 'numpy'):
+                    value = float(value.numpy())
+                elif isinstance(value, (np.integer, np.floating)):
+                    value = float(value)
+                else:
+                    value = float(value)
+                self.step_metrics[metric_name].append(value)
+
+        # Evaluate on validation set after each training step when needed
+        if self._should_run_validation():
             # Strip sample weights from validation dataset (like evaluation.py does)
             # This avoids the warning about weighted_metrics
             val_ds_no_weights = self.validation_data.map(lambda x, y, w: (x, y))
@@ -90,8 +105,6 @@ class PerStepMetricsCallback(tf.keras.callbacks.Callback):
             for metric_name, value in val_results.items():
                 # Remove 'val_' prefix if present (model.evaluate doesn't add it)
                 clean_name = metric_name[4:] if metric_name.startswith('val_') else metric_name
-                if clean_name not in self.val_step_metrics:
-                    self.val_step_metrics[clean_name] = []
                 # Convert to float
                 if hasattr(value, 'numpy'):
                     value = float(value.numpy())
@@ -99,7 +112,30 @@ class PerStepMetricsCallback(tf.keras.callbacks.Callback):
                     value = float(value)
                 else:
                     value = float(value)
-                self.val_step_metrics[clean_name].append(value)
+                if self.collect_metrics:
+                    if clean_name not in self.val_step_metrics:
+                        self.val_step_metrics[clean_name] = []
+                    self.val_step_metrics[clean_name].append(value)
+
+                if clean_name == "loss" and self.early_stopping_patience is not None:
+                    if (
+                        self.best_val_loss is None
+                        or value < (self.best_val_loss - self.early_stopping_min_delta)
+                    ):
+                        self.best_val_loss = value
+                        self.steps_without_improvement = 0
+                    else:
+                        self.steps_without_improvement += 1
+                        if self.steps_without_improvement >= self.early_stopping_patience:
+                            logging.info(
+                                "Early stopping at batch %d: val_loss=%.6f did not improve "
+                                "for %d consecutive validation checks (best=%.6f).",
+                                batch + 1,
+                                value,
+                                self.early_stopping_patience,
+                                self.best_val_loss,
+                            )
+                            self.model.stop_training = True
 
 def compute_class_weights(dataset, num_classes, sample_size=10000):
     logging.warning("WARNING: This is an old version of compute_class_weights() and behavior might not be as expected. See David's development branch if you want to use class weighting.")
@@ -189,7 +225,8 @@ def compile_model(model, config):
 
 
 def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None,
-          validation_data=None, validation_steps=None, log_training_history=False):
+          validation_data=None, validation_steps=None, log_training_history=False,
+          early_stopping_patience=None):
   """Trains a model.
 
   Args:
@@ -200,6 +237,8 @@ def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_id
     exclude_astro_ids: Set of Astro IDs to exclude from training
     validation_data: Optional validation dataset
     validation_steps: Optional number of validation steps per epoch
+    early_stopping_patience: Optional patience in training steps for
+      validation-loss early stopping
 
   Returns:
     history: Keras History object (contains per-epoch metrics)
@@ -221,7 +260,8 @@ def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_id
   per_step_callback = PerStepMetricsCallback(
       validation_data=validation_data,
       validation_steps=validation_steps,
-      enabled=log_training_history
+      collect_metrics=log_training_history,
+      early_stopping_patience=early_stopping_patience,
   )
 
   fit_kwargs = {

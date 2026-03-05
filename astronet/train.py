@@ -84,6 +84,12 @@ flags.DEFINE_bool(
     "If True, log and save per-step training and validation metrics to training_history.json.",
 )
 
+flags.DEFINE_integer(
+    "early_stopping_patience",
+    None,
+    "Stop training if validation loss does not improve for this many validation checks.",
+)
+
 FLAGS = flags.FLAGS
 
 def dump_block_weights(model, filepath):
@@ -238,7 +244,8 @@ def main(_):
       exclude_astro_ids=exclude_astro_ids,  # pass it here
       validation_data=validation_data,
       validation_steps=validation_steps,
-      log_training_history=FLAGS.log_training_history
+      log_training_history=FLAGS.log_training_history,
+      early_stopping_patience=FLAGS.early_stopping_patience
   )
 
   # Save training history (per-step metrics) only if logging is enabled
