@@ -3,7 +3,7 @@ from typing import List
 import numpy as np
 import tensorflow as tf
 import pandas as pd
-import streamlit as st
+#import streamlit as st
 
 from astronet import models
 from astronet.util import config_util
@@ -18,16 +18,16 @@ class LiveEvaluation():
       self.ensemble_models = [os.path.join(model_dir, d) for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d))]
 
     def evaluate(self, eval_files: List[str]) -> pd.DataFrame:
-        st.write(f'Evaluating model on {eval_files}')
+        #st.write(f'Evaluating model on {eval_files}')
         result_dfs = []
 
         total_models = len(self.ensemble_models)
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        #progress_bar = st.progress(0)
+        #status_text = st.empty()
 
         for model_no, model_path in enumerate(self.ensemble_models):
-            status_text.write(f"Evaluating model {model_no + 1}/{total_models}: `{os.path.basename(model_path)}`")
-            progress_bar.progress((model_no + 1) / total_models)
+            #status_text.write(f"Evaluating model {model_no + 1}/{total_models}: `{os.path.basename(model_path)}`")
+            #progress_bar.progress((model_no + 1) / total_models)
 
             config = config_util.load_config(model_path)
             
@@ -105,6 +105,6 @@ class LiveEvaluation():
                 df = pd.concat([meta_df, pred_df, emb_df], axis=1)
                 result_dfs.append(df)
 
-        progress_bar.progress(1.0)
-        status_text.success("✅ All models evaluated.")
+        #progress_bar.progress(1.0)
+        #status_text.success("✅ All models evaluated.")
         return pd.concat(result_dfs, ignore_index=True)

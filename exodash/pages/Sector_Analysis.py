@@ -1,10 +1,12 @@
+import math
 from typing import Dict, List
 from data_management.light_curve_server import ALL_PAGE_TYPES, LightCurveServer
 from data_management.live_report_generator import LiveReportGenerator
 from exodash.utils.annotation import AnnotationHandler
 from exodash.utils.filter import advanced_filter_sidebar
-from exodash.utils.production_sector import ProductionSector, get_production_sector_df, get_production_sector_selector
-from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
+from exodash.utils.production_sector import ProductionSector, get_production_sector_df
+from exodash.utils.production_sectors import get_production_sector_selector
+from exodash.utils.reports import infer_planet_number
 from exodash.utils.reports_tfrecords import TFRecordReports
 from clustering import ClusterParams, Clustering
 from exodash.utils.tic_visualization import TICVisualizer
@@ -15,6 +17,7 @@ import numpy as np
 from matplotlib_venn import venn3
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
+import plotly.graph_objects as go
 import os
 from joblib import Memory
 
@@ -132,16 +135,130 @@ y_col = st.selectbox("Y-axis", filtered_df.columns[1:], index=x_options.get_loc(
 # drop na for x col and y col
 filtered_df = filtered_df.dropna(subset=[x_col, y_col])
 
-fig_scatter = px.scatter(
-    filtered_df,
-    x=x_col,
-    y=y_col,
-    color=color_col if color_col != "None" else None,
-    title="Feature Correlation",
-    hover_data=["astro_id"]
+is_period_radius_plot = (
+    x_col.lower() == "period" and y_col.lower() in ["planet_radius", "planet_radius_rearth", "rp", "rp_rearth"]
 )
-if log_x:
-    fig_scatter.update_xaxes(type="log")
+
+if is_period_radius_plot:
+    # Keep only positive periods for the power-law boundary
+    plot_df = filtered_df[filtered_df[x_col] > 0].copy()
+
+    # Blue shaded cutoff function: f(P) = 30 * P^(-1/3)
+    plot_df["rp_cutoff"] = 30.0 * np.power(plot_df[x_col], -1.0 / 3.0)
+
+    # Define passing / non-passing
+    # non-passing if above horizontal 30 OR above blue curve
+    plot_df["passes_radius_filter"] = (
+        (plot_df[y_col] <= 30.0) &
+        (plot_df[y_col] <= plot_df["rp_cutoff"])
+    )
+
+    passing_df = plot_df[plot_df["passes_radius_filter"]].copy()
+    failing_df = plot_df[~plot_df["passes_radius_filter"]].copy()
+
+    # Build x-grid for smooth overlays
+    x_min = plot_df[x_col].min()
+    x_max = plot_df[x_col].max()
+    x_grid = np.logspace(np.log10(x_min), np.log10(x_max), 300)
+
+    y_cut_curve = 30.0 * np.power(x_grid, -1.0 / 3.0)
+    y_top = max(plot_df[y_col].max(), 35)
+
+    fig_scatter = go.Figure()
+
+    # Passing points
+    fig_scatter.add_trace(
+        go.Scatter(
+            x=passing_df[x_col],
+            y=passing_df[y_col],
+            mode="markers",
+            name="Passing",
+            marker=dict(size=7),
+            customdata=passing_df[["astro_id"]],
+            hovertemplate=(
+                f"{x_col}: %{{x}}<br>"
+                f"{y_col}: %{{y}}<br>"
+                "astro_id: %{customdata[0]}<extra></extra>"
+            ),
+        )
+    )
+
+    # Non-passing points in red
+    fig_scatter.add_trace(
+        go.Scatter(
+            x=failing_df[x_col],
+            y=failing_df[y_col],
+            mode="markers",
+            name="Non-passing",
+            marker=dict(size=8, color="red", symbol="x"),
+            customdata=failing_df[["astro_id"]],
+            hovertemplate=(
+                f"{x_col}: %{{x}}<br>"
+                f"{y_col}: %{{y}}<br>"
+                "astro_id: %{customdata[0]}<extra></extra>"
+            ),
+        )
+    )
+
+    # Horizontal line at Rp = 30
+    fig_scatter.add_trace(
+        go.Scatter(
+            x=x_grid,
+            y=np.full_like(x_grid, 30.0),
+            mode="lines",
+            name="Rp = 30",
+            line=dict(color="black", dash="dash"),
+        )
+    )
+
+    # Blue cutoff curve
+    fig_scatter.add_trace(
+        go.Scatter(
+            x=x_grid,
+            y=y_cut_curve,
+            mode="lines",
+            name="Cutoff: 30·P^(-1/3)",
+            line=dict(color="blue"),
+        )
+    )
+
+    # Blue shaded region above the curve
+    fig_scatter.add_trace(
+        go.Scatter(
+            x=np.concatenate([x_grid, x_grid[::-1]]),
+            y=np.concatenate([np.full_like(x_grid, y_top), y_cut_curve[::-1]]),
+            fill="toself",
+            fillcolor="rgba(0, 0, 255, 0.15)",
+            line=dict(color="rgba(0,0,0,0)"),
+            hoverinfo="skip",
+            name="Excluded region",
+            showlegend=True,
+        )
+    )
+
+    fig_scatter.update_layout(
+        title="Planet Radius vs Period",
+        xaxis_title=x_col,
+        yaxis_title=y_col,
+    )
+
+    if log_x:
+        fig_scatter.update_xaxes(type="log")
+
+else:
+    # Default generic scatter behavior
+    fig_scatter = px.scatter(
+        filtered_df,
+        x=x_col,
+        y=y_col,
+        color=color_col if color_col != "None" else None,
+        title="Feature Correlation",
+        hover_data=["astro_id"],
+    )
+
+    if log_x:
+        fig_scatter.update_xaxes(type="log")
+
 st.plotly_chart(fig_scatter, use_container_width=True)
 
 st.divider() 
@@ -260,7 +377,8 @@ with right_col:
 venn_regions = {
     'All': (astronet | operator | toi),
     'TOI': toi,
-    'Operator': operator,
+    'Operator ∩ ~Astronet ∩ ~TOI': ((all_indices - astronet) &  operator & (all_indices - toi)),
+    'Operator ∩ ~TOI': (astronet & (all_indices - operator) & (all_indices - toi)),
     'Astronet': astronet,
     'Astronet ∩ ~Operator ∩ ~TOI': (astronet & (all_indices - operator) & (all_indices - toi)),
     'TOIs Astronet Missed': (((all_indices - astronet) & (all_indices - operator) & toi) | (operator & (all_indices - astronet) & toi)),
@@ -307,27 +425,82 @@ if sort_col != "(none)":
     )
 i = 0
 annotate = True
-for idx, row in subset_df.iterrows():
-    if i >= num_to_visualize:
-        break
-    i += 1
-    tic_id = row['tic_id']
-    astro_id = row['astro_id']
-    st.subheader(f'Astro ID: {astro_id} ({i} / {len(subset_df)}), TOI Disposition: {row["toi_disposition"]}')
+# --- config ---
+PAGE_SIZE = num_to_visualize  # N items per page
+
+# --- init state ---
+if "page" not in st.session_state:
+    st.session_state.page = 0
+
+total = len(subset_df)
+total_pages = max(1, math.ceil(total / PAGE_SIZE))
+st.session_state.page = max(0, min(st.session_state.page, total_pages - 1))
+
+start = st.session_state.page * PAGE_SIZE
+end = min(start + PAGE_SIZE, total)
+
+# --- pager UI ---
+c1, c2, c3, c4 = st.columns([1, 1, 2, 1])
+with c1:
+    prev_disabled = st.session_state.page == 0
+    if st.button("⬅️ Previous", disabled=prev_disabled, use_container_width=True):
+        st.session_state.page -= 1
+        st.rerun()
+with c2:
+    next_disabled = st.session_state.page >= total_pages - 1
+    if st.button("Next ➡️", disabled=next_disabled, use_container_width=True):
+        st.session_state.page += 1
+        st.rerun()
+with c3:
+    st.caption(f"Showing {start + 1}-{end} of {total}  •  Page {st.session_state.page + 1}/{total_pages}")
+with c4:
+    # optional: jump to page
+    new_page = st.number_input("Page", 1, total_pages, st.session_state.page + 1, label_visibility="collapsed")
+    if new_page - 1 != st.session_state.page:
+        st.session_state.page = new_page - 1
+        st.rerun()
+
+# --- slice df for current page ---
+page_df = subset_df.iloc[start:end]
+
+# --- render page items ---
+for j, (_, row) in enumerate(page_df.iterrows(), start=start + 1):
+    tic_id = row["tic_id"]
+    astro_id = row["astro_id"]
+
+    st.subheader(f'Astro ID: {astro_id} ({j} / {total}), TOI Disposition: {row["toi_disposition"]}')
     st.write(f"Astronet scores: disp_p: {row['disp_p']} disp_e: {row['disp_e']} disp_j: {row['disp_j']}")
-    st.dataframe(row.T)
+    st.dataframe(row.to_frame())  # cleaner than row.T
 
     planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
-    visualizer.visualize_tic_ids(tic_ids=[tic_id], planet_numbers=[planet_number], selected_types=selected_types, tfrecord_reports=tfrecord_reports)
-    try:
-        img_path = live_report_generator.generate_summary(tic_id=row['tic_id'], planetno=row['planetno'], ccd=row['ccd'], cam=row['cam'], sector=row['sector'])
-        st.image(img_path)
-    except Exception as e:
-        st.warning('Failed to generate summary page')
-    #pages = server.get_report_pages(tic_id, planet_number=planet_number)
-    #generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types, tfrecord_reports=tfrecord_reports)
-    # if annotate:
-    #     handler = AnnotationHandler(subset_df, tic_id)
+    visualizer.visualize_tic_ids(
+        tic_ids=[tic_id],
+        planet_numbers=[planet_number],
+        selected_types=selected_types,
+        tfrecord_reports=tfrecord_reports,
+    )
+
+    for page in [0, 1, 2, 3, 5, 6, 7]:
+        try:
+            print(f'Trying to get page {page}...')
+            img_path = live_report_generator.generate_summary(
+                tic_id=row["tic_id"],
+                planetno=row["planetno"],
+                ccd=row["ccd"],
+                cam=row["cam"],
+                sector=row["sector"],
+                page_num=page,
+            )
+            st.image(img_path)
+        except Exception:
+            st.warning(f"Failed to locate page {page}")
+
+    AnnotationHandler(
+        astro_id=astro_id,
+        row=row,
+        model_version=os.path.basename(custom_model or MODEL_CONFIG_PATH),
+        data_version="s" + "s".join(str(s) for s in sorted(st.session_state.selected_sectors)),
+    )
 
 df = subset_df
 

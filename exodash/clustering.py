@@ -781,14 +781,17 @@ class Clustering:
         if layout == "list":
             figs: List[plt.Figure] = []
             for nid, dist in neighbors:
-                view = self.id_to_view.get(nid)
-                if view is None:
-                    # skip if not loaded
-                    continue
-                fig, ax = plt.subplots(figsize=(6, 3.5))
-                _one_panel(ax, view, nid, dist, df)
-                fig.tight_layout()
-                figs.append(fig)
+                try:
+                    view = self.id_to_view.get(nid)
+                    if view is None:
+                        # skip if not loaded
+                        continue
+                    fig, ax = plt.subplots(figsize=(6, 3.5))
+                    _one_panel(ax, view, nid, dist, df)
+                    fig.tight_layout()
+                    figs.append(fig)
+                except Exception:
+                    pass
             return figs
 
         # layout == "grid"

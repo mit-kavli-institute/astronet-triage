@@ -17,11 +17,11 @@ def infer_astro_id(tic_id: int, planet_no: int):
     return int(f"{tic_id}{planet_no:02d}")
 
 @st.cache_data
-def _get_page_images(tic_id: int, planet_number: int, page_map: Dict[str, int], _tfrecord_reports: Optional[TFRecordReports] = None) -> Dict[str, Tuple[int, bytes]]:
+def _get_page_images(tic_id: int, planet_number: int, page_map: Dict[str, int], _tfrecord_reports: Optional[TFRecordReports] = None, sector: int = None) -> Dict[str, Tuple[int, bytes]]:
     result = {}
     for ptype, page_num in page_map.items():
         if 'TFRecord' not in ptype:
-            image = server.get_page_image(tic_id=tic_id, planet_number=planet_number, page_number=page_num)
+            image = server.get_page_image(tic_id=tic_id, planet_number=planet_number, page_number=page_num, sector=sector)
         else:
             print(ptype)
             image = _tfrecord_reports.get_page(astro_id=infer_astro_id(tic_id=tic_id, planet_no=planet_number), page_name=PAGE_TYPE_TO_TFRECORD_KEY[ptype])
@@ -32,7 +32,7 @@ def _get_page_images(tic_id: int, planet_number: int, page_map: Dict[str, int], 
 
     return result
 
-def generate_report_for_tic_id(tic_id: int, planet_number: int, pages: List[int], selected_types: List[str], n_cols: int = 2, tfrecord_reports: Optional[TFRecordReports] = None):
+def generate_report_for_tic_id(tic_id: int, planet_number: int, pages: List[int], selected_types: List[str], n_cols: int = 2, tfrecord_reports: Optional[TFRecordReports] = None, sector: int = None):
     if tfrecord_reports:
         pages.extend(
             p for p, label in PAGE_NUMBER_TO_TYPE.items()
@@ -44,7 +44,7 @@ def generate_report_for_tic_id(tic_id: int, planet_number: int, pages: List[int]
         for p in pages if PAGE_NUMBER_TO_TYPE.get(p) in selected_types
     }
 
-    image_data = _get_page_images(tic_id=tic_id, planet_number=planet_number, page_map=type_to_page, _tfrecord_reports=tfrecord_reports)
+    image_data = _get_page_images(tic_id=tic_id, planet_number=planet_number, page_map=type_to_page, _tfrecord_reports=tfrecord_reports, sector=sector)
 
     if not image_data:
         st.warning(f"No report images found for TIC ID {tic_id}, planet # {planet_number}.")

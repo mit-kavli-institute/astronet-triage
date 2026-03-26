@@ -3,6 +3,7 @@ from PIL import Image
 import requests
 from pathlib import Path
 import os
+import json
 
 PAGE_NUMBER_TO_TYPE: dict = {
     0: "Summary",
@@ -48,11 +49,11 @@ LOCAL_PAGE_TO_FILENAME = {
 ALL_PAGE_TYPES = [v for _, v in sorted(PAGE_NUMBER_TO_TYPE.items())]
 
 class LightCurveServer:
-    def __init__(self, server_url: str = f"http://localhost:5001"):
+    def __init__(self, server_url: str = f"http://localhost:5000"):
         self.server_url = server_url
         self.reports_dir = "/pdo/astronet-data/data/reports/"
 
-    def get_report_pages(self, tic_id: int, planet_number: int) -> list:
+    def get_report_pages(self, tic_id: int, planet_number: int, sector: int = None) -> list:
         """
         Returns a list of available page numbers (including local TFRecord reports).
         """
@@ -60,6 +61,8 @@ class LightCurveServer:
         remote_pages = []
         url = f"{self.server_url}/api/report-pages/{tic_id}"
         params = {"planet_number": planet_number}
+        if sector is not None:
+            params['sector'] = sector
         try:
             response = requests.get(url, params=params)
             if response.ok:
@@ -82,7 +85,7 @@ class LightCurveServer:
 
         return sorted(set(remote_pages + local_pages))
         
-    def get_page_image(self, tic_id: int, page_number: int, planet_number: int = 1) -> Image.Image:
+    def get_page_image(self, tic_id: int, page_number: int, planet_number: int = 1, sector: int = None) -> Image.Image:
         """
         Returns the image for a given TIC ID and page number.
         Uses local files for TFRecord pages 20–24.
@@ -103,6 +106,9 @@ class LightCurveServer:
             "page": page_number,
             "planet_number": planet_number
         }
+
+        if sector is not None:
+            params['sector'] = sector
         response = requests.get(url, params=params)
         if response.ok:
             image_bytes = BytesIO(response.content)
@@ -110,3 +116,11 @@ class LightCurveServer:
         else:
             print(f"Error: {response.status_code} - {response.text}")
             return ""
+        
+    def get_tic_info(self, tic_id, sector):
+        url = f"{self.server_url}/api/ticinfo/{tic_id}/{sector}"
+        response = requests.get(url)
+        if response.ok:
+            return json.loads(response.content)
+        else:
+            return None

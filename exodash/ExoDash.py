@@ -1,4 +1,5 @@
 from exodash.utils.filter import advanced_filter_sidebar
+from exodash.utils.mast import fetch_tic_rows_by_id
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -6,6 +7,9 @@ from config_parser import DatasetConfig
 from data_management.data_manager import DataManager
 from data_management.light_curve_server import LightCurveServer
 from exodash.utils.file_io import dataset_selector
+import numpy as np
+from tqdm import tqdm
+import re
 
 # --- Page Config ---
 st.set_page_config(page_title="ExoDash", layout="wide")
@@ -50,6 +54,63 @@ if config_path is None:
     st.stop()
 
 df = st.session_state.df
+server = st.session_state.light_curve_server
+
+def parse_sector_from_filename(filename: str) -> int:
+    """
+    Extract TESS sector number from a QLP HLSP filename.
+
+    Example:
+    mk_hlsp_qlp_tess_ffi-s0013-0000000101179364_tess_v01_llc.fits -> 13
+    """
+    match = re.search(r"-s(\d{4})-", filename)
+    if not match:
+        raise ValueError(f"Could not parse sector from filename: {filename}")
+    return int(match.group(1))
+
+# Add optional columns
+df['r_p'] = df['s_rad'] * np.sqrt(df['depth'] / 1e6) * 109.076
+df['sector'] = df['file'].apply(parse_sector_from_filename)
+
+# records = []
+# for i, row in tqdm(df.iterrows(), total=len(df)):
+#     tic_id = row['tic_id']
+#     sector = row['sector']
+#     tic_info = server.get_tic_info(tic_id, sector)
+#     if not tic_info:
+#         continue
+#     tic_info.update({'sector': sector, 'planetno': 1})
+#     records.append(tic_info)
+
+# pd.DataFrame(records).to_csv('/pdo/users/dimond/tic_info_all.csv', index=False)
+
+tic_ids = df["tic_id"].dropna().astype(int).unique().tolist()
+print('Fetching from mast...')
+tic_df = fetch_tic_rows_by_id(
+    tic_ids,
+)
+tic_df = tic_df.rename(columns={"ID": "tic_id"})
+tic_df["tic_id"] = tic_df["tic_id"].astype(int)
+df["tic_id"] = df["tic_id"].astype(int)
+df = pd.merge(
+    df,
+    tic_df,
+    on="tic_id",
+    how="left", 
+)
+
+qlp_df = pd.read_csv('/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all-qlp-data.csv')
+df = pd.merge(
+    df,
+    qlp_df,
+    on="tic_id",  # adjust join key if different
+    how="left",
+)
+st.session_state.df = df
+
+df.to_csv('/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all-qlp-mast-data.csv')
+print('Set session state...')
+
 
 # Dataset summary
 st.header("Dataset Statistics")

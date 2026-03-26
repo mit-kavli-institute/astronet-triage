@@ -39,10 +39,15 @@ class EvalUtils:
         if thresholds:
             # Apply thresholds: Assign the first class that meets its threshold
             def apply_thresholds(row):
-                for class_col, threshold in thresholds.items():
-                    if row[class_col] >= threshold:
-                        return class_col
-                return "disp_j"  # Default if no threshold is met
+                # Find all classes meeting their threshold
+                candidates = {
+                    col: row[col] for col, thresh in thresholds.items() 
+                    if row[col] >= thresh
+                }
+                if candidates:
+                    # Return highest confidence among qualifying classes
+                    return max(candidates, key=candidates.get)
+                return "disp_j"  # Default only if nothing meets threshold
 
             ensemble["predicted_label"] = ensemble.apply(apply_thresholds, axis=1)
         else:

@@ -1,5 +1,6 @@
 from exodash.utils.file_io import model_result_selector
 from exodash.utils.filter import advanced_filter_sidebar
+from exodash.utils.mast import fetch_tic_rows_by_id
 from exodash.utils.model_visualization import analyze_features, plot_pr_curve, plot_prediction_score_distribution, show_all_model_performance
 from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
 import streamlit as st
@@ -70,7 +71,7 @@ if individual_model_results is None:
 
 st.subheader("Processing Uploaded Model Predictions")
 eval_utils = EvalUtils(individual_model_results)
-eclipsing_binary_as_junk = st.checkbox("Show eclipsing binaries as junk?", value=True)
+eclipsing_binary_as_junk = st.checkbox("Show eclipsing binaries as junk?", value=False)
 
 
 if not REQUIRED_MODEL_COLUMNS.issubset(individual_model_results.columns):
@@ -97,6 +98,16 @@ if use_thresholds:
 
 # Compute ensemble results with the selected thresholds
 ensemble_results = eval_utils.get_ensemble_results(thresholds, include_labels=False, include_properties=True, dropna=True)
+
+# Only keep columns from properties_df that don't already exist in ensemble_results (plus the join key)
+new_cols = ["astro_id"] + [c for c in properties_df.columns if c not in ensemble_results.columns]
+ensemble_results = pd.merge(
+    ensemble_results,
+    properties_df[new_cols],
+    on="astro_id",
+    how="left",
+)
+
 if eclipsing_binary_as_junk:
     ensemble_results.loc[ensemble_results["predicted_label"] == "Eclipsing Binary", "predicted_label"] = "Junk"
 
@@ -133,6 +144,156 @@ conf_matrix = confusion_matrix(ensemble_results["true_label"], ensemble_results[
 conf_matrix_df = pd.DataFrame(conf_matrix, index=list(PREDICTION_MAPPING.values()), columns=list(PREDICTION_MAPPING.values()))
 st.write("Confusion Matrix:")
 st.dataframe(conf_matrix_df)
+
+# --- Feature Correlation with Error Types ---
+st.subheader("Feature Correlation with Classification Errors")
+
+# Build error type column
+ensemble_results["error_type"] = "Correct"
+ensemble_results.loc[
+    (ensemble_results["true_label"] != ensemble_results["predicted_label"]),
+    "error_type"
+] = ensemble_results["true_label"] + " → " + ensemble_results["predicted_label"]
+
+# Identify new columns from properties_df
+DROPNA = False
+base_cols = set(eval_utils.get_ensemble_results(thresholds, include_labels=False, include_properties=True, dropna=DROPNA).columns)
+new_property_cols = [c for c in properties_df.columns if c not in base_cols and c != "astro_id"]
+numeric_property_cols = [c for c in new_property_cols if pd.api.types.is_numeric_dtype(ensemble_results[c])]
+
+if not numeric_property_cols:
+    st.warning("No new numeric property columns found to correlate.")
+else:
+    # 1. False Positive Rate per property bin
+    st.markdown("#### False Positive Rate by Property Bins")
+    fpr_prop = st.selectbox("Select property to bin by (FPR):", numeric_property_cols)
+    n_bins = st.slider("Number of bins:", 3, 10, 5)
+    
+    temp = ensemble_results.copy()
+    temp["prop_bin"] = pd.cut(temp[fpr_prop], bins=n_bins)
+    fpr_label = st.selectbox("Select class to compute FPR for:", list(PREDICTION_MAPPING.values()))
+    
+    def compute_fpr(group, label):
+        fp = ((group["predicted_label"] == label) & (group["true_label"] != label)).sum()
+        tn = ((group["predicted_label"] != label) & (group["true_label"] != label)).sum()
+        return fp / (fp + tn) if (fp + tn) > 0 else 0
+
+    fpr_by_bin = temp.groupby("prop_bin", observed=True).apply(lambda g: compute_fpr(g, fpr_label)).reset_index()
+    fpr_by_bin.columns = ["bin", "false_positive_rate"]
+    fpr_by_bin["bin"] = fpr_by_bin["bin"].astype(str)
+    fig_fpr = px.bar(fpr_by_bin, x="bin", y="false_positive_rate",
+                     title=f"False Positive Rate for '{fpr_label}' across {fpr_prop} bins")
+    st.plotly_chart(fig_fpr)
+
+    # 1b. False Negative Rate per property bin
+    st.markdown("#### False Negative Rate by Property Bins")
+    fnr_prop = st.selectbox("Select property to bin by (FNR):", numeric_property_cols, key="fnr_prop")
+    n_bins_fnr = st.slider("Number of bins (FNR):", 3, 10, 5, key="fnr_bins")
+
+    temp_fnr = ensemble_results.copy()
+    temp_fnr["prop_bin"] = pd.cut(temp_fnr[fnr_prop], bins=n_bins_fnr)
+    fnr_label = st.selectbox("Select class to compute FNR for:", list(PREDICTION_MAPPING.values()), key="fnr_label")
+
+    def compute_fnr(group, label):
+        fn = ((group["predicted_label"] != label) & (group["true_label"] == label)).sum()
+        tp = ((group["predicted_label"] == label) & (group["true_label"] == label)).sum()
+        return fn / (fn + tp) if (fn + tp) > 0 else 0
+
+    fnr_by_bin = temp_fnr.groupby("prop_bin", observed=True).apply(lambda g: compute_fnr(g, fnr_label)).reset_index()
+    fnr_by_bin.columns = ["bin", "false_negative_rate"]
+    fnr_by_bin["bin"] = fnr_by_bin["bin"].astype(str)
+    fig_fnr = px.bar(fnr_by_bin, x="bin", y="false_negative_rate",
+                     title=f"False Negative Rate for '{fnr_label}' across {fnr_prop} bins")
+    st.plotly_chart(fig_fnr)
+
+    # 1c. False Positive breakdown by true label per bin
+    st.markdown("#### False Positive Composition by True Label")
+    fp_only = temp[(temp["predicted_label"] == fpr_label) & (temp["true_label"] != fpr_label)].copy()
+    fp_breakdown = fp_only.groupby(["prop_bin", "true_label"], observed=True).size().reset_index(name="count")
+    fp_breakdown["prop_bin"] = fp_breakdown["prop_bin"].astype(str)
+    fig_fp_breakdown = px.bar(
+        fp_breakdown, x="prop_bin", y="count", color="true_label",
+        barmode="stack",
+        title=f"What are the false positives for '{fpr_label}' in each {fpr_prop} bin?",
+        labels={"prop_bin": fpr_prop, "count": "Number of False Positives", "true_label": "True Label"},
+    )
+    st.plotly_chart(fig_fp_breakdown)
+
+    # 2. Property distributions: correct vs misclassified
+    st.markdown("#### Property Distribution: Correct vs. Misclassified")
+    dist_prop = st.selectbox("Select property to compare:", numeric_property_cols, key="dist_prop")
+    fig_dist = px.histogram(
+        ensemble_results, x=dist_prop, color="error_type",
+        barmode="overlay", opacity=0.6, nbins=40,
+        title=f"Distribution of {dist_prop} by Prediction Outcome"
+    )
+    st.plotly_chart(fig_dist)
+
+    # 3. Correlation heatmap: numeric properties vs error indicator
+    st.markdown("#### Correlation of Properties with Misclassification")
+    st.write(ensemble_results[['star_t_eff', 'true_label', 'predicted_label']].notna().sum())
+
+    numeric_property_cols_for_graph = [col for col in numeric_property_cols if col not in ['planetno', 'duration_hours', 'Teff', 'period_days', 'period_y', 'duration_x', 'Unnamed:0', 'bls_points_pre_transit', 'bls_points_post_transit', 'star_pm_ra', 'star_pm_dec', 'duration_y', 'period_x', 'snr_bls']]
+    is_misclassified = (ensemble_results["true_label"] != ensemble_results["predicted_label"]).astype(int)
+    correlations = pd.Series(
+        {col: ensemble_results[col].corr(is_misclassified) 
+         for col in numeric_property_cols_for_graph},
+    ).sort_values(key=abs, ascending=True)
+    fig_corr = px.bar(
+        x=correlations.values, y=correlations.index,
+        labels={"x": "Correlation with Misclassification", "y": "Property"},
+        title="Property Correlations with Misclassification Rate",
+        color=correlations.values, color_continuous_scale="RdBu_r",
+        orientation="h"
+    )
+    fig_corr.update_layout(
+        height=max(400, len(correlations) * 30),
+        margin=dict(l=200)
+    )
+    st.plotly_chart(fig_corr)
+    # 3b. Distribution of high-correlation properties by classification outcome
+    st.markdown("#### Distribution of High-Correlation Properties")
+    corr_threshold = st.slider("Minimum absolute correlation to show:", 0.0, 1.0, 0.1, 0.01)
+    high_corr_props = correlations[correlations.abs() >= corr_threshold].index.tolist()
+
+    if not high_corr_props:
+        st.info("No properties meet the correlation threshold.")
+    else:
+        ensemble_results["Classification"] = ensemble_results.apply(
+            lambda r: "Correct" if r["true_label"] == r["predicted_label"] else "Misclassified", axis=1
+        )
+        for prop in high_corr_props:
+            col_data = ensemble_results[prop].dropna()
+            p1, p99 = float(col_data.quantile(0.01)), float(col_data.quantile(0.99))
+            x_min, x_max = st.slider(
+                f"X-axis range for {prop}:",
+                min_value=float(col_data.min()),
+                max_value=float(col_data.max()),
+                value=(p1, p99),
+                key=f"range_{prop}"
+            )
+            filtered = ensemble_results[(ensemble_results[prop] >= x_min) & (ensemble_results[prop] <= x_max)]
+            fig_dist = px.histogram(
+                filtered, x=prop, color="Classification",
+                barmode="overlay", opacity=0.7, nbins=40,
+                color_discrete_map={"Correct": "steelblue", "Misclassified": "tomato"},
+                title=f"{prop} (r={correlations[prop]:.3f})",
+            )
+            st.plotly_chart(fig_dist)
+
+    # 4. Per-class breakdown by property
+    st.markdown("#### Property vs. Prediction Confidence by True Label")
+    conf_prop = st.selectbox("Select property:", numeric_property_cols, key="conf_prop")
+    conf_label_col = st.selectbox("Select confidence score column:", list(HUMAN_LABEL_MAP.values()), key="conf_label")
+    fig_conf = px.scatter(
+        ensemble_results, x=conf_prop, y=conf_label_col,
+        color="true_label", symbol="error_type",
+        opacity=0.6, title=f"{conf_prop} vs. {conf_label_col} confidence",
+        hover_data=["astro_id", "predicted_label"]
+    )
+    st.plotly_chart(fig_conf)
+
+    
 
 # Scatter plot filters
 st.subheader("Scatter Plot with Filters")
@@ -194,9 +355,11 @@ while num_analyzed < N_TO_ANALYZE:
     except Exception as e:
         continue
 
+
     tic_id = astro_props['tic_id']
+    sector = astro_props['sector']
     planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
-    pages = server.get_report_pages(tic_id, planet_number=planet_number)
+    pages = server.get_report_pages(tic_id, planet_number=planet_number, sector=int(sector))
     if not pages:
         st.write(f"No report for astro ID {astro_id}, skipping...")
     else:
@@ -205,5 +368,5 @@ while num_analyzed < N_TO_ANALYZE:
         st.write(f"**True Label:** {true_label}, **Predicted Label:** {predicted_label}")
         st.write(f"**disp Scores:** {disp_scores}")
         st.write(f"**Reason for Selection:** {selection_reason}")
-        generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types)
+        generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types, sector=sector)
         num_analyzed += 1
