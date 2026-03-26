@@ -10,6 +10,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+''' Preprocessing with cadence binning and scatter weighting '''
+
 import argparse
 import multiprocessing
 import os
@@ -75,6 +77,7 @@ parser.add_argument(
     default="",
     help="Optional suffix appended to each TFRecord shard filename.")
 
+
 def _set_float_feature(ex, name, value):
   """Sets the value of a float feature in a tensorflow.train.Example proto."""
   assert name not in ex.features.feature, "Duplicate feature: %s" % name
@@ -108,34 +111,46 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
   # if FLAGS.remove_random_points:
   #   time, flux = preprocess.remove_random_datapoints(time, flux, 0.1)
 
-
   if bkspace is None:
     tag = ''
   else:
     tag = f'_{bkspace}'
 
-  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(
-      tic, time, flux, period, epoc, duration, bkspace)
+  # New: add Gaussian noise to the light curve
+  # TODO:
 
-  # Randomly drop a subset of the data if the flag is active (after detrending)
+  detrended_time, detrended_flux, transit_mask = preprocess.detrend_and_filter(tic, time, flux, period, epoc, duration, bkspace)
+
+  # Calculate scatter weights on detrended data (before phase folding)
+  scatter_weights_detrended = preprocess.split_and_calculate_weights(detrended_time, detrended_flux, gap_width=2)
+
   if FLAGS.remove_random_points:
-    detrended_time, detrended_flux, mask_removal = preprocess.remove_random_datapoints(
-        detrended_time, detrended_flux, 0.1)
+    # print('DEBUG: detrended time size before removal',detrended_time.shape)
+    detrended_time, detrended_flux, mask_removal = preprocess.remove_random_datapoints(detrended_time, detrended_flux, 0.1)
+    scatter_weights_detrended = scatter_weights_detrended[mask_removal]
     transit_mask = transit_mask[mask_removal]
+    # print('DEBUG: detrended time size after removal',detrended_time.shape)
 
   time, flux, fold_num, tr_mask = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period, epoc)
+
+  # Align raw time with folded time for raw time support
+  raw_time_aligned, raw_flux_aligned = preprocess.align_raw_time(detrended_time, detrended_flux, period, epoc)
+
+  # Align scatter weights to match the phase-folded order
+  scatter_weights_aligned = preprocess.align_scatter_weights(detrended_time, period, epoc, scatter_weights_detrended)
+
   odds = ((fold_num % 2) == 1)
   evens = ((fold_num % 2) == 0)
 
-  view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period)
-  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period)
+  view, std, mask, _, _ = preprocess.global_view(tic, time, flux, period, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned, scatter_weights=scatter_weights_aligned)
+  tr_mask, _, _, _, _ = preprocess.tr_mask_view(tic, time, tr_mask, period, all_30min=True, scatter_weights=scatter_weights_aligned)
   _set_float_feature(ex, f'global_view{tag}', view)
   _set_float_feature(ex, f'global_std{tag}', std)
   _set_float_feature(ex, f'global_mask{tag}', mask)
   _set_float_feature(ex, f'global_transit_mask{tag}', tr_mask)
 
-  view, std, mask, scale, depth = preprocess.local_view(tic, time, flux, period, duration)
+  view, std, mask, scale, depth = preprocess.local_view(tic, time, flux, period, duration, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned, scatter_weights=scatter_weights_aligned)
   _set_float_feature(ex, f'local_view{tag}', view)
   _set_float_feature(ex, f'local_std{tag}', std)
   _set_float_feature(ex, f'local_mask{tag}', mask)
@@ -146,24 +161,30 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
     _set_float_feature(ex, f'local_scale{tag}', [0.0])
     _set_float_feature(ex, f'local_scale_present{tag}', [0.0])
   for k, (t, f) in aperture_fluxes.items():
-    t, f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
-    t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(t, f, m, period, epoc)
-    view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth)
+    detr_t, detr_f, m = preprocess.detrend_and_filter(tic, t, f, period, epoc, duration, bkspace)
+    # Calculate scatter weights for this aperture
+    aperture_scatter_weights_detrended = preprocess.split_and_calculate_weights(detr_t, detr_f, gap_width=2)
+    t, f, _, _ = preprocess.phase_fold_and_sort_light_curve(detr_t, detr_f, m, period, epoc)
+    # Align raw time for aperture - use the detrended data that was phase-folded
+    aperture_raw_time, aperture_raw_flux = preprocess.align_raw_time(detr_t, detr_f, period, epoc)
+    # Align scatter weights for this aperture
+    aperture_scatter_weights_aligned = preprocess.align_scatter_weights(detr_t, period, epoc, aperture_scatter_weights_detrended)
+    view, std, _, _, _ = preprocess.local_view(tic, t, f, period, duration, scale=scale, depth=depth, all_30min=False, raw_time=aperture_raw_time, raw_flux=aperture_raw_flux, scatter_weights=aperture_scatter_weights_aligned)
     _set_float_feature(ex, f'local_aperture_{k}{tag}', view)
 
-  view, std, mask, _, _ = preprocess.local_view(tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth)
+  view, std, mask, _, _ = preprocess.local_view(tic, time[odds], flux[odds], period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned[odds], raw_flux=raw_flux_aligned[odds], scatter_weights=scatter_weights_aligned[odds])
   _set_float_feature(ex, f'local_view_odd{tag}', view)
   _set_float_feature(ex, f'local_std_odd{tag}', std)
   _set_float_feature(ex, f'local_mask_odd{tag}', mask)
 
-  view, std, mask, _, _ = preprocess.local_view(tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth)
+  view, std, mask, _, _ = preprocess.local_view(tic, time[evens], flux[evens], period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned[evens], raw_flux=raw_flux_aligned[evens], scatter_weights=scatter_weights_aligned[evens])
   _set_float_feature(ex, f'local_view_even{tag}', view)
   _set_float_feature(ex, f'local_std_even{tag}', std)
   _set_float_feature(ex, f'local_mask_even{tag}', mask)
 
   try:
-      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration)
-      (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth)
+      (_, _, _, sec_scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration) # No difference found passing raw time here
+      (view, std, mask, scale, _), t0 = preprocess.secondary_view(tic, time, flux, period, duration, scale=scale, depth=depth, all_30min=False, raw_time=raw_time_aligned, raw_flux=raw_flux_aligned)
   except IndexError as e:
       logging.warning(f"Skipping TIC {tic}: preprocess.secondary_view failed (IndexError).", exc_info=False)
       time_info = f"shape {time.shape}" if hasattr(time, 'shape') else f"length {len(time)}"
@@ -195,19 +216,27 @@ def _standard_views(ex, tic, time, flux, period, epoc, duration, bkspace, apertu
 
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period * 2, epoc - period / 2)
-  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period * 2)
+  # Align raw time for double period
+  raw_time_double, raw_flux_double = preprocess.align_raw_time(detrended_time, detrended_flux, period * 2, epoc - period / 2)
+  # Align scatter weights for double period
+  scatter_weights_double = preprocess.align_scatter_weights(detrended_time, period * 2, epoc - period / 2, scatter_weights_detrended)
+  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period * 2, all_30min=False, raw_time=raw_time_double, raw_flux=raw_flux_double, scatter_weights=scatter_weights_double)
   _set_float_feature(ex, f'global_view_double_period{tag}', view)
   _set_float_feature(ex, f'global_view_double_period_std{tag}', std)
   _set_float_feature(ex, f'global_view_double_period_mask{tag}', mask)
 
   time, flux, fold_num, _ = preprocess.phase_fold_and_sort_light_curve(
       detrended_time, detrended_flux, transit_mask, period / 2, epoc)
-  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period / 2)
+  # Align raw time for half period
+  raw_time_half, raw_flux_half = preprocess.align_raw_time(detrended_time, detrended_flux, period / 2, epoc)
+  # Align scatter weights for half period
+  scatter_weights_half = preprocess.align_scatter_weights(detrended_time, period / 2, epoc, scatter_weights_detrended)
+  view, std, mask, scale, _ = preprocess.global_view(tic, time, flux, period / 2, all_30min=False, raw_time=raw_time_half, raw_flux=raw_flux_half, scatter_weights=scatter_weights_half)
   _set_float_feature(ex, f'global_view_half_period{tag}', view)
   _set_float_feature(ex, f'global_view_half_period_std{tag}', std)
   _set_float_feature(ex, f'global_view_half_period_mask{tag}', mask)
 
-  view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration)
+  view, std, mask, scale, _ = preprocess.local_view(tic, time, flux, period / 2, duration, all_30min=False, raw_time=raw_time_half, raw_flux=raw_flux_half, scatter_weights=scatter_weights_half)
   _set_float_feature(ex, f'local_view_half_period{tag}', view)
   _set_float_feature(ex, f'local_view_half_period_std{tag}', std)
   _set_float_feature(ex, f'local_view_half_period_mask{tag}', mask)
@@ -438,6 +467,10 @@ def main(_):
 
   global tce_table
   tce_table = pd.read_csv(FLAGS.input_tce_csv_file, header=0, low_memory=False)
+  # TODO: Remove this - just temporary to study the desintegrating exoplanet
+  tce_table = tce_table[tce_table["Astro ID"]==46637608501]
+  print("Modified tce table now has length", len(tce_table))
+  add_noise = True
 
   num_tces = len(tce_table)
   logging.info("Read %d TCEs", num_tces)
