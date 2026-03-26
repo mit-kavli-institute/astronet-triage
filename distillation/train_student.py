@@ -344,8 +344,9 @@ class StudentModel(tf.keras.Model):
             logging.info("="*70)
             logging.info(f"Hard labels shape: {hard_labels.shape}, dtype: {hard_labels.dtype}")
             logging.info(f"Soft labels shape: {soft_labels.shape}, dtype: {soft_labels.dtype}")
-            logging.info(f"First example hard label: {hard_labels[0].numpy()}")
-            logging.info(f"First example soft label: {soft_labels[0].numpy()}")
+            # Avoid .numpy() inside graph mode (train_step can run under tf.function).
+            logging.info(f"First example hard label tensor: {hard_labels[0]}")
+            logging.info(f"First example soft label tensor: {soft_labels[0]}")
             self._first_step_printed = True
 
         with tf.GradientTape() as tape:
@@ -354,7 +355,7 @@ class StudentModel(tf.keras.Model):
             # Debug print on first step
             if not hasattr(self, '_first_pred_printed'):
                 logging.info(f"Predictions shape: {y_pred.shape}, dtype: {y_pred.dtype}")
-                logging.info(f"First example prediction (logits): {y_pred[0].numpy()}")
+                logging.info(f"First example prediction tensor (logits): {y_pred[0]}")
                 logging.info("="*70 + "\n")
                 self._first_pred_printed = True
 

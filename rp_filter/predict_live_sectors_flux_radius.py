@@ -29,10 +29,14 @@ M_SUN = 1.989e30
 EARTH_FLUX = 1361.0
 R_EARTH = 6.371e6
 
+# MODEL_DIR = (
+#     "/pdo/astronet-data/models/vetting/experimental/pablomer/"
+#     "dec2025_cad_scat_v5_duration24/20260226/pablomer-2k-nopretrained-rp/"
+#     "AstroCNNModelVetting_pablomer_20260226_141255"
+# )
+
 MODEL_DIR = (
-    "/pdo/astronet-data/models/vetting/experimental/pablomer/"
-    "dec2025_cad_scat_v5_duration24/20260226/pablomer-2k-nopretrained-rp/"
-    "AstroCNNModelVetting_pablomer_20260226_141255"
+    "/pdo/astronet-data/models/vetting/experimental/pablomer/march2026/20260305/pablomer_final-final-3k-ensemble/AstroCNNModelVetting_pablomer_final_20260305_155254/"
 )
 
 TFRECORD_GLOB_TEMPLATE = "/pdo/astronet-data/data/tfrecords/sector-{sector}-scatter/*"
@@ -174,6 +178,11 @@ def rp_limit(flux_w: float) -> float:
         return 13 + (np.log10(flux_w) - 5) * 5
     return 13
 
+def rp_limit_v2(flux_w: float) -> float:
+    """Calculate the upper bound on the radius of a planet given the flux."""
+    if flux_w > 1e5:
+        return min(18 + (np.log10(flux_w) - 5) * 10, 27.5)
+    return 18
 
 def run_predictions(model_dir: str, sectors: list[int]) -> tuple[pd.DataFrame, list[int], list[int]]:
     model, config = load_model_from_checkpoint(model_dir, compile_model=False)
@@ -325,6 +334,10 @@ def main() -> None:
             planet_df[col] = np.nan
         planet_df[col] = pd.to_numeric(planet_df[col], errors="coerce")
 
+    # Keep rows missing SRad/SMass for fallback radius-only plotting.
+    missing_srad_or_smass = planet_df["SRad"].isna() | planet_df["SMass"].isna()
+    fallback_candidates = planet_df[missing_srad_or_smass].copy()
+
     analysis_df = planet_df.dropna(subset=["SRad", "teff", "Per", "SMass", "Depth"]).copy()
     if analysis_df.empty:
         raise ValueError("No predicted planets with complete SRad/teff/Per/SMass/Depth for flux-radius analysis")
@@ -335,18 +348,45 @@ def main() -> None:
     analysis_df["flux_calculated_W"] = flux_w
     analysis_df["flux_calculated_earthflux"] = flux_earth
     analysis_df["planet_radius_earth"] = rp_earth
-    analysis_df["rp_limit_earth"] = np.array([rp_limit(f) for f in flux_w])
+    analysis_df["rp_limit_earth"] = np.array([rp_limit_v2(f) for f in flux_w])
     analysis_df["excluded_by_rp_limit"] = analysis_df["planet_radius_earth"] > analysis_df["rp_limit_earth"]
 
+    # Fallback radius estimate for rows missing SRad or SMass:
+    # r_p = s_rad * sqrt(depth / 1e6) * 109.076 ; default s_rad=1 when unavailable.
+    if "depth" in fallback_candidates.columns:
+        depth_fallback = pd.to_numeric(fallback_candidates["depth"], errors="coerce")
+    else:
+        depth_fallback = pd.to_numeric(fallback_candidates["Depth"], errors="coerce")
+    if "s_rad" in fallback_candidates.columns:
+        srad_fallback = pd.to_numeric(fallback_candidates["s_rad"], errors="coerce")
+    else:
+        srad_fallback = pd.Series(np.nan, index=fallback_candidates.index, dtype=np.float64)
+    srad_fallback = srad_fallback.fillna(1.0)
+    fallback_candidates["planet_radius_earth"] = (
+        srad_fallback * np.sqrt(depth_fallback / (10**6)) * 109.076
+    )
+    fallback_plot_df = fallback_candidates.dropna(subset=["planet_radius_earth"]).copy()
+    fallback_plot_df["excluded_by_rp_limit"] = (
+        fallback_plot_df["planet_radius_earth"].to_numpy(dtype=np.float64) >= 27.5
+    )
+
     n_total = len(analysis_df)
-    n_excluded = int(analysis_df["excluded_by_rp_limit"].sum())
-    pct_excluded = 100.0 * n_excluded / n_total if n_total else 0.0
+    n_excluded_regular = int(analysis_df["excluded_by_rp_limit"].sum())
+    n_fallback = len(fallback_plot_df)
+    n_excluded_fallback = int(fallback_plot_df["excluded_by_rp_limit"].sum())
+    n_total_including_fallback = n_total + n_fallback
+    n_excluded_total = n_excluded_regular + n_excluded_fallback
+    pct_excluded_total = (
+        100.0 * n_excluded_total / n_total_including_fallback
+        if n_total_including_fallback
+        else 0.0
+    )
 
     analysis_csv = os.path.join(args.output_dir, f"{args.output_prefix}_analysis.csv")
     analysis_df.to_csv(analysis_csv, index=False)
 
     flux_linspace = np.logspace(np.log10(flux_w.min()), np.log10(flux_w.max()), 200)
-    rp_lim = np.array([rp_limit(f) for f in flux_linspace])
+    rp_lim = np.array([rp_limit_v2(f) for f in flux_linspace])
 
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.scatter(
@@ -360,6 +400,25 @@ def main() -> None:
         label=f"Predicted planets (disp_p >= {args.threshold}) [N={n_total}]",
         zorder=3,
     )
+    # Plot fallback radius-only points at a fixed x-position on the left side.
+    if not fallback_plot_df.empty:
+        # fallback_x = np.full(len(fallback_plot_df), 1e6)
+        center_x = 1e6
+        jitter = np.random.normal(loc=0, scale=50000, size=len(fallback_plot_df))
+        fallback_x_jittered = center_x + jitter
+
+
+        ax.scatter(
+            fallback_x_jittered,
+            fallback_plot_df["planet_radius_earth"].to_numpy(dtype=np.float64),
+            alpha=0.8,
+            s=36,
+            color="royalblue",
+            edgecolors="navy",
+            linewidth=0.5,
+            label=f"Fallback radius (missing SRad/SMass) [N={len(fallback_plot_df)}]",
+            zorder=5,
+        )
     ax.plot(
         flux_linspace,
         rp_lim,
@@ -371,10 +430,10 @@ def main() -> None:
     ax.fill_between(
         flux_linspace,
         rp_lim,
-        30,
+        40,
         alpha=0.15,
         color="red",
-        label=f"excluded area ({pct_excluded:.1f}% planets)",
+        label=f"excluded area ({pct_excluded_total:.1f}% planets)",
         zorder=2,
     )
 
@@ -389,7 +448,9 @@ def main() -> None:
     )
     ax.grid(True, alpha=0.3, linestyle="--", linewidth=0.7, zorder=1)
     ax.legend(fontsize=11, loc="upper left", framealpha=0.95, edgecolor="black")
-    ax.set_ylim(0, 30)
+    # ax.set_ylim(0, 30)
+    # ax.set_xlim(flux_w.min() * 0.8, flux_w.max() * 1.2)
+    ax.set_ylim(0, 40)
     ax.set_xlim(flux_w.min() * 0.8, flux_w.max() * 1.2)
     ax.tick_params(labelsize=11)
 
@@ -409,7 +470,10 @@ def main() -> None:
     print(f"Missing sectors (no scatter tfrecords): {missing_sectors}")
     print(f"Predicted planets at threshold {args.threshold}: {len(planet_df)}")
     print(f"With full analysis columns: {n_total}")
-    print(f"Excluded by rp limit: {n_excluded} ({pct_excluded:.1f}%)")
+    print(f"Fallback plotted (missing SRad/SMass): {n_fallback}")
+    print(f"Fallback excluded by rp>=27.5: {n_excluded_fallback}")
+    print(f"Excluded by rp limit (regular): {n_excluded_regular}")
+    print(f"Excluded by rp limit (including fallback): {n_excluded_total} ({pct_excluded_total:.1f}%)")
 
 
 if __name__ == "__main__":
