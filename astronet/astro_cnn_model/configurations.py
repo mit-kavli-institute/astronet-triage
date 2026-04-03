@@ -4450,6 +4450,50 @@ def cshallue():
                   "shape": [1],
                   "is_time_series": False,
               },
+            #   "star_t_eff": {
+            #       "shape": [1],
+            #       "is_time_series": False,
+            #       "scale": "norm",
+            #       "mean": 6265.31676,
+            #       "std": 2046.963252,
+            #   },
+            #   "star_t_eff_present": {
+            #     "shape": [1],
+            #     "is_time_series": False,
+            #   },
+            #   "snr": {
+            #       "shape": [1],
+            #       "is_time_series": False,
+            #       "scale": "norm",
+            #       "mean": 66.404972,
+            #       "std": 133.4514890,
+            #   },
+            #   "snr_present": {
+            #     "shape": [1],
+            #     "is_time_series": False,
+            #   },
+            #   "t12_t14": {
+            #       "shape": [1],
+            #       "is_time_series": False,
+            #       "scale": "norm",
+            #       "mean": 0.286041,
+            #       "std": 0.1342017,
+            #   },
+            #   "t12_t14_present": {
+            #     "shape": [1],
+            #     "is_time_series": False,
+            #   },
+            #   "numcont": {
+            #       "shape": [1],
+            #       "is_time_series": False,
+            #       "scale": "norm",
+            #       "mean": 583.509533,
+            #       "std": 1019.7064,
+            #   },
+            #   "numcont_present": {
+            #     "shape": [1],
+            #     "is_time_series": False,
+            #   }
           },
       },
       "hparams": {

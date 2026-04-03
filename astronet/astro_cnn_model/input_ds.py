@@ -147,103 +147,40 @@ def build_dataset(file_pattern,
                   shuffle_values_buffer=0,
                   repeat=1,
                   include_identifiers=False,
-                  weight_table=None,
-                  upsample_table=None):
+                  use_cache=False,
+                  apply_data_augmentation=False):
+  """Builds a Tensorflow Dataset from TFrecord files."""
+  filenames = tf.io.gfile.glob(file_pattern)
+  if not filenames:
+    raise ValueError(f"Found no files matching '{file_pattern}'")
+  ds = tf.data.Dataset.from_tensor_slices(filenames)
+  if shuffle_filenames:
+    ds = ds.shuffle(ds.cardinality())
+  ds = ds.flat_map(tf.data.TFRecordDataset)
+  example_parser = ExampleParser(input_config, include_labels,
+                                 include_identifiers)
+  ds = ds.map(example_parser)
+  if use_cache:
+    # Cache the dataset in memory to avoid re-reading it over the network.
+    ds = ds.cache()
+    if shuffle_filenames:
+      logging.warning("Both shuffle_filenames and use_cache are set to true. "
+                      "Filenames will only be shuffled once, not each epoch.")
 
-    def parse_example(serialized_example):
-        """Parses a single tf.Example into feature and label tensors."""
-        
-        data_fields = {
-            feature_name: tf.io.FixedLenFeature(feature.shape, tf.float32)
-            for feature_name, feature in input_config.features.items()
-        }
-        if include_labels:
-            for n in input_config.label_columns:
-                data_fields[n] = tf.io.FixedLenFeature([], tf.int64)
-        if include_identifiers:
-            assert "astro_id" not in data_fields
-            data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
+  if apply_data_augmentation and input_config.get("random_reverse_time_series"):
+    ds = ds.map(TimeSeriesRandomReverser(input_config.features, prob=0.5))
 
+  if shuffle_values_buffer > 0:
+    ds = ds.shuffle(shuffle_values_buffer)
+  if repeat != 1:
+    # Calling repeat() after shuffle() ensures that examples are shuffled
+    # within each epoch, but not between epochs.
+    ds = ds.repeat(repeat)
+  ds = ds.batch(batch_size)
+  ds = ds.prefetch(10)
 
-        parsed_features = tf.io.parse_single_example(serialized_example, features=data_fields)
+  return ds
 
-
-        if include_labels:
-            label_features = [parsed_features.pop(name) for name in input_config.label_columns]
-            labels = tf.stack(label_features)
-            labels_f = tf.cast(labels, tf.float32)
-            labels = tf.cast(tf.minimum(labels, 1), tf.float32)
-
-            weights = tf.reduce_max(labels_f) / tf.maximum(tf.reduce_sum(labels_f), 1.0)
-            if labels[input_config.primary_class] < 1:
-                weights /= 2.0
-
-            if (weight_table is not None) and (astro_id is not None):
-                # lookup returns -1.0 for "no override"
-                extra_weight = weight_table.lookup(astro_id)
-                # if extra_weight > 0, use it; otherwise fall back to base_weight
-                weights = tf.where(extra_weight > 0.0, extra_weight, base_weight)
-            else:
-                weights = base_weight
-
-        if include_identifiers:
-            identifiers = parsed_features.pop("astro_id")
-        else:
-            assert "astro_id" not in parsed_features
-
-        features = {}
-        assert set(parsed_features.keys()) == set(input_config.features.keys())
-        for name, value in parsed_features.items():
-            cfg = input_config.features[name]
-            if not cfg.is_time_series:
-                if getattr(cfg, "scale", None) == "log":
-                    value = tf.cast(value, tf.float64)
-                    value = tf.maximum(value, cfg.min_val)
-                    value = tf.minimum(value, cfg.max_val)
-                    value = value - cfg.min_val + 1
-                    value = tf.math.log(value) / tf.math.log(tf.constant(cfg.max_val, tf.float64))
-                    value = tf.cast(value, tf.float32)
-                elif getattr(cfg, "scale", None) == "norm":
-                    value = (value - cfg["mean"]) / cfg["std"]
-            features[name] = value
-        
-        if include_labels:
-            if (upsample_table is not None) and (astro_id is not None):
-                up_factor = upsample_table.lookup(astro_id)
-            else:
-                up_factor = tf.constant(1, tf.int32)
-            return features, labels, weights, up_factor
-        elif include_identifiers:
-            return features, identifiers
-        return features
-
-
-    filenames = tf.constant(tf.io.gfile.glob(file_pattern), dtype=tf.string)
-    ds = tf.data.Dataset.from_tensor_slices(filenames)
-    ds = ds.flat_map(tf.data.TFRecordDataset)
-    ds = ds.map(parse_example)
-
-    if include_labels and (upsample_table is not None):
-        # expand each example into `up_factor` copies
-        def expand(features, labels, weights, up_factor):
-            single = tf.data.Dataset.from_tensors((features, labels, weights))
-            # ensure up_factor >= 1
-            up_factor = tf.maximum(up_factor, 1)
-            return single.repeat(up_factor)
-
-        ds = ds.flat_map(expand)
-
-    if repeat != 1:
-        ds = ds.cache()
-
-    if shuffle_values_buffer > 0:
-        ds = ds.shuffle(shuffle_values_buffer)
-    if repeat != 1:
-        ds = ds.repeat(repeat)
-    ds = ds.batch(batch_size)
-    ds = ds.prefetch(10)
-
-    return ds
 
 def build_train_dataset(file_pattern,
                         input_config,
@@ -259,6 +196,17 @@ def build_train_dataset(file_pattern,
       use_cache=True,
       apply_data_augmentation=True)
 
-def build_eval_dataset(file_pattern, input_config, batch_size, include_identifiers, include_labels):
+
+def build_eval_dataset(file_pattern,
+                       input_config,
+                       batch_size,
+                       include_identifiers=False,
+                       include_labels=True):
   """Builds a dataset for evaluation."""
-  return build_dataset(file_pattern, input_config, batch_size, include_identifiers=include_identifiers, include_labels=include_labels)
+  return build_dataset(
+      file_pattern,
+      input_config,
+      batch_size,
+      include_identifiers=include_identifiers,
+      include_labels=include_labels,
+      use_cache=False)

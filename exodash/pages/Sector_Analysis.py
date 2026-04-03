@@ -463,6 +463,15 @@ with c4:
 # --- slice df for current page ---
 page_df = subset_df.iloc[start:end]
 
+@st.fragment
+def render_annotation(astro_id, row, model_version, data_version):
+    AnnotationHandler(
+        astro_id=astro_id,
+        row=row,
+        model_version=model_version,
+        data_version=data_version,
+    )
+
 # --- render page items ---
 for j, (_, row) in enumerate(page_df.iterrows(), start=start + 1):
     tic_id = row["tic_id"]
@@ -480,27 +489,27 @@ for j, (_, row) in enumerate(page_df.iterrows(), start=start + 1):
         tfrecord_reports=tfrecord_reports,
     )
 
-    for page in [0, 1, 2, 3, 5, 6, 7]:
-        try:
-            print(f'Trying to get page {page}...')
-            img_path = live_report_generator.generate_summary(
-                tic_id=row["tic_id"],
-                planetno=row["planetno"],
-                ccd=row["ccd"],
-                cam=row["cam"],
-                sector=row["sector"],
-                page_num=page,
-            )
-            st.image(img_path)
-        except Exception:
-            st.warning(f"Failed to locate page {page}")
+    # for page in [0, 1, 2, 3, 5, 6, 7]:
+    #     try:
+    #         print(f'Trying to get page {page}...')
+    #         img_path = live_report_generator.generate_summary(
+    #             tic_id=row["tic_id"],
+    #             planetno=row["planetno"],
+    #             ccd=row["ccd"],
+    #             cam=row["cam"],
+    #             sector=row["sector"],
+    #             page_num=page,
+    #         )
+    #         st.image(img_path)
+    #     except Exception:
+    #         st.warning(f"Failed to locate page {page}")
 
-    AnnotationHandler(
-        astro_id=astro_id,
-        row=row,
-        model_version=os.path.basename(custom_model or MODEL_CONFIG_PATH),
-        data_version="s" + "s".join(str(s) for s in sorted(st.session_state.selected_sectors)),
-    )
+    # render_annotation(
+    #     astro_id=astro_id,
+    #     row=row,
+    #     model_version=os.path.basename(custom_model or MODEL_CONFIG_PATH),
+    #     data_version="s" + "s".join(str(s) for s in sorted(st.session_state.selected_sectors)),
+    # )
 
 df = subset_df
 

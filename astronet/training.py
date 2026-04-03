@@ -112,15 +112,15 @@ def train(model, config, train_files, shuffle_buffer_size=2500):
 
   print("\nUpsample table contents:")
   print(spec[["astro_id", "upsample_factor"]])
-  1/0
+  #1/0
 
   ds = input_ds.build_train_dataset(
       file_pattern=train_files,
       input_config=config.inputs,
       batch_size=config.hparams.batch_size,
       shuffle_values_buffer=shuffle_buffer_size,
-      weight_table=weight_table,
-      upsample_table=upsample_table,
+      #weight_table=weight_table,
+      #upsample_table=upsample_table,
   )
 
   compile_model(model, config)

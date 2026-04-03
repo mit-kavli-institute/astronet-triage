@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -24,12 +23,19 @@ slider_overrides = {
     }
 }
 
-def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
+def advanced_filter_sidebar(df: pd.DataFrame, key: str = "") -> pd.DataFrame:
     """
     Creates a streamlit side panel for advanced filtering for a specified df.
 
     Supports both numeric and categorical labels.
+
+    Pass a unique `key` when using more than one instance on the same page,
+    e.g. key="model_a" and key="model_b" on the comparison page.
     """
+    # Prefix helper — keeps keys identical to the original when key="" 
+    def _k(name: str) -> str:
+        return f"{key}_{name}" if key else name
+
     filtered_df = df.copy()
 
     numeric_features = df.select_dtypes(include=["int", "float"]).columns.tolist()
@@ -37,7 +43,11 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
 
     # Manually specify which numeric fields should use direct input instead of slider
     direct_input_fields = {"astro_id", "tic_id"}
-    selected_num_filters = st.sidebar.multiselect("Select Numeric Features to Filter", numeric_features)
+    selected_num_filters = st.sidebar.multiselect(
+        "Select Numeric Features to Filter",
+        numeric_features,
+        key=_k("num_features_multiselect"),
+    )
 
     for feature in selected_num_filters:
         col = df[feature].dropna()
@@ -49,7 +59,6 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
 
         # Direct input fields (exact match)
         if feature in direct_input_fields:
-            # Choose an appropriate default based on dtype
             if pd.api.types.is_integer_dtype(df[feature]):
                 default_val = int(col.min())
                 value = st.sidebar.number_input(
@@ -57,7 +66,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
                     value=default_val,
                     step=1,
                     format="%d",
-                    key=f"{feature}_direct"
+                    key=_k(f"{feature}_direct"),
                 )
                 value = int(value)
             else:
@@ -65,7 +74,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
                 value = st.sidebar.number_input(
                     f"Enter value for {feature}",
                     value=default_val,
-                    key=f"{feature}_direct"
+                    key=_k(f"{feature}_direct"),
                 )
                 value = float(value)
 
@@ -80,7 +89,6 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
             step = float(config.get("step", 0.1))
             allow_overflow = bool(config.get("allow_overflow", False))
 
-            # Optional: clamp ui_min/ui_max against actual data range to avoid weirdness
             data_min, data_max = float(col.min()), float(col.max())
             ui_min = max(ui_min, data_min)
             ui_max = min(ui_max, data_max) if data_max >= ui_min else ui_min
@@ -91,7 +99,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
                 max_value=ui_max,
                 value=(ui_min, ui_max),
                 step=step,
-                key=f"{feature}_slider"
+                key=_k(f"{feature}_slider"),
             )
 
             mask = (
@@ -103,10 +111,8 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
                 include_over = st.sidebar.checkbox(
                     f"Include {feature} > {ui_max}",
                     value=False,
-                    key=f"{feature}_include_over"
+                    key=_k(f"{feature}_include_over"),
                 )
-
-                # Only extend mask if user maxed slider at cap
                 if include_over and selected_range[1] == ui_max:
                     mask |= (filtered_df[feature] > ui_max)
 
@@ -116,7 +122,6 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
         # Default behavior (data-driven slider)
         min_val, max_val = float(col.min()), float(col.max())
 
-        # If effectively constant, avoid a broken slider
         if np.isclose(min_val, max_val):
             st.sidebar.info(f"'{feature}' is constant ({min_val:g}) — no range filter applied.")
             continue
@@ -126,7 +131,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
             min_value=min_val,
             max_value=max_val,
             value=(min_val, max_val),
-            key=f"{feature}_slider_default"
+            key=_k(f"{feature}_slider_default"),
         )
 
         filtered_df = filtered_df[
@@ -135,7 +140,11 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
         ]
 
     # Allow users to filter categorical features
-    selected_cat_filters = st.sidebar.multiselect("Select Categorical Features to Filter", categorical_features)
+    selected_cat_filters = st.sidebar.multiselect(
+        "Select Categorical Features to Filter",
+        categorical_features,
+        key=_k("cat_features_multiselect"),
+    )
 
     for feature in selected_cat_filters:
         unique_values = df[feature].dropna().unique().tolist()
@@ -145,7 +154,7 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
             f"Filter by {feature}",
             unique_values_with_nan,
             default=unique_values,
-            key=f"{feature}_cat"
+            key=_k(f"{feature}_cat"),
         )
 
         mask = df[feature].isin([v for v in selected_values if v != "NaN"])
@@ -155,16 +164,15 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
         filtered_df = filtered_df[mask]
 
     # Custom filter implementations
-    
-    filter_long_period = st.sidebar.checkbox("Long Period", key="filter_long_period")
+    filter_long_period = st.sidebar.checkbox("Long Period", key=_k("filter_long_period"))
     if filter_long_period:
         filtered_df = filtered_df[filtered_df["period"] >= 20]
 
-    small_planet = st.sidebar.checkbox("Small Planet", key="filter_small_planet")
+    small_planet = st.sidebar.checkbox("Small Planet", key=_k("filter_small_planet"))
     if small_planet:
         filtered_df = filtered_df[filtered_df["planet_radius"] <= 5]
 
-    filter_ebs_by_period = st.sidebar.checkbox("Filter EBs by period", key="filter_ebs_by_period")
+    filter_ebs_by_period = st.sidebar.checkbox("Filter EBs by period", key=_k("filter_ebs_by_period"))
     if filter_ebs_by_period:
         tolerance = 0.05
 
@@ -182,7 +190,10 @@ def advanced_filter_sidebar(df: pd.DataFrame) -> pd.DataFrame:
             .reset_index(drop=True)
         )
 
-    filter_tois_by_qlp_only = st.sidebar.checkbox("Filter TOIs by QLP detection only?", key="filter_tois_by_qlp_only")
+    filter_tois_by_qlp_only = st.sidebar.checkbox(
+        "Filter TOIs by QLP detection only?",
+        key=_k("filter_tois_by_qlp_only"),
+    )
     if filter_tois_by_qlp_only:
         if "detection_pipeline" in filtered_df.columns:
             dp = filtered_df["detection_pipeline"]

@@ -1,4 +1,3 @@
-
 import os
 from typing import Optional
 import pandas as pd
@@ -43,43 +42,66 @@ def annotation_file_selector():
     Allows the user to select which annotation file to use.
     """
 
-def local_navigation_handler() -> Optional[pd.DataFrame]:
+def local_navigation_handler(key: str = "") -> Optional[pd.DataFrame]:
+    """key: unique prefix to namespace all session_state keys for this instance."""
+    _dir_key = f"{key}_current_dir"
+
     st.subheader("Browse Files")
-    if st.button("⬆️ Go up one level"):
-        st.session_state.current_dir = os.path.dirname(st.session_state.current_dir)
+    if st.button("⬆️ Go up one level", key=f"{key}_go_up"):
+        st.session_state[_dir_key] = os.path.dirname(st.session_state[_dir_key])
         st.rerun()
 
-    dirs, files = list_subdirs_and_files(st.session_state.current_dir)
-    selected_dir = st.selectbox(f"Folders (in: {st.session_state.current_dir})", ["<Select a folder>"] + sorted(dirs))
+    dirs, files = list_subdirs_and_files(st.session_state[_dir_key])
+    selected_dir = st.selectbox(
+        f"Folders (in: {st.session_state[_dir_key]})",
+        ["<Select a folder>"] + sorted(dirs),
+        key=f"{key}_dir_select",
+    )
 
     if selected_dir != "<Select a folder>":
-        st.session_state.current_dir = os.path.join(st.session_state.current_dir, selected_dir)
+        st.session_state[_dir_key] = os.path.join(st.session_state[_dir_key], selected_dir)
         st.rerun()
 
-    selected_file = st.selectbox("Files", ["<Select a file>"] + files)
+    selected_file = st.selectbox(
+        "Files",
+        ["<Select a file>"] + files,
+        key=f"{key}_file_select",
+    )
     if selected_file != "<Select a file>":
-        file_path = os.path.join(st.session_state.current_dir, selected_file)
+        file_path = os.path.join(st.session_state[_dir_key], selected_file)
         st.success(f"Selected file: {file_path}")
         return load_uploaded_df(file_path)
     return None
 
 
-def upload_handler() -> Optional[pd.DataFrame]:
+def upload_handler(key: str = "") -> Optional[pd.DataFrame]:
+    """key: unique prefix to namespace all session_state keys for this instance."""
+    _upload_key = f"{key}_uploaded_file"
+
     st.subheader("Upload CSV")
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    uploaded_file = st.file_uploader(
+        "Upload a CSV file",
+        type=["csv"],
+        key=f"{key}_file_uploader",
+    )
     if uploaded_file is not None:
-        st.session_state.uploaded_file = uploaded_file
+        st.session_state[_upload_key] = uploaded_file
         st.success("Uploaded file successfully")
 
-    if 'uploaded_file' in st.session_state:
-        return load_uploaded_df(st.session_state.uploaded_file)
+    if _upload_key in st.session_state:
+        return load_uploaded_df(st.session_state[_upload_key])
     return None
 
 
-def cached_model_handler() -> Optional[pd.DataFrame]:
+def cached_model_handler(key: str = "") -> Optional[pd.DataFrame]:
+    """key: unique prefix to namespace all session_state keys for this instance."""
     _, files = list_subdirs_and_files(CACHE_MODEL_DIR)
     st.subheader("Cached Models")
-    selected_model = st.selectbox("Cached Models", ["<Select a model result>"] + files)
+    selected_model = st.selectbox(
+        "Cached Models",
+        ["<Select a model result>"] + files,
+        key=f"{key}_cached_select",
+    )
     if selected_model != "<Select a model result>":
         file_path = os.path.join(CACHE_MODEL_DIR, selected_model)
         st.success(f"Selected model: {file_path}\n\nPlease wait, loading...")
@@ -87,50 +109,52 @@ def cached_model_handler() -> Optional[pd.DataFrame]:
     return None
 
 
-def direct_path_handler() -> Optional[pd.DataFrame]:
+def direct_path_handler(key: str = "") -> Optional[pd.DataFrame]:
     """
     Load a CSV file or combine multiple result files from a directory.
     Persists the DataFrame in st.session_state so it's remembered across reruns.
+
+    key: unique prefix to namespace all session_state keys for this instance.
     """
+    _path_key = f"{key}_direct_path"
+    _df_key = f"{key}_direct_df"
+
     st.subheader("Load from Direct Path")
 
-    # Initialize session_state keys if missing
-    if "direct_path" not in st.session_state:
-        st.session_state.direct_path = ""
-    if "direct_df" not in st.session_state:
-        st.session_state.direct_df = None
+    if _path_key not in st.session_state:
+        st.session_state[_path_key] = ""
+    if _df_key not in st.session_state:
+        st.session_state[_df_key] = None
 
-    # Text input for path
     path_input = st.text_input(
         "Enter path to CSV file or results directory",
-        value=st.session_state.direct_path,
-        placeholder="/path/to/file.csv or /path/to/results/"
+        value=st.session_state[_path_key],
+        placeholder="/path/to/file.csv or /path/to/results/",
+        key=f"{key}_path_input",
     )
 
-    # Update stored path
-    st.session_state.direct_path = path_input
+    st.session_state[_path_key] = path_input
 
-    # If button clicked OR path already has a cached DataFrame, load/process
-    if st.button("Load from path") or st.session_state.direct_df is None:
+    if st.button("Load from path", key=f"{key}_load_btn") or st.session_state[_df_key] is None:
         path = os.path.expanduser(os.path.expandvars(path_input))
 
         if not path:
             st.warning("Please enter a path.")
-            st.session_state.direct_df = None
+            st.session_state[_df_key] = None
         elif not os.path.exists(path):
             st.error(f"Path not found: {path}")
-            st.session_state.direct_df = None
+            st.session_state[_df_key] = None
         elif os.path.isfile(path):
             if not path.lower().endswith(".csv"):
                 st.error("Only CSV files are supported.")
-                st.session_state.direct_df = None
+                st.session_state[_df_key] = None
             else:
                 try:
                     st.success(f"Loading single file: {path}")
-                    st.session_state.direct_df = load_uploaded_df(path)
+                    st.session_state[_df_key] = load_uploaded_df(path)
                 except Exception as e:
                     st.error(f"Failed to load file: {e}")
-                    st.session_state.direct_df = None
+                    st.session_state[_df_key] = None
         elif os.path.isdir(path):
             st.info(f"Scanning directory: {path}")
             combined_dfs = []
@@ -151,30 +175,37 @@ def direct_path_handler() -> Optional[pd.DataFrame]:
                 else:
                     st.warning(f"No test_exodash_results.csv in {subdir_path}")
             if combined_dfs:
-                st.session_state.direct_df = pd.concat(combined_dfs, ignore_index=True)
+                st.session_state[_df_key] = pd.concat(combined_dfs, ignore_index=True)
                 st.success(f"Loaded {len(combined_dfs)} model result files.")
             else:
                 st.error("No valid result files found in the provided directory.")
-                st.session_state.direct_df = None
+                st.session_state[_df_key] = None
         else:
             st.error(f"Invalid path: {path}")
-            st.session_state.direct_df = None
+            st.session_state[_df_key] = None
 
-    return st.session_state.direct_df
+    return st.session_state[_df_key]
+
 
 def model_result_selector(
     allow_local_navigation: bool = True,
     allow_direct_path: bool = True,
     allow_upload: bool = True,
     allow_cached_models: bool = True,
-    local_root_dir: str = ROOT_DIR
-) -> pd.DataFrame:
+    local_root_dir: str = ROOT_DIR,
+    key: str = "",  # <-- NEW: unique prefix so multiple instances don't collide
+) -> Optional[pd.DataFrame]:
     """
     Display selectable methods for loading model results.
     Each method (local, upload, cached) is placed in its own column if enabled.
+
+    Pass a unique `key` when using more than one instance on the same page,
+    e.g. key="model_a" and key="model_b" on the comparison page.
     """
-    st.session_state.pop("current_dir", None)
-    st.session_state.current_dir = local_root_dir
+    _dir_key = f"{key}_current_dir"
+    # Only reset current_dir on first render for this key
+    if _dir_key not in st.session_state:
+        st.session_state[_dir_key] = local_root_dir
 
     loaders = []
 
@@ -190,7 +221,7 @@ def model_result_selector(
     cols = st.columns(len(loaders))
     for col, loader in zip(cols, loaders):
         with col:
-            result = loader()
+            result = loader(key=key)
             if result is not None:
                 return result
     return None

@@ -7,7 +7,7 @@ from datetime import datetime
 
 class AnnotationHandler:
 
-    PRIMARY_LABELS = ["planet", "eb", "junk", "unclear"]
+    PRIMARY_LABELS = ["planet", "eb", "junk", "unclear", "investigate"]
     SECONDARY_LABELS = ["obvious", "subtle", "systematic"]
 
     def __init__(
@@ -47,7 +47,7 @@ class AnnotationHandler:
         prev = prior.iloc[0] if already_labeled else None
 
         # Astronet scores for context
-        score_cols = [c for c in ["disp_p", "disp_e", "disp_j", "disp_n"] if c in self.row.index]
+        score_cols = [c for c in ["disp_p", "disp_e", "disp_j", "disp_n", "pred_entropy", "pred_margin"] if c in self.row.index]
         if score_cols:
             cols = st.columns(len(score_cols))
             for col, c in zip(cols, score_cols):
