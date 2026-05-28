@@ -122,16 +122,23 @@ def compile_model(model, config):
    ])
 
 
-def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None):
+def train(model, config, train_files, shuffle_buffer_size=2500, exclude_astro_ids=None, weight_table=None):
   """Trains a model."""
   ds = input_ds.build_train_dataset(
       file_pattern=train_files,
       input_config=config.inputs,
       batch_size=config.hparams.batch_size,
       shuffle_values_buffer=shuffle_buffer_size,
-      exclude_astro_ids=exclude_astro_ids  # <-- pass the actual set here
+      exclude_astro_ids=exclude_astro_ids,
+      weight_table=weight_table,
+      live_file_pattern="/pdo/astronet-data/data/tfrecords/extracted/sectors_73_to_84_new_labels.tfrecord",
+      live_sampling_rate=0.005,
   )
 
   compile_model(model, config)
+  # Count live vs main examples in first 10 batches
+  for i, (features, labels, weights) in enumerate(ds.take(10)):
+      live_count = tf.reduce_sum(tf.cast(weights > 5.0, tf.int32)).numpy()
+      print(f"Batch {i}: {live_count}/{config.hparams.batch_size} live-sector examples")
   history = model.fit(ds, steps_per_epoch=config["train_steps"])
   return history

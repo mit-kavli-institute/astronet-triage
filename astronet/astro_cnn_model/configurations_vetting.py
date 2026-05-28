@@ -724,6 +724,7 @@ def pablomer():
       "train_steps": 1000,
       "init_from_pretrained_model": True,
       "freeze_pretrained_params": False,
+      "output_rp": True,
       "inputs": {
           "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
         #   "label_columns": ["disp_p", "disp_e", "disp_j"],
@@ -738,22 +739,400 @@ def pablomer():
         },
       "hparams": {
           "batch_size": 512,
-          "learning_rate": 0.0027897,
-          "learning_rate_schedule": "cosine",
-          "learning_rate_warmup_frac": 0.05,
-          "learning_rate_decay_alpha": 0.01,
+          "learning_rate": 1e-5, #0.0027897
+          "learning_rate_schedule": "constant", #"cosine"
+          "learning_rate_warmup_frac": 0, #0.05
+          "learning_rate_decay_alpha": 0.01, #0.01
           "one_minus_momentum": 0.1,
           "clip_gradient_norm": None,
           "optimizer": "adam",
-          "one_minus_adam_beta_1": 0.0843,
+          "one_minus_adam_beta_1": 0.1, #0.0843
           "one_minus_adam_beta_2": 0.001,
           "adam_epsilon": 1e-07,
-          "weight_decay": 0.2199,
+          "weight_decay": 0.005, #0.2199
           "label_smoothing": 0.0,
-          "use_batch_norm": True,
+          "use_batch_norm": False,
           "num_pre_logits_hidden_layers": 4,
           "pre_logits_hidden_layer_size": 512,
-          "pre_logits_dropout_rate": 0.22457,
+          "pre_logits_dropout_rate": 0.2, #0.22457
+          "aux_inputs": triage_config["hparams"]["aux_inputs"],
+          "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
+      },
+  }
+
+  # Add extra vetting time series.
+  config["inputs"]["features"].update({
+      "local_aperture_s": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_m": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_l": {
+          "shape": [61],
+          "is_time_series": True,
+      }
+  })
+  config["hparams"]["time_series_hidden"].update({
+      "local_aperture_s": {
+          "cnn_num_blocks": 3,
+          "cnn_block_size": 1,
+          "cnn_initial_num_filters": 16,
+          "cnn_block_filter_factor": 2,
+          "cnn_kernel_size": 5,
+          "convolution_padding": "same",
+          "pool_size": 5,
+          "pool_strides": 2,
+          "separable": False,
+          "extra_channels": ["local_aperture_m", "local_aperture_l"],
+      }
+  })
+
+  return config
+
+def pablomer_base():
+  triage_config = configurations.pablomer()
+
+  config = {
+      "train_steps": 3000,
+      "init_from_pretrained_model": True,
+      "freeze_pretrained_params": False,
+      "output_rp": True,
+      "inputs": {
+          "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
+        #   "label_columns": ["disp_p", "disp_e", "disp_j"],
+          "exclusive_labels": True,
+        #   "label_scheme": "maximum",
+          "label_scheme": "binary",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": True,
+          "features": triage_config["inputs"]["features"],
+        },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 1e-5, #0.0027897
+          "learning_rate_schedule": "constant", #"cosine"
+          "learning_rate_warmup_frac": 0, #0.05
+          "learning_rate_decay_alpha": 0.01, #0.01
+          "one_minus_momentum": 0.1,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1, #0.0843
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.005, #0.2199
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.2, #0.22457
+          "aux_inputs": triage_config["hparams"]["aux_inputs"],
+          "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
+      },
+  }
+
+  # Add extra vetting time series.
+  config["inputs"]["features"].update({
+      "local_aperture_s": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_m": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_l": {
+          "shape": [61],
+          "is_time_series": True,
+      }
+  })
+  config["hparams"]["time_series_hidden"].update({
+      "local_aperture_s": {
+          "cnn_num_blocks": 3,
+          "cnn_block_size": 1,
+          "cnn_initial_num_filters": 16,
+          "cnn_block_filter_factor": 2,
+          "cnn_kernel_size": 5,
+          "convolution_padding": "same",
+          "pool_size": 5,
+          "pool_strides": 2,
+          "separable": False,
+          "extra_channels": ["local_aperture_m", "local_aperture_l"],
+      }
+  })
+
+  return config
+
+
+def pablomer_final():
+  triage_config = configurations.pablomer()
+
+  config = {
+      "train_steps": 3000,
+      "init_from_pretrained_model": True,
+      "freeze_pretrained_params": False,
+      "output_rp": True,
+      "inputs": {
+          "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
+        #   "label_columns": ["disp_p", "disp_e", "disp_j"],
+          "exclusive_labels": True,
+        #   "label_scheme": "maximum",
+          "label_scheme": "binary",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": True,
+          "features": triage_config["inputs"]["features"],
+        },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 1e-5, #0.0027897
+          "learning_rate_schedule": "constant", #"cosine"
+          "learning_rate_warmup_frac": 0, #0.05
+          "learning_rate_decay_alpha": 0.01, #0.01
+          "one_minus_momentum": 0.1,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1, #0.0843
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.021, #0.2199
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.016, #0.22457
+          "aux_inputs": triage_config["hparams"]["aux_inputs"],
+          "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
+      },
+  }
+
+  # Add extra vetting time series.
+  config["inputs"]["features"].update({
+      "local_aperture_s": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_m": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_l": {
+          "shape": [61],
+          "is_time_series": True,
+      }
+  })
+  config["hparams"]["time_series_hidden"].update({
+      "local_aperture_s": {
+          "cnn_num_blocks": 3,
+          "cnn_block_size": 1,
+          "cnn_initial_num_filters": 16,
+          "cnn_block_filter_factor": 2,
+          "cnn_kernel_size": 5,
+          "convolution_padding": "same",
+          "pool_size": 5,
+          "pool_strides": 2,
+          "separable": False,
+          "extra_channels": ["local_aperture_m", "local_aperture_l"],
+      }
+  })
+
+  return config
+
+
+
+def pablomer_cosine():
+  triage_config = configurations.pablomer()
+
+  config = {
+      "train_steps": 1000,
+      "init_from_pretrained_model": True,
+      "freeze_pretrained_params": False,
+      "inputs": {
+          "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
+        #   "label_columns": ["disp_p", "disp_e", "disp_j"],
+          "exclusive_labels": True,
+        #   "label_scheme": "maximum",
+          "label_scheme": "binary",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": False,
+          "features": triage_config["inputs"]["features"],
+        },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 0.00295, #0.0027897
+          "learning_rate_schedule": "cosine", #"cosine"
+          "learning_rate_warmup_frac": 0.05, #0.05
+          "learning_rate_decay_alpha": 0.01, #0.01
+          "one_minus_momentum": 0.056,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1, #0.0843
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.40, #0.2199
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.315, #0.22457
+          "aux_inputs": triage_config["hparams"]["aux_inputs"],
+          "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
+      },
+  }
+
+  # Add extra vetting time series.
+  config["inputs"]["features"].update({
+      "local_aperture_s": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_m": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_l": {
+          "shape": [61],
+          "is_time_series": True,
+      }
+  })
+  config["hparams"]["time_series_hidden"].update({
+      "local_aperture_s": {
+          "cnn_num_blocks": 3,
+          "cnn_block_size": 1,
+          "cnn_initial_num_filters": 16,
+          "cnn_block_filter_factor": 2,
+          "cnn_kernel_size": 5,
+          "convolution_padding": "same",
+          "pool_size": 5,
+          "pool_strides": 2,
+          "separable": False,
+          "extra_channels": ["local_aperture_m", "local_aperture_l"],
+      }
+  })
+
+  return config
+
+def pablomer_cosine_aftertuning_():
+  """Cosine config updated with best Optuna phase2 params (2026-02-19)."""
+  triage_config = configurations.pablomer()
+
+  config = {
+      "train_steps": 3000,
+      "init_from_pretrained_model": False,
+      "freeze_pretrained_params": False,
+      "inputs": {
+          "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
+        #   "label_columns": ["disp_p", "disp_e", "disp_j"],
+          "exclusive_labels": True,
+        #   "label_scheme": "maximum",
+          "label_scheme": "binary",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": False,
+          "features": triage_config["inputs"]["features"],
+        },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 0.000872793644083183,
+          "learning_rate_schedule": "cosine",
+          "learning_rate_warmup_frac": 0.05,
+          "learning_rate_decay_alpha": 0.01,
+          "one_minus_momentum": 0.056,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1,
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.36975421082937326,
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.1125,
+          "aux_inputs": triage_config["hparams"]["aux_inputs"],
+          "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
+      },
+  }
+
+  # Add extra vetting time series.
+  config["inputs"]["features"].update({
+      "local_aperture_s": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_m": {
+          "shape": [61],
+          "is_time_series": True,
+      },
+      "local_aperture_l": {
+          "shape": [61],
+          "is_time_series": True,
+      }
+  })
+  config["hparams"]["time_series_hidden"].update({
+      "local_aperture_s": {
+          "cnn_num_blocks": 3,
+          "cnn_block_size": 1,
+          "cnn_initial_num_filters": 16,
+          "cnn_block_filter_factor": 2,
+          "cnn_kernel_size": 5,
+          "convolution_padding": "same",
+          "pool_size": 5,
+          "pool_strides": 2,
+          "separable": False,
+          "extra_channels": ["local_aperture_m", "local_aperture_l"],
+      }
+  })
+
+  return config
+
+
+def dimond_final():
+  triage_config = configurations.dimond()
+
+  config = {
+      "train_steps": 3000,
+      "init_from_pretrained_model": True,
+      "freeze_pretrained_params": False,
+      "output_rp": True,
+      "inputs": {
+          "label_columns": ["disp_p", "disp_e", "disp_n", "disp_j"],
+        #   "label_columns": ["disp_p", "disp_e", "disp_j"],
+          "exclusive_labels": True,
+        #   "label_scheme": "maximum",
+          "label_scheme": "binary",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": True,
+          "features": triage_config["inputs"]["features"],
+        },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 1e-5, #0.0027897
+          "learning_rate_schedule": "constant", #"cosine"
+          "learning_rate_warmup_frac": 0, #0.05
+          "learning_rate_decay_alpha": 0.01, #0.01
+          "one_minus_momentum": 0.1,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1, #0.0843
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "weight_decay": 0.021, #0.2199
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.016, #0.22457
           "aux_inputs": triage_config["hparams"]["aux_inputs"],
           "time_series_hidden": triage_config["hparams"]["time_series_hidden"]
       },

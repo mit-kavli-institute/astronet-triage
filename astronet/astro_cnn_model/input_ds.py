@@ -20,12 +20,13 @@ from absl import logging
 class ExampleParser:
   """Function to parse a single tf.Example into feature and label tensors."""
 
-  def __init__(self, config, include_labels=False, include_identifiers=False):
+  def __init__(self, config, include_labels=False, include_identifiers=False, weight_table=None):
     if include_labels and include_identifiers:
       logging.warning("Both 'include_labels' and 'include_identifiers' are set. This is discouraged and may cause unexpected behavior.")
     self.config = config
     self.include_labels = include_labels
     self.include_identifiers = include_identifiers
+    self.weight_table = weight_table
 
   def _extract_features(self, parsed_features):
     """Extracts and processes features from raw parsed features."""
@@ -87,7 +88,6 @@ class ExampleParser:
     return labels, weight
 
   def __call__(self, serialized_example):
-    """Parses a single tf.Example into feature and label tensors."""
     data_fields = {
         feature_name: tf.io.FixedLenFeature(feature.shape, tf.float32)
         for feature_name, feature in self.config.features.items()
@@ -95,21 +95,30 @@ class ExampleParser:
     if self.include_labels:
       for name in self.config.label_columns:
         data_fields[name] = tf.io.FixedLenFeature([], tf.int64)
-    if self.include_identifiers:
-      assert "astro_id" not in data_fields
-      data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
+    if self.include_identifiers or self.weight_table is not None:
+      if "astro_id" not in data_fields:
+        data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
 
     parsed_features = tf.io.parse_single_example(
         serialized_example, features=data_fields)
 
     features = self._extract_features(parsed_features)
-
     if self.include_labels and self.include_identifiers:
        labels, weight = self._extract_labels(parsed_features)
+       if self.weight_table is not None:
+         astro_id = parsed_features["astro_id"]
+         weight = weight * self.weight_table.lookup(astro_id)
+         table_weight = self.weight_table.lookup(astro_id)
+         if table_weight > 5:
+          tf.print("astro_id:", astro_id, "table_weight:", table_weight, "base_weight:", weight)
+
        identifiers = parsed_features.pop("astro_id")
        return features, labels, weight, identifiers
     elif self.include_labels:
         labels, weight = self._extract_labels(parsed_features)
+        if self.weight_table is not None:
+          astro_id = parsed_features["astro_id"]
+          weight = weight * self.weight_table.lookup(astro_id)
         return features, labels, weight
     elif self.include_identifiers:
         identifiers = parsed_features.pop("astro_id")
@@ -150,9 +159,14 @@ def build_dataset(file_pattern,
                   include_identifiers=False,
                   use_cache=False,
                   apply_data_augmentation=False,
-                  exclude_astro_ids=None):
+                  exclude_astro_ids=None,
+                  weight_table=None):
   """Builds a Tensorflow Dataset from TFrecord files."""
-  filenames = tf.io.gfile.glob(file_pattern)
+  filenames = [
+      f
+      for pattern in file_pattern.split(",")
+      for f in tf.io.gfile.glob(pattern.strip())
+  ]
   if not filenames:
     raise ValueError(f"Found no files matching '{file_pattern}'")
   ds = tf.data.Dataset.from_tensor_slices(filenames)
@@ -160,10 +174,13 @@ def build_dataset(file_pattern,
     ds = ds.shuffle(ds.cardinality())
   ds = ds.flat_map(tf.data.TFRecordDataset)
 
-  # If we need to filter, always parse identifiers
-  parse_identifiers = include_identifiers or (exclude_astro_ids is not None)
-  example_parser = ExampleParser(input_config, include_labels, parse_identifiers)
+  parse_identifiers = include_identifiers or (exclude_astro_ids is not None) or (weight_table is not None)
+  example_parser = ExampleParser(
+      input_config, include_labels, parse_identifiers,
+      weight_table=weight_table,
+  )
   ds = ds.map(example_parser)
+
 
   # Filtering step
   if exclude_astro_ids is not None:
@@ -188,6 +205,9 @@ def build_dataset(file_pattern,
               return args[:-1]  # drop the last element (astro_id)
           ds = ds.map(strip_identifiers)
 
+  if shuffle_values_buffer > 0:
+    ds = ds.shuffle(shuffle_values_buffer)
+
   if use_cache:
     # Cache the dataset in memory to avoid re-reading it over the network.
     ds = ds.cache()
@@ -198,8 +218,6 @@ def build_dataset(file_pattern,
   if apply_data_augmentation and input_config.get("random_reverse_time_series"):
     ds = ds.map(TimeSeriesRandomReverser(input_config.features, prob=0.5))
 
-  if shuffle_values_buffer > 0:
-    ds = ds.shuffle(shuffle_values_buffer)
   if repeat != 1:
     # Calling repeat() after shuffle() ensures that examples are shuffled
     # within each epoch, but not between epochs.
@@ -214,17 +232,65 @@ def build_train_dataset(file_pattern,
                         input_config,
                         batch_size,
                         shuffle_values_buffer=2500,
-                        exclude_astro_ids=None):
-  """Builds a dataset for training."""
-  return build_dataset(
-      file_pattern,
-      input_config,
-      batch_size,
-      shuffle_values_buffer=shuffle_values_buffer,
-      repeat=None,
-      use_cache=True,
-      apply_data_augmentation=True,
-      exclude_astro_ids=exclude_astro_ids)
+                        exclude_astro_ids=None,
+                        weight_table=None,
+                        live_file_pattern=None,
+                        live_sampling_rate=10):
+    """Builds a dataset for training."""
+    def make_base_ds(pattern, weight_table=None):
+          filenames = [
+              f
+              for p in pattern.split(",")
+              for f in tf.io.gfile.glob(p.strip())
+          ]
+          if not filenames:
+              raise ValueError(f"Found no files matching '{pattern}'")
+          ds = tf.data.Dataset.from_tensor_slices(filenames)
+          ds = ds.shuffle(len(filenames))
+          ds = ds.flat_map(tf.data.TFRecordDataset)
+          parser = ExampleParser(input_config, include_labels=True, include_identifiers=False, weight_table=weight_table)
+          ds = ds.map(parser)
+          return ds
+
+    if live_file_pattern:
+        live_files = [
+          f for p in live_file_pattern.split(",")
+          for f in tf.io.gfile.glob(p.strip())
+        ]
+        print(f"Live files found: {live_files}")
+        main_ds = make_base_ds(file_pattern)
+        main_ds = main_ds.cache()
+        main_ds = main_ds.shuffle(shuffle_values_buffer)
+        main_ds = main_ds.repeat()
+
+        live_ds = make_base_ds(live_file_pattern, weight_table=weight_table)
+        live_check = make_base_ds(live_file_pattern, weight_table=weight_table)
+
+        live_ds = live_ds.repeat()  # no cache — small enough to re-read each time
+        for features, labels, weight in live_check.take(1):
+          print(f"Live ds OK - labels: {labels.numpy()}, weight: {weight.numpy()}")
+
+        ds = tf.data.Dataset.sample_from_datasets(
+            [main_ds, live_ds],
+            weights=[1.0 - live_sampling_rate, live_sampling_rate],
+            stop_on_empty_dataset=False,
+        )
+    else:
+        # Original path unchanged
+        ds = make_base_ds(file_pattern, weight_table=weight_table)
+        ds = ds.cache()
+        ds = ds.shuffle(shuffle_values_buffer)
+        ds = ds.repeat()
+
+    if input_config.get("random_reverse_time_series"):
+        ds = ds.map(TimeSeriesRandomReverser(input_config.features, prob=0.5))
+
+    if exclude_astro_ids is not None:
+        exclude_tf = tf.constant(list(exclude_astro_ids), dtype=tf.int64)
+        ds = ds.filter(lambda f, l, w: ~tf.reduce_any(tf.equal(tf.cast(f.get("astro_id", -1), tf.int64), exclude_tf)))
+    ds = ds.batch(batch_size)
+    ds = ds.prefetch(10)
+    return ds
 
 
 def build_eval_dataset(file_pattern,

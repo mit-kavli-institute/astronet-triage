@@ -79,6 +79,40 @@ flags.DEFINE_bool(
 
 FLAGS = flags.FLAGS
 
+def make_weight_table(spec_df: pd.DataFrame,
+                      astro_col: str = "astro_id",
+                      weight_col: str = "sample_weight",
+                      default_weight: float = 1.0):
+    """
+    Build a StaticHashTable for per-example sample weights.
+    Missing astro_ids fall back to `default_weight`.
+    
+    spec_df: pd.DataFrame that may be sparse (only override rows).
+    """
+
+    # Only keep rows where weight_col is present & non-null
+    df = spec_df[[astro_col, weight_col]].dropna()
+
+    if len(df) == 0:
+        # Return a table that always returns default
+        return tf.lookup.StaticHashTable(
+            initializer=tf.lookup.KeyValueTensorInitializer(
+                keys=tf.constant([], tf.int64),
+                values=tf.constant([], tf.float32),
+            ),
+            default_value=tf.constant(default_weight, tf.float32),
+        )
+
+    # Cast to TensorFlow-friendly dtypes
+    keys = tf.constant(df[astro_col].astype("int64").values)
+    vals = tf.constant(df[weight_col].astype("float32").values)
+
+    table = tf.lookup.StaticHashTable(
+        initializer=tf.lookup.KeyValueTensorInitializer(keys, vals),
+        default_value=tf.constant(default_weight, tf.float32),
+    )
+    return table
+
 def dump_block_weights(model, filepath):
     """
     Logs each block’s weights (with their Keras names) and saves them into a .npz archive.
@@ -200,6 +234,12 @@ def main(_):
   # Before training, print the model summary.
   logging.info("Model summary:")
   model.summary()
+  spec = pd.read_parquet("/pdo/users/dimond/train_spec_sectors_73_to_84_no_j.parquet")
+  weight_table = make_weight_table(spec)
+  print()
+  print("Weight table contents:")
+  print(spec[["astro_id", "sample_weight"]])
+
 
   # Train and save model.
   training.train(
@@ -207,7 +247,8 @@ def main(_):
       config,
       train_files=FLAGS.train_files,
       shuffle_buffer_size=FLAGS.shuffle_buffer_size,
-      exclude_astro_ids=exclude_astro_ids  # pass it here
+      exclude_astro_ids=exclude_astro_ids,
+      weight_table=weight_table
   )
 
   # Save the model in the specified format.
