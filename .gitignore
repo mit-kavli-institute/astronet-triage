@@ -1,3 +1,13 @@
 *.pyc
 config.yaml
 .pylintrc.swp
+
+# --- v3.1.0: keep main code-only (notebooks/data/scratch outputs) ---
+*.ipynb
+*.html
+*.pkl
+*.npy
+*.zip
+ensemble_preds/
+pr_data_*.json
+rp_filter/*.csv

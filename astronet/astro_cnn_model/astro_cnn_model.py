@@ -94,8 +94,43 @@ class AstroCNNModel(tf.keras.Model):
         for name in sorted(self.ts_blocks)
     ]
 
-  def call(self, inputs, training):
+  def backbone(self, inputs, training=False):
+    """Extracts backbone features (convolutional blocks + aux inputs).
+
+    Args:
+      inputs: Dictionary of input features.
+      training: Whether the model is in training mode.
+
+    Returns:
+      Concatenated feature vector from all time-series blocks and aux inputs.
+    """
     y = self.apply_ts_blocks(inputs, training)
     y.extend([inputs[key] for key in self.config.hparams.aux_inputs])
-    y = self.dense_block(tf.concat(y, axis=-1), training)
+    return tf.concat(y, axis=-1)
+
+  def head(self, features, training=False):
+    """Applies the fully connected head to backbone features.
+
+    Args:
+      features: Concatenated feature vector from backbone.
+      training: Whether the model is in training mode.
+
+    Returns:
+      Model predictions (logits/probabilities).
+    """
+    y = self.dense_block(features, training)
     return self.output_layer(y)
+
+  def get_embeddings(self, inputs, training=False):
+      """Returns the latent space embeddings (output of dense block)."""
+      # 1. Get the concatenated features (CNN + Aux)
+      backbone_feats = self.backbone(inputs, training=training)
+
+      # 2. Pass through the dense block (The Fusion/Mixing happen here)
+      embeddings = self.dense_block(backbone_feats, training=training)
+
+      return embeddings
+
+  def call(self, inputs, training):
+    y = self.backbone(inputs, training)
+    return self.head(y, training)

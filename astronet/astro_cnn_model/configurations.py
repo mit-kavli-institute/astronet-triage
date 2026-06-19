@@ -4455,11 +4455,15 @@ def cshallue():
       "hparams": {
           "batch_size": 512,
           "learning_rate": 0.001735,
+          "learning_rate_schedule": "constant",
+          "learning_rate_warmup_frac": 0.05,
+          "learning_rate_decay_alpha": 0.0,
           "clip_gradient_norm": None,
           "optimizer": "adam",
           "one_minus_adam_beta_1": 0.1,
           "one_minus_adam_beta_2": 0.001,
           "adam_epsilon": 1e-07,
+          "one_minus_momentum": 0.1,
           "weight_decay": 0.4375,
           "label_smoothing": 0.0,
           "use_batch_norm": False,
@@ -4499,6 +4503,506 @@ def cshallue():
                       1,
                   "cnn_initial_num_filters":
                       17,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      3,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      5,
+                  "pool_strides":
+                      1,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "global_std",
+                      "global_mask",
+                      "global_transit_mask",
+                      "global_view_0.3",
+                      "global_view_5.0",
+                  ],
+              },
+              "global_view_double_period": {
+                  "cnn_num_blocks":
+                      3,
+                  "cnn_block_size":
+                      1,
+                  "cnn_initial_num_filters":
+                      16,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      3,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      7,
+                  "pool_strides":
+                      2,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "global_view_double_period_0.3",
+                      "global_view_double_period_5.0",
+                  ],
+              },
+              "local_view": {
+                  "cnn_num_blocks":
+                      3,
+                  "cnn_block_size":
+                      1,
+                  "cnn_initial_num_filters":
+                      16,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      3,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      7,
+                  "pool_strides":
+                      1,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "local_std",
+                      "local_mask",
+                      "local_view_0.3",
+                      "local_view_5.0",
+                      "local_view_odd",
+                      "local_std_odd",
+                      "local_view_even",
+                      "local_std_even",
+                      "local_view_half_period_std",
+                  ],
+              },
+              "secondary_view": {
+                  "cnn_num_blocks":
+                      3,
+                  "cnn_block_size":
+                      1,
+                  "cnn_initial_num_filters":
+                      16,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      3,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      7,
+                  "pool_strides":
+                      1,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "secondary_std",
+                      "secondary_mask",
+                      "secondary_view_0.3",
+                      "secondary_view_5.0",
+                  ],
+              },
+              "sample_segments_view": {
+                  "cnn_num_blocks":
+                      3,
+                  "cnn_block_size":
+                      1,
+                  "cnn_initial_num_filters":
+                      51,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      3,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      7,
+                  "pool_strides":
+                      2,
+                  "multichannel":
+                      True,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "sample_segments_view_0.3",
+                      "sample_segments_view_5.0",
+                  ],
+              },
+              "sample_segments_local_view": {
+                  "cnn_num_blocks":
+                      3,
+                  "cnn_block_size":
+                      1,
+                  "cnn_initial_num_filters":
+                      51,
+                  "cnn_block_filter_factor":
+                      2,
+                  "cnn_kernel_size":
+                      3,
+                  "convolution_padding":
+                      "same",
+                  "pool_size":
+                      7,
+                  "pool_strides":
+                      2,
+                  "multichannel":
+                      True,
+                  "separable":
+                      False,
+                  "extra_channels": [
+                      "sample_segments_local_view_0.3",
+                      "sample_segments_local_view_5.0",
+                  ],
+              },
+          },
+      },
+  }
+
+  return config
+
+
+def pablomer():
+  config = {
+      "train_steps": 1000,
+      "inputs": {
+          "label_columns": ["disp_E", "disp_N", "disp_J", "disp_S", "disp_B"],
+          "exclusive_labels": False,
+          "label_scheme": "maximum",
+          "uncertainty_weight": False,
+          "non_primary_downweight_factor": 2.0,
+          "primary_class": 0,
+          "random_reverse_time_series": False,
+          "features": {
+              "global_view": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_std": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_mask": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_transit_mask": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_view_0.3": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_view_5.0": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "local_view": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_std": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_mask": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_view_0.3": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_view_5.0": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_view_odd": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_std_odd": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_view_even": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_std_even": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "local_view_half_period_std": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "secondary_view": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "secondary_std": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "secondary_mask": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "secondary_view_0.3": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "secondary_view_5.0": {
+                  "shape": [61],
+                  "is_time_series": True,
+              },
+              "global_view_double_period": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_view_double_period_0.3": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "global_view_double_period_5.0": {
+                  "shape": [201],
+                  "is_time_series": True,
+              },
+              "sample_segments_view": {
+                  "shape": [201, 14],
+                  "is_time_series": True,
+              },
+              "sample_segments_view_0.3": {
+                  "shape": [201, 14],
+                  "is_time_series": True,
+              },
+              "sample_segments_view_5.0": {
+                  "shape": [201, 14],
+                  "is_time_series": True,
+              },
+              "sample_segments_local_view": {
+                  "shape": [61, 16],
+                  "is_time_series": True,
+              },
+              "sample_segments_local_view_0.3": {
+                  "shape": [61, 16],
+                  "is_time_series": True,
+              },
+              "sample_segments_local_view_5.0": {
+                  "shape": [61, 16],
+                  "is_time_series": True,
+              },
+              "Period": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 16.425697,
+                  "std": 27.911264,
+              },
+              "Duration": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.263291,
+                  "std": 0.741017,
+              },
+              "Transit_Depth": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "log",
+                  "min_val": 0,
+                  "max_val": 3.879001e+11,
+              },
+              "Tmag": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 9.204857,
+                  "std": 1.604575,
+              },
+              "star_mass": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.741020,
+                  "std": 0.815089,
+              },
+              "star_mass_present": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "star_rad": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 6.826552,
+                  "std": 10.290280,
+              },
+              "star_rad_present": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "star_rad_est": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 14.754913,
+                  "std": 60.912751,
+              },
+              "star_rad_est_present": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "n_folds": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "log",
+                  "min_val": 0,
+                  "max_val": 100,
+              },
+              "secondary_phase": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.497270,
+                  "std": 0.200908,
+              },
+              "secondary_phase_0.3": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.497270,
+                  "std": 0.200908,
+              },
+              "secondary_phase_5.0": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.497270,
+                  "std": 0.200908,
+              },
+              "local_scale": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.019245,
+                  "std": 0.114780,
+              },
+              "local_scale_present": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "local_scale_0.3": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.019245,
+                  "std": 0.114780,
+              },
+              "local_scale_present_0.3": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "local_scale_5.0": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.019245,
+                  "std": 0.114780,
+              },
+              "local_scale_present_5.0": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "secondary_scale": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.006294,
+                  "std": 0.032557,
+              },
+              "secondary_scale_present": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "secondary_scale_0.3": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.006294,
+                  "std": 0.032557,
+              },
+              "secondary_scale_present_0.3": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+              "secondary_scale_5.0": {
+                  "shape": [1],
+                  "is_time_series": False,
+                  "scale": "norm",
+                  "mean": 0.006294,
+                  "std": 0.032557,
+              },
+              "secondary_scale_present_5.0": {
+                  "shape": [1],
+                  "is_time_series": False,
+              },
+          },
+      },
+      "hparams": {
+          "batch_size": 512,
+          "learning_rate": 0.001735,
+          "learning_rate_schedule": "cosine", #"cosine or "constant"
+          "learning_rate_warmup_frac": 0.05,
+          "learning_rate_decay_alpha": 0.0,
+          "clip_gradient_norm": None,
+          "optimizer": "adam",
+          "one_minus_adam_beta_1": 0.1,
+          "one_minus_adam_beta_2": 0.001,
+          "adam_epsilon": 1e-07,
+          "one_minus_momentum": 0.1,
+          "weight_decay": 0.4375,
+          "label_smoothing": 0.0,
+          "use_batch_norm": False,
+          "num_pre_logits_hidden_layers": 4,
+          "pre_logits_hidden_layer_size": 512,
+          "pre_logits_dropout_rate": 0.4588,
+          "aux_inputs": [
+              "Period",
+              "Duration",
+              "Transit_Depth",
+              "Tmag",
+              "star_mass",
+              "star_mass_present",
+              "star_rad",
+              "star_rad_present",
+              "star_rad_est",
+              "star_rad_est_present",
+              "n_folds",
+              "local_scale",
+              "local_scale_0.3",
+              "local_scale_5.0",
+              "local_scale_present",
+              "local_scale_present_0.3",
+              "local_scale_present_5.0",
+              "secondary_scale",
+              "secondary_scale_0.3",
+              "secondary_scale_5.0",
+              "secondary_scale_present",
+              "secondary_scale_present_0.3",
+              "secondary_scale_present_5.0",
+          ],
+          "time_series_hidden": {
+              "global_view": {
+                  "cnn_num_blocks":
+                      3,
+                  "cnn_block_size":
+                      1,
+                  "cnn_initial_num_filters":
+                      16,
                   "cnn_block_filter_factor":
                       2,
                   "cnn_kernel_size":

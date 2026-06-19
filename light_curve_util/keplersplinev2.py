@@ -49,19 +49,21 @@ def split(all_time, all_flux, gap_width=0.75):
 
 THREE_SIGMA_FACTOR = -0.15405 + (0.90723 + (-0.23584 + 0.020142 * 3) * 3) * 3
 
-def robust_mean_mask(y):
-  """Optimized version of robust_mean."""
-  absdev = np.abs(y - np.median(y))
-  sigma = 1.4826 * np.median(absdev)
+def robust_mean_mask(y, threshold=3):
+    """Optimized version of robust_mean."""
+    absdev = np.abs(y - np.median(y))
+    sigma = 1.4826 * np.median(absdev)
 
-  if sigma < 1.0e-24:
-    sigma = 1.253 * np.mean(absdev)
+    if sigma < 1.0e-24:
+        sigma = 1.253 * np.mean(absdev)
 
-  mask = absdev <= 3 * sigma
+    mask = absdev <= threshold * sigma
 
-  sigma = np.std(y[mask]) / THREE_SIGMA_FACTOR
+    # Calculate the appropriate factor for the given threshold
+    sigma_factor = -0.15405 + (0.90723 + (-0.23584 + 0.020142 * threshold) * threshold) * threshold
+    sigma = np.std(y[mask]) / sigma_factor
 
-  return absdev <= 3 * sigma
+    return absdev <= threshold * sigma
 
 def robust_mean(y, cut):
   """Computes a robust mean estimate in the presence of outliers.
@@ -303,14 +305,13 @@ def choose_kepler_spline(all_time,
   # standard deviation of a normal distribution. See, e.g.
   # https://www.mathworks.com/help/stats/mad.html.
   sigma = np.median(np.abs(scaled_diffs)) * 1.48
-    
 
   #Now if we don't input any input mask we need to create a set of input masks that are all true
-  if np.all(all_input_mask == None): 
+  if np.all(all_input_mask == None):
         all_input_mask = []
         for eachtime in all_time:
             all_input_mask.append(np.ones_like(eachtime, dtype=bool))
-            
+
   for bkspace in bkspaces:
     nparams = 0  # Total number of free parameters in the piecewise spline.
     npoints = 0  # Total number of data points used to fit the piecewise spline.
@@ -381,11 +382,11 @@ def choose_kepler_spline(all_time,
     metadata.input_light_curve_mask = [
         np.zeros_like(f, dtype=bool) for f in all_flux
     ]
-    
+
   return best_spline, metadata
 
 
-def choosekeplersplinev2(time, flux, bkspace_min=0.5, bkspace_max=20, bkspace_num=20, 
+def choosekeplersplinev2(time, flux, bkspace_min=0.5, bkspace_max=20, bkspace_num=20,
                          maxiter=5, input_mask=None, gap_width_in=None,
                          return_metadata=False, fixed_bkspace=None):
     if gap_width_in == None:
@@ -395,24 +396,24 @@ def choosekeplersplinev2(time, flux, bkspace_min=0.5, bkspace_max=20, bkspace_nu
     if np.all(input_mask == None):
         input_mask = np.ones(len(time), dtype=bool)
 
-    all_time, all_flux = split(time, flux, gap_width=gap_width_in) 
+    all_time, all_flux = split(time, flux, gap_width=gap_width_in)
     all_time2, all_input_mask = split(time, input_mask, gap_width=gap_width_in)
-    
+
     if fixed_bkspace:
         bkspaces = [fixed_bkspace]
     else:
         bkspaces = np.logspace(
           np.log10(bkspace_min), np.log10(bkspace_max), num=bkspace_num)
-    
+
     spline, metadata = choose_kepler_spline(
         all_time, all_flux, bkspaces=bkspaces, all_input_mask=all_input_mask)
-    
+
     spline = np.concatenate(spline)
     assert len(spline) == len(flux) == len(time), (len(spline), len(time), len(flux))
-    
+
     metadata.light_curve_mask = np.concatenate(metadata.light_curve_mask)
     metadata.input_light_curve_mask = np.concatenate(metadata.input_light_curve_mask)
-    
+
     if return_metadata:
         return spline, metadata
     return spline

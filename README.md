@@ -1,3 +1,8 @@
+> ⚠️ **BIG UPDATE — June 2026 (Pablo).** New astronet-vetting 10-model ensemble +
+> cadence-aware preprocessing landed in **`v3.1.0`**. The QLP pipeline runs the shared
+> `/sw/astronet` (updated by swadm); for your own dev clone see [UPDATING.md](UPDATING.md).
+> If something regressed, the rollback point is **`v3.0.1`** — see [CHANGELOG.md](CHANGELOG.md).
+
 This is a variation of the Liang model found in https://github.com/yuliang419/Astronet-Vetting.
 
 # Usage

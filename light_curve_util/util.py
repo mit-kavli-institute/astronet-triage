@@ -45,7 +45,6 @@ def phase_fold_time(time, period, t0):
   fold_num = fold_num.astype(int)
   result -= half_period
   return result, fold_num
-    
 
 def split(all_time, all_flux, gap_width=0.75):
   """Splits a light curve on discontinuities (gaps).
