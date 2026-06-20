@@ -29,6 +29,14 @@ from astronet.preprocess import preprocess
 
 SKIPPED_TICS=[]
 
+# Import-safe FLAGS default. This module normally runs as a script (FLAGS is set by
+# argparse in __main__ at the bottom), but QLP IMPORTS create() for inference, where
+# __main__ never runs. Without this, FLAGS is undefined and every TCE fails with
+# "NameError: name 'FLAGS' is not defined". Inference never augments, so
+# remove_random_points stays False; tess_data_dir is unused on the QLP path (which uses
+# get_lightcurve). __main__ reassigns FLAGS from parsed args when run as a script.
+FLAGS = argparse.Namespace(remove_random_points=False, tess_data_dir=None)
+
 class LCGetter(Protocol):
    def __call__(self, astro_id: int, aperture: Optional[Literal['s', 'm', 'l']] = None): ...
 AstronetMode = Literal["triage", "vetting"]
