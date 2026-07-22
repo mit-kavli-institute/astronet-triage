@@ -69,6 +69,7 @@ def parse_sector_from_filename(filename: str) -> int:
     return int(match.group(1))
 
 # Add optional columns
+df['planet_radius'] = df['planet_radius'].apply(lambda x: complex(x).real)
 df['r_p'] = df['s_rad'] * np.sqrt(df['depth'] / 1e6) * 109.076
 df['sector'] = df['file'].apply(parse_sector_from_filename)
 
@@ -84,31 +85,31 @@ df['sector'] = df['file'].apply(parse_sector_from_filename)
 
 # pd.DataFrame(records).to_csv('/pdo/users/dimond/tic_info_all.csv', index=False)
 
-tic_ids = df["tic_id"].dropna().astype(int).unique().tolist()
-print('Fetching from mast...')
-tic_df = fetch_tic_rows_by_id(
-    tic_ids,
-)
-tic_df = tic_df.rename(columns={"ID": "tic_id"})
-tic_df["tic_id"] = tic_df["tic_id"].astype(int)
-df["tic_id"] = df["tic_id"].astype(int)
-df = pd.merge(
-    df,
-    tic_df,
-    on="tic_id",
-    how="left", 
-)
+# tic_ids = df["tic_id"].dropna().astype(int).unique().tolist()
+# print('Fetching from mast...')
+# tic_df = fetch_tic_rows_by_id(
+#     tic_ids,
+# )
+# tic_df = tic_df.rename(columns={"ID": "tic_id"})
+# tic_df["tic_id"] = tic_df["tic_id"].astype(int)
+# df["tic_id"] = df["tic_id"].astype(int)
+# df = pd.merge(
+#     df,
+#     tic_df,
+#     on="tic_id",
+#     how="left", 
+# )
 
-qlp_df = pd.read_csv('/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all-qlp-data.csv')
-df = pd.merge(
-    df,
-    qlp_df,
-    on="tic_id",  # adjust join key if different
-    how="left",
-)
-st.session_state.df = df
+# qlp_df = pd.read_csv('/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all-qlp-data.csv')
+# df = pd.merge(
+#     df,
+#     qlp_df,
+#     on="tic_id",  # adjust join key if different
+#     how="left",
+# )
+# st.session_state.df = df
 
-df.to_csv('/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all-qlp-mast-data.csv')
+# df.to_csv('/pdo/astronet-data/data/labels/tces-vetting-v01-tois-triageJs-nocentroid-april2025-all-qlp-mast-data.csv')
 print('Set session state...')
 
 

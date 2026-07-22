@@ -100,18 +100,18 @@ def make_upsample_table(spec_df: pd.DataFrame,
 def train(model, config, train_files, shuffle_buffer_size=2500):
   """Trains a model."""
 
-  spec = pd.read_parquet("/pdo/users/dimond/train_spec.parquet")
+  spec = pd.read_parquet("/pdo/users/dimond/train_spec_sectors_73_to_84_no_j.parquet")
 
   train_df = spec[spec.split=="train"]
   val_df   = spec[spec.split=="val"]
   test_df  = spec[spec.split=="test"]
   weight_table = make_weight_table(spec)
-  upsample_table = make_upsample_table(spec)
+  #upsample_table = make_upsample_table(spec)
   print("Weight table contents:")
   print(spec[["astro_id", "sample_weight"]])
 
-  print("\nUpsample table contents:")
-  print(spec[["astro_id", "upsample_factor"]])
+#   print("\nUpsample table contents:")
+#   print(spec[["astro_id", "upsample_factor"]])
   #1/0
 
   ds = input_ds.build_train_dataset(
@@ -119,7 +119,7 @@ def train(model, config, train_files, shuffle_buffer_size=2500):
       input_config=config.inputs,
       batch_size=config.hparams.batch_size,
       shuffle_values_buffer=shuffle_buffer_size,
-      #weight_table=weight_table,
+      weight_table=weight_table,
       #upsample_table=upsample_table,
   )
 

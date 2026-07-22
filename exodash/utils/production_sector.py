@@ -11,7 +11,7 @@ from itertools import chain
 from exodash.utils.mast import fetch_tic_rows_by_id
 
 ASTRONET_BASE_PATH = Path("/pdo/astronet-data/data/")
-LATEST_TOI_DATA = Path("/pdo/astronet-data/data/toi-plus-2025-07-16.csv")
+LATEST_TOI_DATA = Path("/pdo/astronet-data/data/toi-catalog_2026-04-07_with_flag.csv")
 
 class ProductionSector:
     sector: int
@@ -74,6 +74,27 @@ class ProductionSector:
         return df
 
     @property
+    def individual_vetting_df(self) -> pd.DataFrame:
+        individual_vetting_path = Path(f"/pdo/astronet-data/data/individual_vetting_labels/sector_{self.sector}.csv")
+        if not individual_vetting_path.exists():
+            return pd.DataFrame()
+        vetting_df = pd.read_csv(individual_vetting_path)
+        vetting_df = vetting_df.rename(columns={
+            "TIC": "tic_id",
+            "Planet Number": "planetno",
+            "Vetting Disposition": "vetting_disposition",
+            "eclipsing_score": "triage_eclipsing_score",
+            "single_score": "triage_single_score",
+            "binary_score": "triage_binary_score",
+            "junk_score": "triage_junk_score",
+            "not_sure_score": "triage_not_sure_score",
+        })
+        vetting_cols = ["tic_id", "planetno", "vetting_disposition",
+                        "triage_eclipsing_score", "triage_single_score", "triage_binary_score",
+                        "triage_junk_score", "triage_not_sure_score", "human_triage", "planet_equilibrium_temperature"]
+        return vetting_df[[c for c in vetting_cols if c in vetting_df.columns]]
+    
+    @property
     def properties_df(self, include_labels: bool = True) -> pd.DataFrame:
         properties_df = pd.read_csv(self.properties_path, index_col=False)
         properties_df = self.clean_columns(properties_df)
@@ -93,6 +114,15 @@ class ProductionSector:
         were_results_delivered = properties_df.apply(lambda row: (row["tic_id"], row["planetno"]) in delivered_candidates, axis=1)
         properties_df["true_label"] = np.where(were_results_delivered, "p", "j")
         properties_df["sector"] = f"sector_{self.sector}"
+
+        vetting_df = self.individual_vetting_df
+
+        print(vetting_df)
+        print(properties_df)
+        if not vetting_df.empty:
+            vetting_df["tic_id"] = vetting_df["tic_id"].astype(properties_df["tic_id"].dtype)
+            vetting_df["planetno"] = vetting_df["planetno"].astype(properties_df["planetno"].dtype)
+            properties_df = properties_df.merge(vetting_df, on=["tic_id", "planetno"], how="left")
         return properties_df.loc[:, ~properties_df.columns.str.startswith('Unnamed')]
 
 
@@ -157,7 +187,7 @@ def get_qlp_astronet_scores(sector: ProductionSector) -> pd.DataFrame:
 def read_toi_data() -> pd.DataFrame:
     return pd.read_csv(LATEST_TOI_DATA, comment="#")[[
         "TIC", "Full TOI ID", "TOI Disposition", "TMag Value", "Orbital Epoch Value", "Orbital Period (days) Value",
-        "Transit Duration (hours) Value", "Transit Depth Value", "Planet Number", "Detection Pipeline(s)"
+        "Transit Duration (hours) Value", "Transit Depth Value", "Planet Number", "Detection Pipeline(s)", "in_2025_csv"
     ]].rename(columns={
             "TIC": "tic_id",
             "Full TOI ID": "toi_id",
@@ -263,7 +293,7 @@ def get_production_sector_df(sectors: List[int], custom_model, sector_to_astrone
     tce_data['has_toi'] = tce_data['tic_id'].isin(toi_data['tic_id_astronet'])
 
     toi_subset = toi_data[['tic_id_astronet', 'planetno_astronet', 'toi_id', 'toi_disposition',
-                        'detection_pipeline', 'match_strength']].copy()
+                        'detection_pipeline', 'match_strength', 'in_2025_csv']].copy()
     toi_subset['tic_id_astronet'] = toi_subset['tic_id_astronet'].astype(tce_data['tic_id'].dtype)
     toi_subset['planetno_astronet'] = toi_subset['planetno_astronet'].astype(tce_data['planetno'].dtype)
 

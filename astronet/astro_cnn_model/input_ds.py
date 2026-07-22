@@ -18,15 +18,46 @@ from absl import logging
 
 
 class ExampleParser:
-  """Function to parse a single tf.Example into feature and label tensors."""
-
-  def __init__(self, config, include_labels=False, include_identifiers=False):
+  def __init__(self, config, include_labels=False, include_identifiers=False, weight_table=None):
     if include_labels and include_identifiers:
       raise ValueError("Cannot set both include_labels and include_identifiers")
-
     self.config = config
     self.include_labels = include_labels
     self.include_identifiers = include_identifiers
+    self.weight_table = weight_table
+
+  def __call__(self, serialized_example):
+    data_fields = {
+        feature_name: tf.io.FixedLenFeature(feature.shape, tf.float32)
+        for feature_name, feature in self.config.features.items()
+    }
+    if self.include_labels:
+      for name in self.config.label_columns:
+        data_fields[name] = tf.io.FixedLenFeature([], tf.int64)
+    if self.include_identifiers or self.weight_table is not None:
+      data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
+
+    parsed_features = tf.io.parse_single_example(
+        serialized_example, features=data_fields)
+
+    features = self._extract_features(parsed_features)
+
+    if self.include_labels:
+      labels, weight = self._extract_labels(parsed_features)
+
+      # Override weight from table if provided
+      if self.weight_table is not None:
+        astro_id = parsed_features["astro_id"]
+        table_weight = self.weight_table.lookup(astro_id)
+        weight = weight * table_weight  # multiplicative so uncertainty_weight still applies
+
+      return features, labels, weight
+
+    if self.include_identifiers:
+      identifiers = parsed_features.pop("astro_id")
+      return features, identifiers
+
+    return features
 
   def _extract_features(self, parsed_features):
     """Extracts and processes features from raw parsed features."""
@@ -87,34 +118,6 @@ class ExampleParser:
 
     return labels, weight
 
-  def __call__(self, serialized_example):
-    """Parses a single tf.Example into feature and label tensors."""
-    data_fields = {
-        feature_name: tf.io.FixedLenFeature(feature.shape, tf.float32)
-        for feature_name, feature in self.config.features.items()
-    }
-    if self.include_labels:
-      for name in self.config.label_columns:
-        data_fields[name] = tf.io.FixedLenFeature([], tf.int64)
-    if self.include_identifiers:
-      assert "astro_id" not in data_fields
-      data_fields["astro_id"] = tf.io.FixedLenFeature([], tf.int64)
-
-    parsed_features = tf.io.parse_single_example(
-        serialized_example, features=data_fields)
-
-    features = self._extract_features(parsed_features)
-
-    if self.include_labels:
-      labels, weight = self._extract_labels(parsed_features)
-      return features, labels, weight
-
-    if self.include_identifiers:
-      identifiers = parsed_features.pop("astro_id")
-      return features, identifiers
-
-    return features
-
 
 class TimeSeriesRandomReverser:
 
@@ -148,17 +151,23 @@ def build_dataset(file_pattern,
                   repeat=1,
                   include_identifiers=False,
                   use_cache=False,
-                  apply_data_augmentation=False):
-  """Builds a Tensorflow Dataset from TFrecord files."""
-  filenames = tf.io.gfile.glob(file_pattern)
+                  apply_data_augmentation=False,
+                  weight_table=None):
+  filenames = [
+      f
+      for pattern in file_pattern.split(",")
+      for f in tf.io.gfile.glob(pattern.strip())
+  ]
   if not filenames:
     raise ValueError(f"Found no files matching '{file_pattern}'")
   ds = tf.data.Dataset.from_tensor_slices(filenames)
   if shuffle_filenames:
     ds = ds.shuffle(ds.cardinality())
   ds = ds.flat_map(tf.data.TFRecordDataset)
-  example_parser = ExampleParser(input_config, include_labels,
-                                 include_identifiers)
+  example_parser = ExampleParser(
+      input_config, include_labels, include_identifiers,
+      weight_table=weight_table,
+  )
   ds = ds.map(example_parser)
   if use_cache:
     # Cache the dataset in memory to avoid re-reading it over the network.
@@ -185,8 +194,8 @@ def build_dataset(file_pattern,
 def build_train_dataset(file_pattern,
                         input_config,
                         batch_size,
-                        shuffle_values_buffer=2500):
-  """Builds a dataset for training."""
+                        shuffle_values_buffer=2500,
+                        weight_table=None):
   return build_dataset(
       file_pattern,
       input_config,
@@ -194,7 +203,9 @@ def build_train_dataset(file_pattern,
       shuffle_values_buffer=shuffle_values_buffer,
       repeat=None,
       use_cache=True,
-      apply_data_augmentation=True)
+      apply_data_augmentation=True,
+      weight_table=weight_table,
+  )
 
 
 def build_eval_dataset(file_pattern,

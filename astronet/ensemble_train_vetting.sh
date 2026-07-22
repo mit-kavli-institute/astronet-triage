@@ -2,9 +2,9 @@
 
 set -e
 
-DATE=20260325
+DATE=20260430
 CONFIG_NAME=cshallue
-ENSEMBLE_NAME=dimond
+ENSEMBLE_NAME=sectors-73-to-84-no-j-15
 NAME=vetting-v01-tois-triageJs-nocentroid-april2025
 PRETRAIN_MODEL_DIR=/pdo/users/cshallue/astronet/models/triage/20250420/cshallue-h5/AstroCNNModel_cshallue_20250420_174804
 
@@ -22,7 +22,7 @@ do
         --config_overrides=$CONFIG_OVERRIDES \
         --pretrain_model_dir=$PRETRAIN_MODEL_DIR \
         --model_dir="$OUTPUT_DIR" \
-        --train_files="$DATA_DIR/train/*" \
+        --train_files="$DATA_DIR/train/*,/pdo/astronet-data/data/tfrecords/extracted/sectors_73_to_84_new_labels.tfrecord"
         --eval_files="val:$DATA_DIR/val/*" \
         --eval_files="test:$DATA_DIR/test/*"
 done

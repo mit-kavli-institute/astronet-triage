@@ -1,8 +1,11 @@
+from data_management.live_report_generator import LiveReportGenerator
 from exodash.utils.file_io import model_result_selector
 from exodash.utils.filter import advanced_filter_sidebar
 from exodash.utils.mast import fetch_tic_rows_by_id
 from exodash.utils.model_visualization import analyze_features, plot_pr_curve, plot_prediction_score_distribution, show_all_model_performance
 from exodash.utils.reports import generate_report_for_tic_id, infer_planet_number
+from exodash.utils.reports_tfrecords import TFRecordReports
+from exodash.utils.tic_visualization import TICVisualizer
 import streamlit as st
 import pandas as pd
 from data_management.light_curve_server import ALL_PAGE_TYPES
@@ -342,6 +345,12 @@ st.subheader(f"Top {N_TO_ANALYZE} Most Interesting Astro IDs")
 st.write("These Astro IDs were selected based on key failure modes: misclassification, uncertainty, or high variance.")
 selected_types = st.sidebar.multiselect("Select Report Page Types", sorted(ALL_PAGE_TYPES), default=['Summary', 'Depth-aperture Correlation', 'Difference Images'])
 
+MODEL_CONFIG_PATH = "/pdo/users/pablomer/mnt/tess/models/vetting/20250502/cshallue/AstroCNNModelVetting_cshallue_20250502_000812"
+
+generator = LiveReportGenerator()
+tfrecord_reports = TFRecordReports(eval_files=['/pdo/astronet-data/data/tfrecords/vetting-aug-2025-test/*'], model_config_path=MODEL_CONFIG_PATH)
+visualizer = TICVisualizer(server=server, df=df)
+
 while num_analyzed < N_TO_ANALYZE:
     cur_case += 1
     case = interesting_cases[cur_case]
@@ -357,16 +366,45 @@ while num_analyzed < N_TO_ANALYZE:
 
 
     tic_id = astro_props['tic_id']
+    cam = astro_props['cam']
+    ccd = astro_props['ccd']
     sector = astro_props['sector']
     planet_number = infer_planet_number(tic_id=tic_id, astro_id=astro_id)
-    pages = server.get_report_pages(tic_id, planet_number=planet_number, sector=int(sector))
-    if not pages:
-        st.write(f"No report for astro ID {astro_id}, skipping...")
-    else:
-        # Display metadata
-        st.subheader(f"Report for Astro ID: {astro_id} [{num_analyzed+1}/{N_TO_ANALYZE}]")
-        st.write(f"**True Label:** {true_label}, **Predicted Label:** {predicted_label}")
-        st.write(f"**disp Scores:** {disp_scores}")
-        st.write(f"**Reason for Selection:** {selection_reason}")
-        generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types, sector=sector)
-        num_analyzed += 1
+    # pages = server.get_report_pages(tic_id, planet_number=planet_number, sector=int(sector))
+    # if not pages:
+    #     st.write(f"No report for astro ID {astro_id}, skipping...")
+    # else:
+    #     # Display metadata
+    #     st.subheader(f"Report for Astro ID: {astro_id} [{num_analyzed+1}/{N_TO_ANALYZE}]")
+    #     st.write(f"**True Label:** {true_label}, **Predicted Label:** {predicted_label}")
+    #     st.write(f"**disp Scores:** {disp_scores}")
+    #     st.write(f"**Reason for Selection:** {selection_reason}")
+    #     generate_report_for_tic_id(tic_id=tic_id, planet_number=planet_number, pages=pages, selected_types=selected_types, sector=sector)
+    #     num_analyzed += 1
+    for page in [0, 1, 2, 3, 5, 6, 7]:
+            try:
+                print(f'Trying to get page {page} for tic={tic_id}, planet={planet_number}, cam={cam}, ccd={ccd}, sector={sector}...')
+                visualizer.visualize_tic_ids(
+                    tic_ids=[int(tic_id)],
+                    planet_numbers=[planet_number],
+                    selected_types=selected_types,
+                    tfrecord_reports=tfrecord_reports,
+                )
+                img_path = generator.generate_summary(
+                    tic_id=tic_id,
+                    planetno=planet_number,
+                    ccd=int(ccd),
+                    cam=int(cam),
+                    sector=f'sector_{sector}',
+                    page_num=page,
+                )
+                if page == 0:
+                    st.subheader(f"Report for Astro ID: {astro_id} [{num_analyzed+1}/{N_TO_ANALYZE}]")
+                    st.write(f"**True Label:** {true_label}, **Predicted Label:** {predicted_label}")
+                    st.write(f"**disp Scores:** {disp_scores}")
+                    st.write(f"**Reason for Selection:** {selection_reason}")
+                    num_analyzed += 1
+                st.image(img_path)
+            except Exception as e:
+                print(e)
+                #st.warning(f"Failed to locate page {page}")
